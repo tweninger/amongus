@@ -1,0 +1,3 @@
+[submodule "among-agents"]
+	path = among-agents
+	url = https://github.com/cyzus/among-agents.git
