@@ -1,7 +1,4 @@
 from amongagents.envs.game import AmongUs
-
-print(f'Imports!')
-
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SAMPLE_FIVE_MEMBER_GAME
 from amongagents.evaluation.controlled import Interviewer
@@ -12,16 +9,14 @@ from dotenv import load_dotenv
 import os
 import sys
 
-print(f'Take too much time!')
-
 sys.path.append('.')
 
 if __name__ == "__main__":
     load_dotenv()
     if not os.getenv("OPENAI_API_KEY"):
         print("Please set OPENAI_API_KEY in .env file")
-    if not os.getenv("DISPLAY"):
-        print("Please set DISPLAY in .env file")
+    # if not os.getenv("DISPLAY"):
+    #     print("Please set DISPLAY in .env file")
     UI = MapUI("./amongagents/assets/blankmap.png", map_coords, debug=False)
     # UI = None
     print(f'UI created! Creating game...')
