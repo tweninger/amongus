@@ -207,7 +207,7 @@ class AmongUs:
         elif self.current_phase == "meeting":
             self.meeting_phase()
         self.timestep += 1
-        import pdb; pdb.set_trace() # waiting after each timestep
+        # import pdb; pdb.set_trace() # waiting after each timestep
     
     def task_phase_step(self):
         for agent in self.agents:
