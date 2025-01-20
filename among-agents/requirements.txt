@@ -1,5 +1,6 @@
-langchain==0.1.14
-langchain_openai==0.1.14
+langchain
+langchain_openai
+python-dotenv
 matplotlib==3.9.1
 networkx==3.3
 openai==1.32.0
