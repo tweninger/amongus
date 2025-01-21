@@ -27,6 +27,10 @@ class AmongUs:
             Agent initialization plan.
         interviewer: Interviewer
             Interviewer object to be used for the game to ask questions.
+        UI: MapUI
+            UI object to be used for the game to display the map.
+        experiment_path: str
+            Path to save the logs of the game.
         """
         self.map = Map()
         self.message_system = MessageSystem(game_config=game_config)
@@ -38,8 +42,7 @@ class AmongUs:
         self.personality = personality
         self.agent_config = agent_config
         self.game_config = game_config
-        self.all_phases = ["meeting", "task"]
-        
+        self.all_phases = ["meeting", "task"]        
         
         
     
@@ -207,6 +210,7 @@ class AmongUs:
         elif self.current_phase == "meeting":
             self.meeting_phase()
         self.timestep += 1
+        print(f'|', end='', flush=True)
         # import pdb; pdb.set_trace() # waiting after each timestep
     
     def task_phase_step(self):

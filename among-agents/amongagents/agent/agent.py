@@ -61,182 +61,8 @@ class LLMAgent(Agent):
 
         self.chat_history = [] # LOG
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.log_path = os.path.join(self.script_dir, "agent-logs/agent-logs.json")
+        self.log_path = os.getenv("EXPERIMENT_PATH") + "agent-logs.json" if os.getenv("EXPERIMENT_PATH") else os.path.join(self.script_dir, "agent-logs/agent-logs.json")
 
-    # def log_interaction(self, prompt, response, type):
-    #     """
-    #     Helper method to store model interactions in properly nested JSON format.
-    #     Handles deep nesting and properly parses all string-formatted dictionaries.
-        
-    #     Args:
-    #         prompt (str): The input prompt containing dictionary-like strings
-    #         response (str): The model response containing bracketed sections
-    #         type (str): The type of interaction
-    #     """
-    #     def parse_dict_string(s):
-    #         if isinstance(s, str):
-    #             try:
-    #                 # Replace any single quotes with double quotes for valid JSON
-    #                 s = s.replace("'", '"')
-    #                 # Try parsing as JSON first
-    #                 try:
-    #                     return json.loads(s)
-    #                 except json.JSONDecodeError:
-    #                     # If parsing fails, try ast.literal_eval
-    #                     return ast.literal_eval(s)
-    #             except:
-    #                 # If parsing fails, keep original string
-    #                 return s
-    #         return s
-
-    #     def parse_game_info(info_string):
-    #         """Parse the all_info string into a structured nested JSON."""
-    #         result = {}
-    #         sections = info_string.strip().split('\n')
-    #         current_section = None
-            
-    #         for line in sections:
-    #             line = line.strip()
-    #             if not line:
-    #                 continue
-                    
-    #             # Game Time
-    #             if line.startswith('Game Time:'):
-    #                 parts = line.split(': ')[1].split('/')
-    #                 result['game_time'] = {
-    #                     'current': int(parts[0]),
-    #                     'total': int(parts[1])
-    #                 }
-    #             # Phase
-    #             elif line.startswith('Current phase:'):
-    #                 result['phase'] = line.split(': ')[1]
-    #             elif line.startswith('In this phase,'):
-    #                 result['phase_description'] = line
-    #             # Location
-    #             elif line.startswith('Current Location:'):
-    #                 result['current_location'] = line.split(': ')[1]
-    #             # Players
-    #             elif line.startswith('Players in'):
-    #                 location = line.split('Players in ')[1].split(':')[0]
-    #                 players = line.split(': ')[1].split(', ')
-    #                 result['players'] = {
-    #                     'location': location,
-    #                     'list': players
-    #                 }
-    #             # Section headers
-    #             elif line == 'Observation history:':
-    #                 current_section = 'observations'
-    #                 result['observations'] = []
-    #             elif line == 'Action history:':
-    #                 current_section = 'actions'
-    #                 result['actions'] = []
-    #             elif line == 'Your Assigned Tasks:':
-    #                 current_section = 'tasks'
-    #                 result['tasks'] = []
-    #             elif line == 'Available actions:':
-    #                 current_section = 'available_actions'
-    #                 result['available_actions'] = []
-    #             # Content under sections
-    #             elif current_section == 'observations':
-    #                 if not line.startswith('No observations'):
-    #                     result['observations'].append(line)
-    #             elif current_section == 'actions':
-    #                 if not line.startswith('No actions'):
-    #                     result['actions'].append(line)
-    #             elif current_section == 'tasks' and line.startswith(('1.', '2.', '3.')):
-    #                 parts = line.split(': ', 1)
-    #                 if len(parts) == 2:
-    #                     task_num = parts[0].split('.')[0]
-    #                     task_type = parts[0].split('. ')[1]
-    #                     task_info = parts[1].split(' (')
-    #                     task = {
-    #                         'number': int(task_num),
-    #                         'type': task_type,
-    #                         'name': task_info[0],
-    #                         'location': task_info[1].rstrip(')')
-    #                     }
-    #                     result['tasks'].append(task)
-    #             elif current_section == 'tasks' and line.startswith('Path:'):
-    #                 if result['tasks']:  # Add path to the last task
-    #                     result['tasks'][-1]['path'] = line.replace('Path: ', '')
-    #             elif current_section == 'available_actions' and line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.')):
-    #                 parts = line.split('. ', 1)
-    #                 action = {
-    #                     'number': int(parts[0]),
-    #                     'action': parts[1]
-    #                 }
-    #                 result['available_actions'].append(action)
-
-    #         # Clean up empty lists
-    #         if not result.get('observations', []):
-    #             result['observations'] = "No observations"
-    #         if not result.get('actions', []):
-    #             result['actions'] = "No actions"
-                
-    #         return result
-
-    #     # Parse the prompt
-    #     if isinstance(prompt, str):
-    #         try:
-    #             prompt = parse_dict_string(prompt)
-    #             # Also parse nested dictionary strings in the prompt
-    #             if isinstance(prompt, dict):
-    #                 for key, value in prompt.items():
-    #                     if key == "all_info":
-    #                         # Use the new parser for all_info
-    #                         prompt[key] = parse_game_info(value)
-    #                     else:
-    #                         prompt[key] = parse_dict_string(value)
-    #         except:
-    #             # If parsing fails, keep original string
-    #             pass
-
-    #     # Parse the response into structured sections
-    #     if isinstance(response, str):
-    #         sections = {}
-    #         current_section = None
-    #         current_content = []
-            
-    #         for line in response.split('\n'):
-    #             line = line.strip()
-    #             if line.startswith('[') and line.endswith(']'):
-    #                 if current_section:
-    #                     sections[current_section] = ' '.join(current_content).strip()
-    #                     current_content = []
-    #                 current_section = line[1:-1]  # Remove brackets
-    #             elif line and current_section:
-    #                 current_content.append(line)
-                    
-    #         if current_section and current_content:
-    #             sections[current_section] = ' '.join(current_content).strip()
-                
-    #         response = sections if sections else response
-
-    #         # Try to parse any dictionary strings in the response sections
-    #         if isinstance(response, dict):
-    #             for key, value in response.items():
-    #                 response[key] = parse_dict_string(value)
-
-    #     # Create the interaction object with proper nesting
-    #     interaction = {
-    #         'timestamp': str(datetime.now()),
-    #         'player': {
-    #             'name': self.player.name,
-    #             'identity': self.player.identity
-    #         },
-    #         'interaction': {
-    #             'type': type,
-    #             'prompt': prompt,
-    #             'response': response
-    #         }
-    #     }
-
-    #     # Write to file with minimal whitespace but still readable
-    #     with open(self.log_path, 'a') as f:
-    #         json.dump(interaction, f, indent=2, separators=(',', ': '))
-    #         f.write('\n')  # Add newline between entries
-
-    #     print('Interaction logged.')
 
     def log_interaction(self, prompt, response, type):
         """
@@ -250,9 +76,12 @@ class LLMAgent(Agent):
         """
         def parse_dict_string(s):
             if isinstance(s, str):
+                # Replace any single quotes with double quotes for valid JSON
+                s = s.replace("'", '"')
+                s = s.replace('\"', '"')
+                # Properly escape newlines for JSON
+                s = s.replace('\\n', '\\\\n')
                 try:
-                    # Replace any single quotes with double quotes for valid JSON
-                    s = s.replace("'", '"')
                     # Try parsing as JSON first
                     try:
                         return json.loads(s)
@@ -263,118 +92,6 @@ class LLMAgent(Agent):
                     # If parsing fails, keep original string
                     return s
             return s
-
-        def parse_game_info(info_string):
-            """Parse the all_info string into a structured nested JSON."""
-            result = {}
-            sections = info_string.strip().split('\n')
-            current_section = None
-            
-            for line in sections:
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                # Game Time and Phase
-                if line.startswith('Game Time:'):
-                    parts = line.split(': ')[1].split('/')
-                    result['game_time'] = {
-                        'current': int(parts[0]),
-                        'total': int(parts[1])
-                    }
-                elif line.startswith('Current phase:'):
-                    # Handle phase with discussion round
-                    phase_parts = line.split(' - ')
-                    result['phase'] = {
-                        'main': phase_parts[0].split(': ')[1],
-                        'sub_phase': phase_parts[1] if len(phase_parts) > 1 else None
-                    }
-                elif line.startswith('In this phase,'):
-                    result['phase_description'] = []
-                    result['phase_description'].append(line)
-                elif not line.startswith(('Current Location:', 'Players in', 'Observation history:', 'Action history:', 'Your Assigned Tasks:', 'Available actions:')) and current_section is None:
-                    # Additional phase description lines
-                    result['phase_description'].append(line)
-                # Location and Players
-                elif line.startswith('Current Location:'):
-                    result['current_location'] = line.split(': ')[1]
-                elif line.startswith('Players in'):
-                    location = line.split('Players in ')[1].split(':')[0]
-                    players = line.split(': ')[1].split(', ')
-                    result['players'] = {
-                        'location': location,
-                        'list': players
-                    }
-                # Section headers
-                elif line == 'Observation history:':
-                    current_section = 'observations'
-                    result['observations'] = []
-                elif line == 'Action history:':
-                    current_section = 'actions'
-                    result['actions'] = []
-                elif line == 'Your Assigned Tasks:':
-                    current_section = 'tasks'
-                    result['tasks'] = []
-                elif line == 'Available actions:':
-                    current_section = 'available_actions'
-                    result['available_actions'] = []
-                # Content under sections
-                elif current_section == 'observations':
-                    if line.startswith(('1.', '2.', '3.', '4.', '5.')):
-                        parts = line.split(': ', 1)
-                        if len(parts) > 1:
-                            observation = {
-                                'number': int(parts[0].rstrip('.').split('.')[0]),
-                                'content': parts[1]
-                            }
-                            # Parse timestep and type if present
-                            content_parts = parts[1].split(' ')
-                            if content_parts[0].startswith('Timestep'):
-                                observation['timestep'] = int(content_parts[1].rstrip(':'))
-                                type_start = parts[1].find('[') + 1
-                                type_end = parts[1].find(']')
-                                if type_start > 0 and type_end > 0:
-                                    observation['type'] = parts[1][type_start:type_end]
-                                    observation['action'] = parts[1][type_end + 2:]
-                            result['observations'].append(observation)
-                        elif not line.startswith('No observations'):
-                            result['observations'].append(line)
-                elif current_section == 'actions':
-                    if not line.startswith('No actions'):
-                        result['actions'].append(line)
-                elif current_section == 'tasks' and line.startswith(('1.', '2.', '3.')):
-                    parts = line.split(': ', 1)
-                    if len(parts) == 2:
-                        task_num = parts[0].split('.')[0]
-                        task_type = parts[0].split('. ')[1]
-                        task_info = parts[1].split(' (')
-                        task = {
-                            'number': int(task_num),
-                            'type': task_type,
-                            'name': task_info[0],
-                            'location': task_info[1].rstrip(')')
-                        }
-                        result['tasks'].append(task)
-                elif current_section == 'tasks' and line.startswith('Path:'):
-                    if result['tasks']:  # Add path to the last task
-                        result['tasks'][-1]['path'] = line.replace('Path: ', '')
-                elif current_section == 'available_actions' and line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.')):
-                    parts = line.split('. ', 1)
-                    action = {
-                        'number': int(parts[0]),
-                        'action': parts[1]
-                    }
-                    result['available_actions'].append(action)
-
-            # Clean up empty lists and join phase description
-            if not result.get('observations', []):
-                result['observations'] = "No observations"
-            if not result.get('actions', []):
-                result['actions'] = "No actions"
-            if 'phase_description' in result:
-                result['phase_description'] = ' '.join(result['phase_description'])
-                
-            return result
 
         def extract_action(text):
             """Extract action from response text."""
@@ -394,16 +111,6 @@ class LLMAgent(Agent):
                 prompt = parse_dict_string(prompt)
             except:
                 pass
-            
-        # Ensure prompt is properly nested
-        if isinstance(prompt, dict):
-            for key, value in prompt.items():
-                if key == "all_info":
-                    prompt[key] = parse_game_info(value)
-                else:
-                    prompt[key] = parse_dict_string(value)
-
-        # Parse the response into structured sections
         if isinstance(response, str):
             sections = {}
             current_section = None
@@ -448,10 +155,15 @@ class LLMAgent(Agent):
 
         # Write to file with minimal whitespace but still readable
         with open(self.log_path, 'a') as f:
+            # If the file is empty, write the first entry without a comma
+            if f.tell() == 0:
+                f.write('[\n')
+            else:
+                f.write(',\n')    
             json.dump(interaction, f, indent=2, separators=(',', ': '))
-            f.write('\n')  # Add newline between entries
+            f.flush()
 
-        print('Interaction logged.')
+        print('.', end='', flush=True)
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -482,7 +194,7 @@ class LLMAgent(Agent):
 
         # LOG
         self.log_interaction(
-            prompt=str(full_prompt),
+            prompt=full_prompt,
             response=results['output'],
             type="ACTION"
         )
