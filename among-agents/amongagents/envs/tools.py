@@ -18,6 +18,7 @@ class GetBestPath(BaseTool):
 
     def _run(self, from_location: str, to_location: str, identity: str) -> str:
         """Get the quickest path to a location."""
+        print(f'OKAY THIS FUNCTION GET BEST PATH IS CALLED WOW', flush=True)
         if identity == "Impostor":
             path = nx.shortest_path(self.metadata["network"], from_location, to_location)
         else:
