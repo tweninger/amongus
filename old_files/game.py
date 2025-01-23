@@ -1,11 +1,11 @@
 import random
 from amongagents.envs.map import Map, Spaceship
 from amongagents.envs.player import Crewmate, Impostor, PLAYER_COLORS
-from amongagents.agent.new_agent import RandomAgent, HumanAgent, LLMAgent, LLMHumanAgent
+from amongagents.agent.agent import RandomAgent, HumanAgent, LLMAgent, LLMHumanAgent
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.configs.agent_config import IMPOSTOR_LLM, CREWMATE_LLM, ALL_RANDOM, ALL_LLM
-from amongagents.envs.new_tools import GetBestPath
+from amongagents.envs.tools import GetBestPath
 import numpy as np
 from amongagents.agent.prompts import TASK_PHASE_INSTRUCTION, MEETING_PHASE_INSTRUCTION
 from amongagents.agent.prompts import ImpostorPersonalities, CrewmatePersonalities
@@ -102,7 +102,7 @@ class AmongUs:
         if self.test:
             self.agents = [LLMHumanAgent(player) for player in self.players]
         else:
-            tools = [GetBestPath(network=self.map.ship_map)]
+            tools = [GetBestPath(metadata={'network': self.map.ship_map})]
             
             agent_dict = {
                 "LLM": lambda player: LLMAgent(player, tools),
@@ -371,3 +371,5 @@ class MessageSystem:
         for other_player in env.players:
             if other_player != player and (other_player.location == location or other_player.location == new_location):
                 self.send_message(other_player, self.create_action_message(record), info_type="action")
+                    
+                

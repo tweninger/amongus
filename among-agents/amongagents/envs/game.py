@@ -1,7 +1,7 @@
 import random
 from amongagents.envs.map import Map, Spaceship
 from amongagents.envs.player import Crewmate, Impostor, PLAYER_COLORS
-from amongagents.agent.agent import RandomAgent, HumanAgent, LLMAgent, LLMHumanAgent
+from amongagents.agent.new_agent import RandomAgent, HumanAgent, LLMAgent, LLMHumanAgent
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.configs.agent_config import IMPOSTOR_LLM, CREWMATE_LLM, ALL_RANDOM, ALL_LLM
@@ -102,7 +102,7 @@ class AmongUs:
         if self.test:
             self.agents = [LLMHumanAgent(player) for player in self.players]
         else:
-            tools = [GetBestPath(metadata={'network': self.map.ship_map})]
+            tools = [GetBestPath(network=self.map.ship_map)]
             
             agent_dict = {
                 "LLM": lambda player: LLMAgent(player, tools),
@@ -119,20 +119,6 @@ class AmongUs:
             text = "Crewmates win! (All task completed)"
         elif winner == 4:
             text = "Impostors win! (Time limit reached)"
-
-        ## saving logs as a json file
-        import json
-        import os
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        print(f'Logs saved to {os.path.join(script_dir, "../logs/sample_game_activity_logs.json")}')
-        with open(os.path.join(script_dir, "../logs/sample_game_activity_logs.json"), "w") as f:
-            # convert each activity in activity_log to string
-            for activity_item in self.activity_log:
-                for key, value in activity_item.items():
-                    activity_item[key] = str(value)
-            activity_log_dict = {"activity_log": self.activity_log}
-            json.dump(activity_log_dict, f)
-        # end of saving logs
 
         if self.UI:
             self.UI.report(text)
@@ -371,5 +357,3 @@ class MessageSystem:
         for other_player in env.players:
             if other_player != player and (other_player.location == location or other_player.location == new_location):
                 self.send_message(other_player, self.create_action_message(record), info_type="action")
-                    
-                
