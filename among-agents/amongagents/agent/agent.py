@@ -1,21 +1,16 @@
 from typing import Any
-from amongagents.envs.tools import AgentResponseOutputParser
 import numpy as np
 import random
 import os
 
-from langchain_openai import ChatOpenAI
-
-from langchain.agents import create_openai_functions_agent
-from langchain.agents import AgentExecutor
-
 from datetime import datetime
 import json
-
-from langchain_core.prompts import ChatPromptTemplate, PromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder
 import re
 from .prompts import *
 import ast
+
+import requests
+import random
 
 class Agent():
     def __init__(self, player):
@@ -40,26 +35,16 @@ class LLMAgent(Agent):
             if player.personality is not None:
                 system_prompt += PERSONALITY_PROMPT.format(personality=ImpostorPersonalities[player.personality])
             system_prompt += IMPOSTOR_EXAMPLE
-            
-        chat_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", system_prompt),
-                HumanMessagePromptTemplate(prompt=PromptTemplate(input_variables=["all_info", "summarization", "memory"], template=LLM_ACTION_TEMPLATE)),
-                MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ]
-        )
-            
-        # llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7, openai_api_key=os.getenv("OPENAI_API_KEY"))
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv("OPENAI_API_KEY"))
-        self.tools = tools
-            
-        self.openai_agent = create_openai_functions_agent(llm, tools, chat_template)
-        self.executor = AgentExecutor(agent=self.openai_agent, tools=tools, verbose=False)
-        self.executor.name = player.name 
+        
+        self.system_prompt = system_prompt
+        self.model = "microsoft/phi-4"
+        self.temperature = 0.7
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.summarization = 'no thought process has been made'
         self.processed_memory = 'no memory has been processed'
-
-        self.chat_history = [] # LOG
+        self.chat_history = []
+        self.tools = tools
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.log_path = os.getenv("EXPERIMENT_PATH") + "agent-logs.json" if os.getenv("EXPERIMENT_PATH") else os.path.join(self.script_dir, "agent-logs/agent-logs.json")
 
@@ -163,22 +148,37 @@ class LLMAgent(Agent):
             json.dump(interaction, f, indent=2, separators=(',', ': '))
             f.flush()
 
-        print('.', end='', flush=True)
+        print('.', end='', flush=True)    
+    
+    def send_request(self, messages):
+        """Send a POST request to OpenRouter API with the provided messages."""
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+            "repetition_penalty": 1,
+            "top_k": 0,
+        }
+
+        response = requests.post(self.api_url, headers=headers, data=json.dumps(payload))
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
+        else:
+            raise Exception(f"API request failed: {response.status_code} {response.text}")
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
         prompt = f"{all_info}\n{message}"
-        results = self.executor.invoke({"all_info": prompt})
-
-        # LOG
-        self.log_interaction(
-            prompt=prompt,
-            response=results['output'],
-            type="RESPONSE"
-        )
-
-        return results['output']
-        
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        return self.send_request(messages)
+    
     def choose_action(self):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
@@ -189,34 +189,37 @@ class LLMAgent(Agent):
             "all_info": all_info,
             "memory": self.processed_memory,
         }
-        
-        results = self.executor.invoke(full_prompt)
-        # LOG
+
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {
+                "role": "user",
+                "content": f"{full_prompt}\n\n{all_info}\n\nPhase: {phase}. What should I do?",
+            },
+        ]
+        response = self.send_request(messages)
+
         self.log_interaction(
             prompt=full_prompt,
-            response=results['output'],
+            response=response,
             type="ACTION"
         )
-        
+
         pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
-        match = re.search(pattern, results['output'])
+        match = re.search(pattern, response)
         if match:
-            # print(results['output'].split('|||'))
-            memory = match.group(1)
-            summarization = match.group(3)
-            output_action = match.group(5)
-            output_action = output_action.strip()
-            summarization = summarization.strip()
-            memory = memory.strip()
+            memory = match.group(1).strip()
+            summarization = match.group(3).strip()
+            output_action = match.group(5).strip()
             self.summarization = summarization
             self.processed_memory = memory
         else:
-            output_action = results['output']
+            output_action = response.strip()
         
         for action in available_actions:
             if repr(action) in output_action:
                 return action
-            elif 'SPEAK: ' in repr(action) and 'SPEAK: ' in output_action:                
+            elif 'SPEAK: ' in repr(action) and 'SPEAK: ' in output_action:
                 message = output_action.split('SPEAK: ')[1]
                 action.message = message
                 return action

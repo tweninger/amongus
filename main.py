@@ -5,7 +5,7 @@ import sys
 import subprocess
 sys.path.append(os.path.abspath(".") + "/among-agents/") # import the among-agents package
 
-from amongagents.envs.new_game import AmongUs
+from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SAMPLE_FIVE_MEMBER_GAME
 from amongagents.envs.configs.agent_config import ALL_LLM, ALL_RANDOM, CREWMATE_LLM, IMPOSTOR_LLM
 from amongagents.envs.configs.map_config import map_coords
@@ -35,7 +35,7 @@ args = {
 
 # experiment logging
 
-logs_path = root_path + '/logs/'
+logs_path = root_path + '/expt-logs/'
 if not os.path.exists(logs_path):
     os.makedirs(logs_path)
 # all experiments are indexed with a number, so we need to find the next available number for the new experiment
@@ -57,7 +57,7 @@ log_file = open(expt_path + 'agent-logs.json', 'a')
 
 # create a file to store the experiment details
 experiment_file = open(expt_path + 'experiment-details.txt', 'w')
-experiment_file.write(f'Experiment {experiment_number}\n')
+experiment_file.write(f'Experiment {expt_path}\n')
 experiment_file.write(f'Date: {date}\n')
 experiment_file.write(f'Commit: {commit}\n')
 experiment_file.write(f'Experiment args: {args}\n')

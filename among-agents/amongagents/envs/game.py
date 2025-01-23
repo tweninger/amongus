@@ -1,7 +1,7 @@
 import random
 from amongagents.envs.map import Map, Spaceship
 from amongagents.envs.player import Crewmate, Impostor, PLAYER_COLORS
-from amongagents.agent.new_agent import RandomAgent, HumanAgent, LLMAgent, LLMHumanAgent
+from amongagents.agent.agent import RandomAgent, HumanAgent, LLMAgent, LLMHumanAgent
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.configs.agent_config import IMPOSTOR_LLM, CREWMATE_LLM, ALL_RANDOM, ALL_LLM
@@ -62,12 +62,9 @@ class AmongUs:
         self.vote_info_one_round = {}
         
         # game state
-        
         self.current_phase = "task"
         self.initialize_players()
         self.initialize_agents()
-        
-        
         
     def initialize_players(self):
         self.players = []
@@ -289,6 +286,7 @@ class AmongUs:
                       "round": round, 
                       "action": action, 
                       "player": player}
+        self.activity_log.append(record)
         self.message_system.route_real_time_message(self, record)
         if str(record["action"]).startswith("COMPLETE TASK"):
             imprtant_event = {"timestep": self.timestep,

@@ -18,21 +18,6 @@ class MapUI:
         self.canvas = tk.Canvas(self.master, width=self.map_image.width(), height=self.map_image.height())
         self.canvas.pack()
 
-        # try:
-        #     print(f"Attempting to load image from: {self.map_image_dir}")
-        #     self.map_image = tk.PhotoImage(file=self.map_image_dir)
-        #     print("Image dimensions:", self.map_image.width(), "x", self.map_image.height())
-        # except tk.TclError as e:
-        #     print(f"Error loading image: {e}")
-        #     # Optionally create a blank canvas or placeholder
-        #     self.map_image = None
-            
-        # Create canvas with fixed size if image loading fails
-        # width = self.map_image.width() if self.map_image else 800
-        # height = self.map_image.height() if self.map_image else 600
-        # self.canvas = tk.Canvas(self.master, width=width, height=height)
-        # self.canvas.pack()
-
         # Create label to display coordinates
         self.coord_label = tk.Label(self.master, text="")
         self.coord_label.pack()
@@ -50,9 +35,6 @@ class MapUI:
         # Create scrollbar for activity log
         self.activity_log = ScrollingActivityLog(self.master, width=self.map_image.width())
         self.activity_log.pack(side='bottom', fill='both', expand=True)
-
-
-        
         
 
     def draw_map(self, env):
