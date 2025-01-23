@@ -1,31 +1,43 @@
 import os
 import sys
-import os
-import sys
 import subprocess
-sys.path.append(os.path.abspath(".") + "/among-agents/") # import the among-agents package
+import argparse
+import datetime
+from dotenv import load_dotenv
 
+# Add among-agents package to the path
+sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
+
+# Import necessary modules
 from amongagents.envs.game import AmongUs
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SAMPLE_FIVE_MEMBER_GAME
-from amongagents.envs.configs.agent_config import ALL_LLM, ALL_RANDOM, CREWMATE_LLM, IMPOSTOR_LLM
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.configs.agent_config import ALL_LLM
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.UI.MapUI import MapUI
 
-from dotenv import load_dotenv
-import os
+# Constants
+ROOT_PATH = os.path.abspath(".")
+LOGS_PATH = os.path.join(ROOT_PATH, "expt-logs")
+ASSETS_PATH = os.path.join(ROOT_PATH, "among-agents", "amongagents", "assets")
+BLANK_MAP_IMAGE = os.path.join(ASSETS_PATH, "blankmap.png")
 
-root_path = os.path.abspath(".")
+# Initialize environment variables
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+DISPLAY = os.getenv("DISPLAY")
 
-# get the date of the experiment
-import datetime
-now = datetime.datetime.now()
-date = now.strftime("%Y-%m-%d")
+if not OPENAI_API_KEY:
+    raise EnvironmentError("Please set OPENAI_API_KEY in the .env file.")
+if not DISPLAY:
+    raise EnvironmentError("Please set DISPLAY in the .env file.")
 
-# git HEAD commit
-commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
+# Get experiment date and Git commit hash
+DATE = datetime.datetime.now().strftime("%Y-%m-%d")
+COMMIT_HASH = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
 
-args = {
-    'game_config': FIVE_MEMBER_GAME,
+# Default experiment arguments
+DEFAULT_ARGS = {
+    'game_config': SEVEN_MEMBER_GAME,
     'include_human': False,
     'test': False,
     'personality': True,
@@ -33,56 +45,55 @@ args = {
     'UI': None
 }
 
-# experiment logging
+def setup_experiment(experiment_name=None):
+    """Set up experiment directory and files."""
+    os.makedirs(LOGS_PATH, exist_ok=True)
 
-logs_path = root_path + '/expt-logs/'
-if not os.path.exists(logs_path):
-    os.makedirs(logs_path)
-# all experiments are indexed with a number, so we need to find the next available number for the new experiment
+    if not experiment_name:
+        experiment_number = 0
+        while os.path.exists(os.path.join(LOGS_PATH, f"exp_{experiment_number}")):
+            experiment_number += 1
+        experiment_name = f"{DATE}_exp_{experiment_number}"
+    
+    experiment_path = os.path.join(LOGS_PATH, experiment_name)
+    os.makedirs(experiment_path, exist_ok=True)
 
-expt_name = None
+    with open(os.path.join(experiment_path, 'experiment-details.txt'), 'w') as experiment_file:
+        experiment_file.write(f"Experiment {experiment_path}\n")
+        experiment_file.write(f"Date: {DATE}\n")
+        experiment_file.write(f"Commit: {COMMIT_HASH}\n")
+        experiment_file.write(f"Experiment args: {DEFAULT_ARGS}\n")
+        experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
 
-if not expt_name:
-    experiment_number = 0
-    while os.path.exists(logs_path + f'exp_{experiment_number}'):
-        experiment_number += 1
-    expt_path = logs_path + f'{date}_exp_{experiment_number}/'
-else:
-    expt_path = logs_path + f'{date}_{expt_name}/'
+    os.environ['EXPERIMENT_PATH'] = experiment_path
+    return os.path.join(experiment_path, 'agent-logs.json')
 
-os.makedirs(expt_path)
-
-# create a file to store the logs
-log_file = open(expt_path + 'agent-logs.json', 'a')
-
-# create a file to store the experiment details
-experiment_file = open(expt_path + 'experiment-details.txt', 'w')
-experiment_file.write(f'Experiment {expt_path}\n')
-experiment_file.write(f'Date: {date}\n')
-experiment_file.write(f'Commit: {commit}\n')
-experiment_file.write(f'Experiment args: {args}\n')
-experiment_file.write(f'Path of executable file: {os.path.abspath(__file__)}\n')
-# flush
-experiment_file.close()
-
-# set this as a global so it can be accessed by the agents
-os.environ['EXPERIMENT_PATH'] = expt_path
-
-load_dotenv()
-if not os.getenv("OPENAI_API_KEY"):
-    print("Please set OPENAI_API_KEY in .env file")
-if not os.getenv("DISPLAY"):
-    print("Please set DISPLAY in .env file")
-
-def game():
-    UI = MapUI(f"{root_path}/among-agents/amongagents/assets/blankmap.png", map_coords, debug=False)
-    # UI = None
-    print(f'UI created! Creating game...')
-    game = AmongUs(game_config=FIVE_MEMBER_GAME, include_human=False, test=False, personality=True, agent_config=ALL_LLM, UI=UI)
-    print(f'Game created! Running game...')
-    game.run_game()
-    print(f'Game finished! Closing UI...')
-    log_file.write(']')
+def game(experiment_name=None):
+    """Run the game."""
+    experiment_logs_path = setup_experiment(experiment_name)
+    with open(experiment_logs_path, 'a') as log_file:
+        ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False)
+        print("UI created! Creating game...")
+        game_instance = AmongUs(
+            game_config=DEFAULT_ARGS['game_config'],
+            include_human=DEFAULT_ARGS['include_human'],
+            test=DEFAULT_ARGS['test'],
+            personality=DEFAULT_ARGS['personality'],
+            agent_config=DEFAULT_ARGS['agent_config'],
+            UI=ui
+        )
+        print("Game created! Running game...")
+        game_instance.run_game()
+        print("Game finished! Closing UI...")
+        log_file.write(']')
 
 if __name__ == "__main__":
-    game()
+    parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
+    parser.add_argument(
+        "--name", 
+        type=str, 
+        default=None, 
+        help="Optional name for the experiment."
+    )
+    args = parser.parse_args()
+    game(experiment_name=args.name)
