@@ -1,16 +1,20 @@
 import random
 
 import numpy as np
-from amongagents.agent.agent import (HumanAgent, LLMAgent, LLMHumanAgent,
-                                     RandomAgent)
-from amongagents.agent.prompts import (MEETING_PHASE_INSTRUCTION,
-                                       TASK_PHASE_INSTRUCTION,
-                                       CrewmatePersonalities,
-                                       ImpostorPersonalities)
-from amongagents.envs.configs.agent_config import (ALL_LLM, ALL_RANDOM,
-                                                   CREWMATE_LLM, IMPOSTOR_LLM)
-from amongagents.envs.configs.game_config import (FIVE_MEMBER_GAME,
-                                                  SEVEN_MEMBER_GAME)
+from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
+from amongagents.agent.prompts import (
+    MEETING_PHASE_INSTRUCTION,
+    TASK_PHASE_INSTRUCTION,
+    CrewmatePersonalities,
+    ImpostorPersonalities,
+)
+from amongagents.envs.configs.agent_config import (
+    ALL_LLM,
+    ALL_RANDOM,
+    CREWMATE_LLM,
+    IMPOSTOR_LLM,
+)
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.map import Map, Spaceship
 from amongagents.envs.player import PLAYER_COLORS, Crewmate, Impostor
 from amongagents.envs.task import TaskAssignment

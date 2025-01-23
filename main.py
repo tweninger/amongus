@@ -1,19 +1,19 @@
-import argparse
-import datetime
 import os
-import subprocess
 import sys
 
+# Add among-agents package to the path
+sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
+
+import argparse
+import datetime
+import subprocess
+
 from amongagents.envs.configs.agent_config import ALL_LLM
-from amongagents.envs.configs.game_config import (FIVE_MEMBER_GAME,
-                                                  SEVEN_MEMBER_GAME)
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
 from dotenv import load_dotenv
-
-# Add among-agents package to the path
-sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
 
 # Import necessary modules
 

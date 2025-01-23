@@ -1,6 +1,5 @@
 import networkx as nx
-from amongagents.envs.configs.map_config import (connections, room_data,
-                                                 vent_connections)
+from amongagents.envs.configs.map_config import connections, room_data, vent_connections
 
 
 class Map:
