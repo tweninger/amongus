@@ -37,7 +37,7 @@ COMMIT_HASH = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().deco
 
 # Default experiment arguments
 DEFAULT_ARGS = {
-    'game_config': SEVEN_MEMBER_GAME,
+    'game_config': FIVE_MEMBER_GAME,
     'include_human': False,
     'test': False,
     'personality': True,
@@ -54,6 +54,8 @@ def setup_experiment(experiment_name=None):
         while os.path.exists(os.path.join(LOGS_PATH, f"exp_{experiment_number}")):
             experiment_number += 1
         experiment_name = f"{DATE}_exp_{experiment_number}"
+    else:
+        experiment_name = f"{DATE}_{experiment_name}"
     
     experiment_path = os.path.join(LOGS_PATH, experiment_name)
     os.makedirs(experiment_path, exist_ok=True)

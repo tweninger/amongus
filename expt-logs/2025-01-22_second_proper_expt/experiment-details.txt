@@ -1,5 +1,5 @@
-Experiment /Users/satvikgolechha/Desktop/MATS/AmongUs/expt-logs/2025-01-22_exp_0/
+Experiment /Users/satvikgolechha/Desktop/MATS/AmongUs/expt-logs/2025-01-22_second_proper_expt
 Date: 2025-01-22
-Commit: 43a361b3752b7529003785ba75f95f97fbe8d093
+Commit: f7aedb8755e96c92dc8d6099306a04fa54940054
 Experiment args: {'game_config': {'num_players': 5, 'num_impostors': 1, 'num_common_tasks': 1, 'num_short_tasks': 1, 'num_long_tasks': 0, 'discussion_rounds': 3, 'max_num_buttons': 2, 'kill_cooldown': 3, 'max_timesteps': 50}, 'include_human': False, 'test': False, 'personality': True, 'agent_config': {'Impostor': 'LLM', 'Crewmate': 'LLM'}, 'UI': None}
 Path of executable file: /Users/satvikgolechha/Desktop/MATS/AmongUs/main.py

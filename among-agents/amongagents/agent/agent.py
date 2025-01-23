@@ -46,7 +46,7 @@ class LLMAgent(Agent):
         self.chat_history = []
         self.tools = tools
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.log_path = os.getenv("EXPERIMENT_PATH") + "agent-logs.json" if os.getenv("EXPERIMENT_PATH") else os.path.join(self.script_dir, "agent-logs/agent-logs.json")
+        self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json" if os.getenv("EXPERIMENT_PATH") else os.path.join(self.script_dir, "agent-logs/agent-logs.json")
 
 
     def log_interaction(self, prompt, response, type):
