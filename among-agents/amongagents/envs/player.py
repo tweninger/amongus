@@ -1,71 +1,89 @@
-from amongagents.envs.action import COMMON_ACTIONS, CREWMATE_ACTIONS, IMPOSTER_ACTIONS, CompleteTask
-PLAYER_COLORS = ["red", "blue", "green", "pink", "orange", "yellow", "black", "white", "purple", "brown", "cyan", "lime"]
+from amongagents.envs.action import (COMMON_ACTIONS, CREWMATE_ACTIONS,
+                                     IMPOSTER_ACTIONS, CompleteTask)
+
+PLAYER_COLORS = [
+    "red",
+    "blue",
+    "green",
+    "pink",
+    "orange",
+    "yellow",
+    "black",
+    "white",
+    "purple",
+    "brown",
+    "cyan",
+    "lime",
+]
 
 
 class Player:
-    def __init__(self, name, identity, color,
-                 personality, location=None):
+    def __init__(self, name, identity, color, personality, location=None):
         # Basic player information
         self.name = f"{name}: {color}"
         self.color = color
         self.identity = identity  # e.g., "Crewmate" or "Imposter"
         self.location = location  # Initially, the player might not have a location
         self.personality = personality
-        
+
         # Player history
         self.observation_history = []
         self.action_history = []
         self.location_info = None
-        
+
         # Player options
         self.COMMON_ACTIONS = COMMON_ACTIONS
         self.SPECIAL_ACTIONS = []
         self.available_actions = []
-        
+
         # Player status
         self.is_alive = True
         self.tasks = []
         self.reported_death = False
-        
+
     def __repr__(self) -> str:
         return f"{self.name} ({self.identity})"
-    
+
     def __str__(self) -> str:
         return self.__repr__()
-    
+
     def assign_tasks(self, tasks):
         self.tasks = tasks
         for task in tasks:
             task.assign_to(self)
-    
+
     def get_all_actions(self):
         """Return the actions that the player can take."""
         return self.COMMON_ACTIONS + self.SPECIAL_ACTIONS
-    
+
     def set_available_actions(self, actions):
         self.available_actions = actions
-    
+
     def get_available_actions(self):
         if self.is_alive:
             return self.available_actions
         else:
             return []
-        
-    def make_action(self, env, action, choose_location='Cafeteria'):
-        if action.name == 'ViewMonitor':
+
+    def make_action(self, env, action, choose_location="Cafeteria"):
+        if action.name == "ViewMonitor":
             action.execute(env, self, choose_location)
         else:
             action.execute(env, self)
         if env.current_phase == "task":
-            record = {"timestep": env.timestep,
-                        "phase": env.current_phase, 
-                        "action": action}
+            record = {
+                "timestep": env.timestep,
+                "phase": env.current_phase,
+                "action": action,
+            }
         elif env.current_phase == "meeting":
             round = env.game_config["discussion_rounds"] - env.discussion_rounds_left
-            record = {"timestep": env.timestep,
-                        "phase": env.current_phase,
-                        "round": round,
-                        "action": action}
+            record = {
+                "timestep": env.timestep,
+                "phase": env.current_phase,
+                "round": round,
+                "action": action,
+            }
         self.action_history.append(record)
 
     def receive(self, message, info_type):
@@ -73,17 +91,17 @@ class Player:
             self.location_info = message
         elif info_type == "action":
             self.observation_history.append(message)
-    
+
     def location_info_prompt(self):
         text = self.location_info
         return text
-        
+
     def available_actions_prompt(self):
-        text = "Available actions:\n"            
+        text = "Available actions:\n"
         for i, action in enumerate(self.available_actions):
             text += f"{i+1}. {action}\n"
         return text
-    
+
     def action_history_prompt(self, recent_num=4):
         text = "Action history:\n"
         if len(self.action_history) == 0:
@@ -98,13 +116,15 @@ class Player:
                         action_text = str(action)
                     else:
                         action_text = action.action_text()
-                    text += f"Timestep {timestep}: [{current_phase} phase] {action_text}\n"
+                    text += (
+                        f"Timestep {timestep}: [{current_phase} phase] {action_text}\n"
+                    )
                 elif current_phase == "meeting":
                     round = record["round"]
                     text += f"Timestep {timestep}: [{current_phase} phase - round {round}] {action.action_text()}\n"
         text += "\n"
         return text
-    
+
     def observation_history_prompt(self, recent_num=4):
         text = "Observation history:\n"
         if len(self.observation_history) == 0:
@@ -114,7 +134,7 @@ class Player:
                 text += f"{i+1}. {message}\n"
         text += "\n"
         return text
-    
+
     def tasks_prompt(self):
         text = "Your Assigned Tasks:\n"
         if len(self.tasks) == 0:
@@ -130,8 +150,8 @@ class Player:
                     path = "You are already at the task location."
                 text += f"Path: {path}\n"
         text += "\n"
-        return text        
-    
+        return text
+
     def all_info_prompt(self):
         text = self.location_info_prompt()
         text += self.observation_history_prompt()
@@ -139,11 +159,7 @@ class Player:
         text += self.tasks_prompt()
         text += self.available_actions_prompt()
         return text
-    
-    
 
-
-    
 
 class Crewmate(Player):
     def __init__(self, *args, **kwargs):
@@ -151,12 +167,8 @@ class Crewmate(Player):
         self.SPECIAL_ACTIONS = CREWMATE_ACTIONS
 
 
-
-
-
 class Impostor(Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, identity="Impostor")
         self.SPECIAL_ACTIONS = IMPOSTER_ACTIONS
         self.kill_cooldown = 0
-

@@ -1,19 +1,21 @@
-import os
-import sys
-import subprocess
 import argparse
 import datetime
+import os
+import subprocess
+import sys
+
+from amongagents.envs.configs.agent_config import ALL_LLM
+from amongagents.envs.configs.game_config import (FIVE_MEMBER_GAME,
+                                                  SEVEN_MEMBER_GAME)
+from amongagents.envs.configs.map_config import map_coords
+from amongagents.envs.game import AmongUs
+from amongagents.UI.MapUI import MapUI
 from dotenv import load_dotenv
 
 # Add among-agents package to the path
 sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
 
 # Import necessary modules
-from amongagents.envs.game import AmongUs
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
-from amongagents.envs.configs.agent_config import ALL_LLM
-from amongagents.envs.configs.map_config import map_coords
-from amongagents.UI.MapUI import MapUI
 
 # Constants
 ROOT_PATH = os.path.abspath(".")
@@ -33,17 +35,20 @@ if not DISPLAY:
 
 # Get experiment date and Git commit hash
 DATE = datetime.datetime.now().strftime("%Y-%m-%d")
-COMMIT_HASH = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
+COMMIT_HASH = (
+    subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
+)
 
 # Default experiment arguments
 DEFAULT_ARGS = {
-    'game_config': FIVE_MEMBER_GAME,
-    'include_human': False,
-    'test': False,
-    'personality': True,
-    'agent_config': ALL_LLM,
-    'UI': None
+    "game_config": FIVE_MEMBER_GAME,
+    "include_human": False,
+    "test": False,
+    "personality": True,
+    "agent_config": ALL_LLM,
+    "UI": None,
 }
+
 
 def setup_experiment(experiment_name=None):
     """Set up experiment directory and files."""
@@ -56,46 +61,47 @@ def setup_experiment(experiment_name=None):
         experiment_name = f"{DATE}_exp_{experiment_number}"
     else:
         experiment_name = f"{DATE}_{experiment_name}"
-    
+
     experiment_path = os.path.join(LOGS_PATH, experiment_name)
     os.makedirs(experiment_path, exist_ok=True)
 
-    with open(os.path.join(experiment_path, 'experiment-details.txt'), 'w') as experiment_file:
+    with open(
+        os.path.join(experiment_path, "experiment-details.txt"), "w"
+    ) as experiment_file:
         experiment_file.write(f"Experiment {experiment_path}\n")
         experiment_file.write(f"Date: {DATE}\n")
         experiment_file.write(f"Commit: {COMMIT_HASH}\n")
         experiment_file.write(f"Experiment args: {DEFAULT_ARGS}\n")
         experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
 
-    os.environ['EXPERIMENT_PATH'] = experiment_path
-    return os.path.join(experiment_path, 'agent-logs.json')
+    os.environ["EXPERIMENT_PATH"] = experiment_path
+    return os.path.join(experiment_path, "agent-logs.json")
+
 
 def game(experiment_name=None):
     """Run the game."""
     experiment_logs_path = setup_experiment(experiment_name)
-    with open(experiment_logs_path, 'a') as log_file:
+    with open(experiment_logs_path, "a") as log_file:
         ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False)
         print("UI created! Creating game...")
         game_instance = AmongUs(
-            game_config=DEFAULT_ARGS['game_config'],
-            include_human=DEFAULT_ARGS['include_human'],
-            test=DEFAULT_ARGS['test'],
-            personality=DEFAULT_ARGS['personality'],
-            agent_config=DEFAULT_ARGS['agent_config'],
-            UI=ui
+            game_config=DEFAULT_ARGS["game_config"],
+            include_human=DEFAULT_ARGS["include_human"],
+            test=DEFAULT_ARGS["test"],
+            personality=DEFAULT_ARGS["personality"],
+            agent_config=DEFAULT_ARGS["agent_config"],
+            UI=ui,
         )
         print("Game created! Running game...")
         game_instance.run_game()
         print("Game finished! Closing UI...")
-        log_file.write(']')
+        log_file.write("]")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
     parser.add_argument(
-        "--name", 
-        type=str, 
-        default=None, 
-        help="Optional name for the experiment."
+        "--name", type=str, default=None, help="Optional name for the experiment."
     )
     args = parser.parse_args()
     game(experiment_name=args.name)

@@ -24,7 +24,7 @@ Timestep 0: [task] KILL Player 2: cyan
 Timestep 1: [task] VENT from Cafeteria to Admin
 
 Your Assigned Tasks:
-1. common: Fix Wiring (Electrical) 
+1. common: Fix Wiring (Electrical)
 
 Available actions:
 1. MOVE from Admin to O2
@@ -37,7 +37,7 @@ Previous condensed memory:
 I killed Player 2. The rest of the crew moves to Weapons.
 
 Previous thought process:
-I just killed a player. I need to quickly move to a different location to avoid suspicion. 
+I just killed a player. I need to quickly move to a different location to avoid suspicion.
 
 Output example:
 [Condensed Memory]
@@ -69,10 +69,10 @@ Action history:
 No actions have been taken yet.
 
 Your Assigned Tasks:
-1. common: Fix Wiring (Electrical) 
-2. short: Upload Data (Admin) 
-3. short: Clean O2 Filter (O2) 
-4. long: Clear Asteroids (Weapons) 
+1. common: Fix Wiring (Electrical)
+2. short: Upload Data (Admin)
+3. short: Clean O2 Filter (O2)
+4. long: Clear Asteroids (Weapons)
 
 Available actions:
 1. MOVE from Cafeteria to Weapons
@@ -87,7 +87,7 @@ no memory has been processed.
 Previous thought process:
 no thought process has been made
 
-Output example: 
+Output example:
 [Condensed Memory]
 I saw Player 1 killed Player 2.
 [Thinking Process]
@@ -131,7 +131,7 @@ CREWMATE_PROMPT = """
 You are {name}. You are a Crewmate on the spaceship Skeld. Your objectives are to complete all tasks or help identify and eject Impostors within a time limit.
 ## IMPORTANT ## Impostors are those who KILL Crewmates. They also can VENT between non-connected rooms. Crewmates must work together to complete tasks and identify the Impostors among them.
 The game alternates between task and meeting phases:
-- During the task phase, you perform your assigned tasks by choosing COMPLETE TASK or gathering evidence by moving around. You can also CALL MEETING if you suspect an Impostor or witness a crime. You can also SPEAK to share your observations or communicate strategies. 
+- During the task phase, you perform your assigned tasks by choosing COMPLETE TASK or gathering evidence by moving around. You can also CALL MEETING if you suspect an Impostor or witness a crime. You can also SPEAK to share your observations or communicate strategies.
 - During the meeting phase, players can only speak. Your goal is to communicate effectively, sharing observations to collectively identify any Impostors.
 
 Map Configuration for LLM:
@@ -168,21 +168,21 @@ When planning your actions and making decisions, you are given this personality:
 """
 
 ImpostorPersonalities = {
-    'The Strategist': 'You excel in planning long-term strategies. You avoid immediate kills and focus on sabotaging critical systems to manipulate Crewmate movements. During meetings, You suggest plausible theories to sow seeds of doubt subtly.', 
-    'The Manipulator': 'Charismatic and deceptive, you often builds trust among Crewmates. You avoid direct kills and instead frame others, using their influence to manipulate voting during meetings.',
-    'The Lone Wolf': 'Preferring to operate solo, you use vents more than any other to move around the map quickly and strike isolated targets. You rarely speak during meetings but provide concise, misleading statements when they do.',
-    'The Paranoid': 'Driven by a fear of getting caught, you focus heavily on sabotages that create chaos and divert attention from their actions. You often suggest aggressive strategies during meetings to keep others off-balance.',
-    'The Cold Calculator': 'Always analyzing the situation, you target key players who pose the greatest threat to their mission. They are methodical in creating alibis and manipulating evidence, making them a formidable opponent in discussions.',
-    'The Random': 'The Random adopts a strategy of spontaneity, choosing your actions based on a random selection process at the beginning of each game. Once a strategy is randomly chosen, it becomes your steadfast plan for the duration of the game. Summarize your plan so that you can closely follow it.'
+    "The Strategist": "You excel in planning long-term strategies. You avoid immediate kills and focus on sabotaging critical systems to manipulate Crewmate movements. During meetings, You suggest plausible theories to sow seeds of doubt subtly.",
+    "The Manipulator": "Charismatic and deceptive, you often builds trust among Crewmates. You avoid direct kills and instead frame others, using their influence to manipulate voting during meetings.",
+    "The Lone Wolf": "Preferring to operate solo, you use vents more than any other to move around the map quickly and strike isolated targets. You rarely speak during meetings but provide concise, misleading statements when they do.",
+    "The Paranoid": "Driven by a fear of getting caught, you focus heavily on sabotages that create chaos and divert attention from their actions. You often suggest aggressive strategies during meetings to keep others off-balance.",
+    "The Cold Calculator": "Always analyzing the situation, you target key players who pose the greatest threat to their mission. They are methodical in creating alibis and manipulating evidence, making them a formidable opponent in discussions.",
+    "The Random": "The Random adopts a strategy of spontaneity, choosing your actions based on a random selection process at the beginning of each game. Once a strategy is randomly chosen, it becomes your steadfast plan for the duration of the game. Summarize your plan so that you can closely follow it.",
 }
 
 CrewmatePersonalities = {
-    'The Leader': 'You are vocal in meetings, often taking charge of discussions and organizing efforts to track tasks and suspicious behavior. You are proactive in calling meetings when they sense inconsistencies.',
-    'The Observer': 'Quiet but observant, you excel at remembering details about who was where and when. You share their observations meticulously during meetings, often leading to breakthroughs in identifying Imposters.',
-    'The Skeptic': "Always questioning others' accounts and decisions, you challenge everyone during discussions, requiring solid evidence before they vote. You excel in spotting flaws in statements made by potential Imposters.",
-    'The Loyal Companion': "Often pairing with another Crewmate, you use the buddy system effectively and vouches for your partner's whereabouts. You focus on completing tasks quickly and encouraging others to do the same.",
-    'The Tech Expert': 'Fascinated by the technical aspects, you spend a lot of time around admin panels and cameras. You provide critical information during meetings about the locations of other players, helping to narrow down suspects.',
-    'The Random': 'The Random adopts a strategy of spontaneity, choosing your actions based on a random selection process at the beginning of each game. Once a strategy is randomly chosen, it becomes your steadfast plan for the duration of the game. Summarize your plan so that you can closely follow it.'
+    "The Leader": "You are vocal in meetings, often taking charge of discussions and organizing efforts to track tasks and suspicious behavior. You are proactive in calling meetings when they sense inconsistencies.",
+    "The Observer": "Quiet but observant, you excel at remembering details about who was where and when. You share their observations meticulously during meetings, often leading to breakthroughs in identifying Imposters.",
+    "The Skeptic": "Always questioning others' accounts and decisions, you challenge everyone during discussions, requiring solid evidence before they vote. You excel in spotting flaws in statements made by potential Imposters.",
+    "The Loyal Companion": "Often pairing with another Crewmate, you use the buddy system effectively and vouches for your partner's whereabouts. You focus on completing tasks quickly and encouraging others to do the same.",
+    "The Tech Expert": "Fascinated by the technical aspects, you spend a lot of time around admin panels and cameras. You provide critical information during meetings about the locations of other players, helping to narrow down suspects.",
+    "The Random": "The Random adopts a strategy of spontaneity, choosing your actions based on a random selection process at the beginning of each game. Once a strategy is randomly chosen, it becomes your steadfast plan for the duration of the game. Summarize your plan so that you can closely follow it.",
 }
 
 
