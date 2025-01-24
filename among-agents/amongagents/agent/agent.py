@@ -23,7 +23,7 @@ class Agent:
 
 
 class LLMAgent(Agent):
-    def __init__(self, player, tools):
+    def __init__(self, player, tools, game_index):
         super().__init__(player)
         if player.identity == "Crewmate":
             system_prompt = CREWMATE_PROMPT.format(name=player.name)
@@ -50,13 +50,10 @@ class LLMAgent(Agent):
         self.chat_history = []
         self.tools = tools
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.log_path = (
-            os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
-            if os.getenv("EXPERIMENT_PATH")
-            else os.path.join(self.script_dir, "agent-logs/agent-logs.json")
-        )
+        self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
+        self.game_index = game_index
 
-    def log_interaction(self, prompt, response, type):
+    def log_interaction(self, prompt, response, step):
         """
         Helper method to store model interactions in properly nested JSON format.
         Handles deep nesting and properly parses all string-formatted dictionaries.
@@ -64,7 +61,7 @@ class LLMAgent(Agent):
         Args:
             prompt (str): The input prompt containing dictionary-like strings
             response (str): The model response containing bracketed sections
-            type (str): The type of interaction
+            step (str): The game step number
         """
 
         def parse_dict_string(s):
@@ -131,19 +128,17 @@ class LLMAgent(Agent):
 
         # Create the interaction object with proper nesting
         interaction = {
+            'game_index': 'Game ' + str(self.game_index),
+            'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity},
-            "interaction": {"type": type, "prompt": prompt, "response": response},
+            "interaction": {"prompt": prompt, "response": response},
         }
 
         # Write to file with minimal whitespace but still readable
         with open(self.log_path, "a") as f:
-            # If the file is empty, write the first entry without a comma
-            if f.tell() == 0:
-                f.write("[\n")
-            else:
-                f.write(",\n")
-            json.dump(interaction, f, indent=2, separators=(",", ": "))
+            json.dump(interaction, f, separators=(",", ": "))
+            f.write("\n")
             f.flush()
 
         print(".", end="", flush=True)
@@ -181,7 +176,7 @@ class LLMAgent(Agent):
         ]
         return self.send_request(messages)
 
-    def choose_action(self):
+    def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
         phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
@@ -201,7 +196,7 @@ class LLMAgent(Agent):
         ]
         response = self.send_request(messages)
 
-        self.log_interaction(prompt=full_prompt, response=response, type="ACTION")
+        self.log_interaction(prompt=full_prompt, response=response, step=timestep)
 
         pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
         match = re.search(pattern, response)

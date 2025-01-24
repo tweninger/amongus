@@ -1,3 +1,6 @@
+# !/usr/bin/env python3
+# usage: main.py [-h] [--name NAME] 
+
 import os
 import sys
 
@@ -25,13 +28,6 @@ BLANK_MAP_IMAGE = os.path.join(ASSETS_PATH, "blankmap.png")
 
 # Initialize environment variables
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-DISPLAY = os.getenv("DISPLAY")
-
-if not OPENAI_API_KEY:
-    raise EnvironmentError("Please set OPENAI_API_KEY in the .env file.")
-if not DISPLAY:
-    raise EnvironmentError("Please set DISPLAY in the .env file.")
 
 # Get experiment date and Git commit hash
 DATE = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -44,11 +40,10 @@ DEFAULT_ARGS = {
     "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
-    "personality": True,
+    "personality": False,
     "agent_config": ALL_LLM,
-    "UI": None,
+    "UI": True,
 }
-
 
 def setup_experiment(experiment_name=None):
     """Set up experiment directory and files."""
@@ -56,7 +51,7 @@ def setup_experiment(experiment_name=None):
 
     if not experiment_name:
         experiment_number = 0
-        while os.path.exists(os.path.join(LOGS_PATH, f"exp_{experiment_number}")):
+        while os.path.exists(os.path.join(LOGS_PATH, f"{DATE}_exp_{experiment_number}")):
             experiment_number += 1
         experiment_name = f"{DATE}_exp_{experiment_number}"
     else:
@@ -77,13 +72,30 @@ def setup_experiment(experiment_name=None):
     os.environ["EXPERIMENT_PATH"] = experiment_path
     return os.path.join(experiment_path, "agent-logs.json")
 
-
-def game(experiment_name=None):
+def game(experiment_name=None, game_index=None):
     """Run the game."""
-    experiment_logs_path = setup_experiment(experiment_name)
-    with open(experiment_logs_path, "a") as log_file:
-        ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False)
-        print("UI created! Creating game...")
+    experiment_path = setup_experiment(experiment_name)
+    ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
+    print("UI created! Creating game..." if ui else "No UI selected. Running game without UI.")
+    game_instance = AmongUs(
+        game_config=DEFAULT_ARGS["game_config"],
+        include_human=DEFAULT_ARGS["include_human"],
+        test=DEFAULT_ARGS["test"],
+        personality=DEFAULT_ARGS["personality"],
+        agent_config=DEFAULT_ARGS["agent_config"],
+        UI=ui,
+        game_index=game_index,
+    )
+    print("Game created! Running game...")
+    game_instance.run_game()
+    print("Game finished! Closing UI...")
+
+def multiple_games(experiment_name=None, num_games=1):
+    """Run multiple games and log the results."""
+    experiment_path = setup_experiment(experiment_name)
+    for i in range(1, num_games+1):
+        print(f"Running game {i}...")
+        ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
         game_instance = AmongUs(
             game_config=DEFAULT_ARGS["game_config"],
             include_human=DEFAULT_ARGS["include_human"],
@@ -91,12 +103,9 @@ def game(experiment_name=None):
             personality=DEFAULT_ARGS["personality"],
             agent_config=DEFAULT_ARGS["agent_config"],
             UI=ui,
+            game_index=i,
         )
-        print("Game created! Running game...")
         game_instance.run_game()
-        print("Game finished! Closing UI...")
-        log_file.write("]")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
@@ -104,4 +113,5 @@ if __name__ == "__main__":
         "--name", type=str, default=None, help="Optional name for the experiment."
     )
     args = parser.parse_args()
-    game(experiment_name=args.name)
+    # game(experiment_name=args.name)
+    multiple_games(experiment_name=args.name, num_games=2)

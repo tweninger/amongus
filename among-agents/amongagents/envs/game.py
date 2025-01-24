@@ -31,6 +31,7 @@ class AmongUs:
         agent_config=IMPOSTOR_LLM,
         interviewer=None,
         UI=None,
+        game_index=0,
     ):
         """
         include_human: bool
@@ -57,6 +58,7 @@ class AmongUs:
         self.agent_config = agent_config
         self.game_config = game_config
         self.all_phases = ["meeting", "task"]
+        self.game_index = game_index
 
     def initialize_game(self):
         # reset game state
@@ -78,6 +80,7 @@ class AmongUs:
         self.current_phase = "task"
         self.initialize_players()
         self.initialize_agents()
+        self.agent_log = []
 
     def initialize_players(self):
         self.players = []
@@ -133,7 +136,7 @@ class AmongUs:
             tools = [GetBestPath(network=self.map.ship_map)]
 
             agent_dict = {
-                "LLM": lambda player: LLMAgent(player, tools),
+                "LLM": lambda player: LLMAgent(player, tools, self.game_index),
                 "Random": RandomAgent,
             }
             self.agents = [
@@ -218,7 +221,7 @@ class AmongUs:
 
         # choose action
 
-        action = agent.choose_action()
+        action = agent.choose_action(self.timestep)
         observation_location = ""
         if action.name == "ViewMonitor":
             observation_location = agent.choose_observation_location(
