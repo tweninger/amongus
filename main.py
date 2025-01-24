@@ -42,7 +42,7 @@ DEFAULT_ARGS = {
     "test": False,
     "personality": False,
     "agent_config": ALL_LLM,
-    "UI": True,
+    "UI": False,
 }
 
 def setup_experiment(experiment_name=None):
@@ -59,6 +59,10 @@ def setup_experiment(experiment_name=None):
 
     experiment_path = os.path.join(LOGS_PATH, experiment_name)
     os.makedirs(experiment_path, exist_ok=True)
+    
+    # delete everything in the experiment path
+    for file in os.listdir(experiment_path):
+        os.remove(os.path.join(experiment_path, file))
 
     with open(
         os.path.join(experiment_path, "experiment-details.txt"), "w"
@@ -70,11 +74,10 @@ def setup_experiment(experiment_name=None):
         experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
 
     os.environ["EXPERIMENT_PATH"] = experiment_path
-    return os.path.join(experiment_path, "agent-logs.json")
 
 def game(experiment_name=None, game_index=None):
     """Run the game."""
-    experiment_path = setup_experiment(experiment_name)
+    setup_experiment(experiment_name)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
     print("UI created! Creating game..." if ui else "No UI selected. Running game without UI.")
     game_instance = AmongUs(
@@ -92,7 +95,7 @@ def game(experiment_name=None, game_index=None):
 
 def multiple_games(experiment_name=None, num_games=1):
     """Run multiple games and log the results."""
-    experiment_path = setup_experiment(experiment_name)
+    setup_experiment(experiment_name)
     for i in range(1, num_games+1):
         print(f"Running game {i}...")
         ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
