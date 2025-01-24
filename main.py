@@ -1,5 +1,5 @@
 # !/usr/bin/env python3
-# usage: main.py [-h] [--name NAME] 
+# usage: main.py [-h] [--name NAME]
 
 import os
 import sys
