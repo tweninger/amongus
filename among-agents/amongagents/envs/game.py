@@ -347,7 +347,8 @@ class AmongUs:
                 "player": player,
             }
         self.activity_log.append(record)
-        print(record)
+        # print(record)
+        print('.', end='', flush=True)
         self.message_system.route_real_time_message(self, record)
         if str(record["action"]).startswith("COMPLETE TASK"):
             imprtant_event = {

@@ -42,7 +42,8 @@ class LLMAgent(Agent):
             system_prompt += IMPOSTOR_EXAMPLE
 
         self.system_prompt = system_prompt
-        self.model = "microsoft/phi-4"
+        # self.model = "microsoft/phi-4"
+        self.model = "meta-llama/llama-3.3-70b-instruct"
         self.temperature = 0.7
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -54,7 +55,7 @@ class LLMAgent(Agent):
         self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
         self.game_index = game_index
 
-    def log_interaction(self, prompt, response, step):
+    def log_interaction(self, sysprompt, prompt, response, step):
         """
         Helper method to store model interactions in properly nested JSON format.
         Handles deep nesting and properly parses all string-formatted dictionaries.
@@ -133,12 +134,14 @@ class LLMAgent(Agent):
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity},
-            "interaction": {"prompt": prompt, "response": response},
+            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
         }
 
         # Write to file with minimal whitespace but still readable
         with open(self.log_path, "a") as f:
-            json.dump(interaction, f, separators=(",", ": "))
+            # json.dump(interaction, f, separators=(",", ": "))
+            json.dump(interaction, f, indent=2, separators=(",", ": "))
+            # input()
             f.write("\n")
             f.flush()
 
@@ -197,7 +200,7 @@ class LLMAgent(Agent):
         ]
         response = self.send_request(messages)
 
-        self.log_interaction(prompt=full_prompt, response=response, step=timestep)
+        self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, response=response, step=timestep)
 
         pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
         match = re.search(pattern, response)

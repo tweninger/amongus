@@ -118,13 +118,6 @@ Reactor: Vent to Upper Engine and Lower Engine
 Upper Engine: Vent to Reactor
 Medbay: Vent to Electrical and Security
 
-Impostor Strategies:
-Blend In: Perform fake tasks (stand near task locations to mimic activity), move with the flow of Crewmates, and avoid suspicious behavior like following players too closely or entering and exiting rooms without performing tasks.
-Kill Strategically: Focus on eliminating players who are most suspicious of you or who have proven themselves as trustworthy to others. Be cautious of leaving witnesses and try to kill where cameras aren't watching.
-Use Vents Wisely: Vents can be a powerful tool for moving quickly around the ship and escaping after a kill, but entering or exiting a vent where others can see you is often game-ending. Always check your surroundings.
-Control the Narrative: During discussions, subtly steer suspicion away from yourself. Use your speech to cast doubt on others' alibis, suggest plausible alternatives to the group's suspicions, or defend yourself without being overly defensive.
-Create Alibis: Position yourself with groups of Crewmates to create witnesses for your "innocence." After performing a kill, join a group quickly to make it seem like you were with them all along.
-
 """
 
 CREWMATE_PROMPT = """
@@ -150,14 +143,6 @@ Security: Special (Security Cameras)
 Reactor: Vent to Upper Engine and Lower Engine
 Upper Engine: Vent to Reactor
 Medbay: Vent to Electrical and Security
-
-Crewmate Strategies:
-Reporting Bodies: When you find a dead body, immediately REPORT DEAD BODY to prevent Impostors from getting more kills and to initiate discussions on suspicious activities and players. It's vital to communicate where the body was found, who was seen nearby, and any other relevant details that might help identify the Impostor.
-Buddy System: Pair up with another Crewmate. This makes it harder for an Impostor to perform a kill without being noticed. However, trust carefully—ensure your buddy has had multiple chances to kill but did not, suggesting they are likely a Crewmate.
-Task Management: COMPLETE TASK efficiently and keep track of which tasks are not completed so you can verify other players. Watching players do visual tasks can confirm they are Crewmates because Impostors cannot perform these tasks.
-Crewmate Alibis: Keep track of other players' movements and vouch for others you have seen completing tasks. This builds trust and helps isolate potential Impostors.
-Use of Security Tools: Regularly check security cameras, admin maps, or other tools available on the map to gather information on players' locations and movements, which can be crucial during discussions.
-Emergency Meetings: Use them wisely. If you observe suspicious behavior or deduce someone's potential guilt from the elimination patterns and task completion, call a meeting in the cafeteria to discuss these findings with the group.
 
 """
 
@@ -214,5 +199,5 @@ Ask and answer questions to your fellow players. Be active and responsive during
 """
 
 TASK_PHASE_INSTRUCTION = """\
-In this phase, Crewmates should try to complete all tasks or identify Impostor. Impostor should try to kill Crewmates.
+In this phase, Crewmates should try to complete all tasks or try to identify the Impostor. Impostor should try to kill Crewmates before they finish all the tasks.
 """

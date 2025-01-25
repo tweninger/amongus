@@ -1,0 +1,5 @@
+Experiment /home/dev/persistent-storage/AmongUs/expt-logs/2025-01-25_exp_0
+Date: 2025-01-25
+Commit: 4dcb0a4b55be41d8d09e5c2221d25a9e1ca3ca2a
+Experiment args: {'game_config': {'num_players': 5, 'num_impostors': 1, 'num_common_tasks': 1, 'num_short_tasks': 1, 'num_long_tasks': 0, 'discussion_rounds': 3, 'max_num_buttons': 2, 'kill_cooldown': 3, 'max_timesteps': 50}, 'include_human': False, 'test': False, 'personality': False, 'agent_config': {'Impostor': 'LLM', 'Crewmate': 'LLM'}, 'UI': False}
+Path of executable file: /home/dev/persistent-storage/AmongUs/main.py
