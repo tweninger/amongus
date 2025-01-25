@@ -1,0 +1,5 @@
+Experiment /home/dev/persistent-storage/AmongUs/expt-logs/2025-01-25_much_simpler_prompt_llama_phi_fight
+Date: 2025-01-25
+Commit: 15575413c893ded2a47f06763e4db83b412bec80
+Experiment args: {'game_config': {'num_players': 7, 'num_impostors': 2, 'num_common_tasks': 1, 'num_short_tasks': 1, 'num_long_tasks': 1, 'discussion_rounds': 3, 'max_num_buttons': 2, 'kill_cooldown': 3, 'max_timesteps': 50}, 'include_human': False, 'test': False, 'personality': False, 'agent_config': {'Impostor': 'LLM', 'Crewmate': 'LLM', 'IMPOSTOR_LLM_CHOICES': ['meta-llama/llama-3.3-70b-instruct'], 'CREWMATE_LLM_CHOICES': ['microsoft/phi-4']}, 'UI': False}
+Path of executable file: /home/dev/persistent-storage/AmongUs/main.py

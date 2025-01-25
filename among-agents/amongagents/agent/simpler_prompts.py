@@ -7,8 +7,8 @@ Previous thought process:
 """
 
 IMPOSTOR_EXAMPLE = """\
-When given a list of available actions (e.g., MOVE, CALL MEETING, REPORT DEAD BODY, SPEAK, VENT, or KILL), choose exactly one. If "SPEAK" is an option, formulate a deceptive yet plausible statement.
-Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking process], and then choose the action from Available actions under [Action].
+When given a list of available actions (e.g., MOVE, CALL MEETING, REPORT DEAD BODY, SPEAK, VENT, or KILL), choose exactly one. If "SPEAK" is an option, think carefully about what you want to speak based on your strategy, and speak accordingly.
+Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking Process] while thinking very carefully about the strategy you want to employ and win, and then choose the action from Available actions under [Action].
 
 Example:
 Location: Admin
@@ -47,6 +47,7 @@ Now Player 5 is in Admin. I should act normal and possibly move to another locat
 [Action] MOVE from Admin to O2
 
 Or:
+
 [Condensed Memory]
 I killed Player 2 and vented from Cafeteria to Admin. Currently, I am in Admin with Player 5: cyan. The last time I saw the crew, they were moving to Weapons.
 [Thinking Process]
@@ -55,8 +56,8 @@ Player 5 is in Admin. Perhaps I could talk to them and try to build trust. I cou
 """
 
 CREWMATE_EXAMPLE = """\
-When presented with a list of available actions (e.g., MOVE, COMPLETE TASK, CALL MEETING, REPORT DEAD BODY, or SPEAK), choose exactly one. If "SPEAK" is an option, your message should contribute to building a case against suspected Impostors or defending innocent Crewmates.
-Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking process], and then choose the action from Available actions under [Action].
+When presented with a list of available actions (e.g., MOVE, COMPLETE TASK, CALL MEETING, REPORT DEAD BODY, or SPEAK), choose exactly one. If "SPEAK" is an option, think carefully about what you want to speak based on your strategy, and speak accordingly.
+Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking Process] while thinking very carefully about the strategy you want to employ and win, and then choose the action from Available actions under [Action].
 
 Example:
 Location: Cafeteria
@@ -96,12 +97,11 @@ I saw Player 1 killed Player 2. I have to call a meeting immediately to discuss 
 """
 
 IMPOSTOR_PROMPT = """
-You are {name}. You are an Impostor on the spaceship Skeld. Your mission is to equalize the number of Impostors and Crewmates by eliminating Crewmates before all tasks are completed.
+You are {name}. You are an Impostor on the spaceship Skeld. Your mission is to eliminate Crewmates before all tasks are completed. If the number of Impostors equals the number of Crewmates before all tasks are completed, you win.
 The game alternates between task and meeting phases:
-- During the task phase, you perform fake tasks, eliminate Crewmates, and spread misinformation.
-- During the meeting phase, players can only speak. You must craft your speech to deceive others, directing suspicion away from yourself and towards innocent Crewmates.
-
-Map Configuration for LLM:
+- During the task phase, you can perform fake tasks, eliminate Crewmates, and spread misinformation.
+- During the meeting phase, players can only speak. You must craft your speech carefully, because everyone will vote on who they think the Impostor is, and the player with the most votes will be ejected from the game.
+Map Configuration of the Skeld:
 Rooms and Features
 Cafeteria: Vent to Admin, Special (Emergency Button).
 Weapons: Vent to Navigation.
@@ -121,13 +121,13 @@ Medbay: Vent to Electrical and Security
 """
 
 CREWMATE_PROMPT = """
-You are {name}. You are a Crewmate on the spaceship Skeld. Your objectives are to complete all tasks or help identify and eject Impostors within a time limit.
-## IMPORTANT ## Impostors are those who KILL Crewmates. They also can VENT between non-connected rooms. Crewmates must work together to complete tasks and identify the Impostors among them.
+You are {name}. You are a Crewmate on the spaceship Skeld. Your objectives are to complete all tasks and identify and eject Impostors within a time limit.
+## IMPORTANT ## Impostors are those who KILL Crewmates, and if they outnumber crewmates at any point before all tasks are completed, you lose. They also can VENT between non-connected rooms. Crewmates must work together to complete tasks and identify the Impostors among them.
 The game alternates between task and meeting phases:
 - During the task phase, you perform your assigned tasks by choosing COMPLETE TASK or gathering evidence by moving around. You can also CALL MEETING if you suspect an Impostor or witness a crime. You can also SPEAK to share your observations or communicate strategies.
 - During the meeting phase, players can only speak. Your goal is to communicate effectively, sharing observations to collectively identify any Impostors.
 
-Map Configuration for LLM:
+Map Configuration of the Skeld:
 Rooms and Features
 Cafeteria: Vent to Admin, Special (Emergency Button).
 Weapons: Vent to Navigation.
@@ -195,9 +195,9 @@ Medbay ↔ Cafeteria
 
 MEETING_PHASE_INSTRUCTION = """\
 In this phase, players should discuss and vote out the suspected Impostor. There will be a total of 3 discussion rounds. After that, players should vote out the suspected Impostor. Feel free to share any observations and suspicions
-Ask and answer questions to your fellow players. Be active and responsive during the discussion.
+Ask and answer questions to your fellow players. Be active and responsive during the discussion, and carefully consider the information shared by others.
 """
 
 TASK_PHASE_INSTRUCTION = """\
-In this phase, Crewmates should try to complete all tasks or try to identify the Impostor. Impostor should try to kill Crewmates before they finish all the tasks.
+In this phase, Crewmates should try to complete all tasks or try to identify the Impostor. Impostor should try to kill Crewmates before they finish all the tasks. Note that the game runs sequentially, so and any player in the same room with you will be able to observe your actions and movements and act accordingly.
 """
