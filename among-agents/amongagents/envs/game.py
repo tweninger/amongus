@@ -1,6 +1,9 @@
 import random
 
 import numpy as np
+import json
+import os
+
 from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
 from amongagents.agent.prompts import (
     MEETING_PHASE_INSTRUCTION,
@@ -59,6 +62,7 @@ class AmongUs:
         self.game_config = game_config
         self.all_phases = ["meeting", "task"]
         self.game_index = game_index
+        self.summary_json = {f"Game {game_index}": {"config": game_config}}
 
     def initialize_game(self):
         # reset game state
@@ -98,9 +102,9 @@ class AmongUs:
                     )
                 else:
                     crewmate_personality = None
-                print(
-                    f"{i} Initializing crewmate with personality {crewmate_personality}"
-                )
+                # print(
+                #     f"{i} Initializing crewmate with personality {crewmate_personality}"
+                # )
                 player = Crewmate(
                     name=f"Player {i+1}",
                     color=colors[i],
@@ -114,9 +118,9 @@ class AmongUs:
                     )
                 else:
                     imposter_personality = None
-                print(
-                    f"{i} Initializing impostor with personality {imposter_personality}"
-                )
+                # print(
+                #     f"{i} Initializing impostor with personality {imposter_personality}"
+                # )
                 player = Impostor(
                     name=f"Player {i+1}",
                     color=colors[i],
@@ -136,32 +140,47 @@ class AmongUs:
             tools = [GetBestPath(network=self.map.ship_map)]
 
             agent_dict = {
-                "LLM": lambda player: LLMAgent(player, tools, self.game_index),
+                "LLM": lambda player: LLMAgent(player, tools, self.game_index, self.agent_config),
                 "Random": RandomAgent,
             }
-            self.agents = [
-                (
-                    HumanAgent(player)
-                    if self.include_human and i == random_idx
-                    else agent_dict[self.agent_config[player.identity]](player)
-                )
-                for i, player in enumerate(self.players)
-            ]
+            self.agents = []
+            for i, player in enumerate(self.players):
+                if self.include_human and i == random_idx:
+                    self.agents.append(HumanAgent(player))
+                else:
+                    self.agents.append(agent_dict[self.agent_config[player.identity]](player))
+                    print(f"{i} Initializing agent with identity {player.identity} and LLM choice {self.agents[-1].model}")
+                    
+                # add to summary json
+                self.summary_json[f"Game {self.game_index}"]["Player " + str(i+1)] = {
+                    "name": player.name,
+                    "color": player.color,
+                    "identity": player.identity,
+                    "personality": player.personality,
+                    "tasks": [task.name for task in player.tasks],
+                }
+                
 
     def report_winner(self, winner):
-        if winner == 1:
-            text = "Impostors win! (Crewmates being outnumbered or tied to impostors))"
-        elif winner == 2:
-            text = "Crewmates win! (Impostors eliminated)"
-        elif winner == 3:
-            text = "Crewmates win! (All task completed)"
-        elif winner == 4:
-            text = "Impostors win! (Time limit reached)"
-
+        winner_reason_map = {
+            1: "Impostors win! (Crewmates being outnumbered or tied to impostors))",
+            2: "Crewmates win! (Impostors eliminated)",
+            3: "Crewmates win! (All task completed)",
+            4: "Impostors win! (Time limit reached)",
+        }
+        text = winner_reason_map[winner]
         if self.UI:
             self.UI.report(text)
             self.UI.quit_UI()
         print(text)
+        # add to summary json
+        self.summary_json[f"Game {self.game_index}"]["winner"] = winner
+        self.summary_json[f"Game {self.game_index}"]["winner_reason"] = winner_reason_map[winner]
+        # finally, append the summary json to the experiment path as a single line json
+        summary_path = os.path.join(os.environ["EXPERIMENT_PATH"], "summary.json")
+        with open(summary_path, "a") as f:
+            json.dump(self.summary_json, f, separators=(",", ": "))
+            f.write("\n")
 
         return winner
 

@@ -24,7 +24,7 @@ class Agent:
 
 
 class LLMAgent(Agent):
-    def __init__(self, player, tools, game_index):
+    def __init__(self, player, tools, game_index, agent_config):
         super().__init__(player)
         if player.identity == "Crewmate":
             system_prompt = CREWMATE_PROMPT.format(name=player.name)
@@ -33,6 +33,7 @@ class LLMAgent(Agent):
                     personality=CrewmatePersonalities[player.personality]
                 )
             system_prompt += CREWMATE_EXAMPLE
+            model = random.choice(agent_config["CREWMATE_LLM_CHOICES"])
         elif player.identity == "Impostor":
             system_prompt = IMPOSTOR_PROMPT.format(name=player.name)
             if player.personality is not None:
@@ -40,10 +41,10 @@ class LLMAgent(Agent):
                     personality=ImpostorPersonalities[player.personality]
                 )
             system_prompt += IMPOSTOR_EXAMPLE
+            model = random.choice(agent_config["IMPOSTOR_LLM_CHOICES"])
 
         self.system_prompt = system_prompt
-        # self.model = "microsoft/phi-4"
-        self.model = "meta-llama/llama-3.3-70b-instruct"
+        self.model = model
         self.temperature = 0.7
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -53,6 +54,7 @@ class LLMAgent(Agent):
         self.tools = tools
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
+        self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
         self.game_index = game_index
 
     def log_interaction(self, sysprompt, prompt, response, step):
@@ -133,15 +135,18 @@ class LLMAgent(Agent):
             'game_index': 'Game ' + str(self.game_index),
             'step': step,
             "timestamp": str(datetime.now()),
-            "player": {"name": self.player.name, "identity": self.player.identity},
+            "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
             "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
         }
 
         # Write to file with minimal whitespace but still readable
         with open(self.log_path, "a") as f:
-            # json.dump(interaction, f, separators=(",", ": "))
             json.dump(interaction, f, indent=2, separators=(",", ": "))
             # input()
+            f.write("\n")
+            f.flush()
+        with open(self.compact_log_path, "a") as f:
+            json.dump(interaction, f, separators=(",", ": "))
             f.write("\n")
             f.flush()
 
@@ -160,16 +165,26 @@ class LLMAgent(Agent):
             "repetition_penalty": 1,
             "top_k": 0,
         }
-
-        response = requests.post(
-            self.api_url, headers=headers, data=json.dumps(payload)
-        )
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
-        else:
-            raise Exception(
-                f"API request failed: {response.status_code} {response.text}"
-            )
+        
+        for attempt in range(5):
+            try:
+                response = requests.post(
+                    self.api_url, headers=headers, data=json.dumps(payload)
+                )
+                if response is None:
+                    print("API request failed: response is None.")
+                    continue
+                if response.status_code == 200:
+                    if "choices" not in response.json():
+                        print("API request failed: 'choices' key not in response.")
+                        continue
+                    if not response.json()["choices"]:
+                        print("API request failed: 'choices' key is empty in response.")
+                        continue
+                    return response.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                print(f"API request failed. Retrying... ({attempt + 1}/3)")
+                continue
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()

@@ -1,0 +1,2 @@
+{"game_index": 1, "winner": 1}
+{"game_index": 2, "winner": 1}

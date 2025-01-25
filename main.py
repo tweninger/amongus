@@ -12,7 +12,7 @@ import datetime
 import subprocess
 
 from amongagents.envs.configs.agent_config import ALL_LLM
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, SAMPLE_FIVE_MEMBER_GAME
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
@@ -37,7 +37,7 @@ COMMIT_HASH = (
 
 # Default experiment arguments
 DEFAULT_ARGS = {
-    "game_config": FIVE_MEMBER_GAME,
+    "game_config": SEVEN_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
@@ -117,4 +117,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # game(experiment_name=args.name)
-    multiple_games(experiment_name=args.name, num_games=10)
+    multiple_games(experiment_name=args.name, num_games=2)
