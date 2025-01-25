@@ -8,7 +8,8 @@ from typing import Any
 
 import numpy as np
 import requests
-from amongagents.agent.prompts import *
+# from amongagents.agent.prompts import *
+from amongagents.agent.simpler_prompts import *
 
 
 class Agent:

@@ -117,4 +117,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # game(experiment_name=args.name)
-    multiple_games(experiment_name=args.name, num_games=2)
+    multiple_games(experiment_name=args.name, num_games=1)
