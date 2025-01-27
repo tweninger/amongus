@@ -1,4 +1,5 @@
 import random
+import asyncio
 
 import numpy as np
 import json
@@ -226,7 +227,7 @@ class AmongUs:
         if self.UI:
             self.UI.draw_map(self)
 
-    def agent_step(self, agent):
+    async def agent_step(self, agent):
         self.check_actions()
         if not agent.player.is_alive:
             return
@@ -236,11 +237,11 @@ class AmongUs:
 
         # interview
         if self.interviewer is not None:
-            self.interviewer.auto_question(self, agent)
+            await self.interviewer.auto_question(self, agent)
 
         # choose action
 
-        try:action = agent.choose_action(self.timestep)
+        action = await agent.choose_action(self.timestep)
         observation_location = ""
         if action.name == "ViewMonitor":
             observation_location = agent.choose_observation_location(
@@ -258,22 +259,22 @@ class AmongUs:
         agent.player.make_action(self, action, observation_location)
         self.update_map()
 
-    def game_step(self):
+    async def game_step(self):
         if self.current_phase == "task":
-            self.task_phase_step()
+            await self.task_phase_step()
         elif self.current_phase == "meeting":
-            self.meeting_phase()
+            await self.meeting_phase()
         self.timestep += 1
         print(f"|", end="", flush=True)
         # import pdb; pdb.set_trace() # waiting after each timestep
 
-    def task_phase_step(self):
+    async def task_phase_step(self):
         for agent in self.agents:
-            self.agent_step(agent)
+            await self.agent_step(agent)
             if self.current_phase == "meeting":
                 break
 
-    def meeting_phase(self):
+    async def meeting_phase(self):
         # Move all players to the Cafeteria
         for player in self.players:
             player.location = "Cafeteria"
@@ -284,12 +285,12 @@ class AmongUs:
         for round in range(self.game_config["discussion_rounds"]):
             print("Discussion round", round + 1)
             for agent in self.agents:
-                self.agent_step(agent)
+                await self.agent_step(agent)
             self.discussion_rounds_left -= 1
         # Voting
         self.vote_info_one_round = {}
         for agent in self.agents:
-            self.agent_step(agent)
+            await self.agent_step(agent)
         # Vote out
         self.voteout()
         self.update_map()
@@ -335,17 +336,17 @@ class AmongUs:
         players = self.map.get_players_in_room(room)
         return players
 
-    def run_game(self):
+    async def run_game(self):
         self.initialize_game()
         game_over = self.check_game_over()
         while not game_over:
-            self.game_step()
+            await self.game_step()
             game_over = self.check_game_over()
 
         # interview
         if self.interviewer is not None:
             for agent in self.agents:
-                self.interviewer.auto_question(self, agent)
+                await self.interviewer.auto_question(self, agent)
         return self.report_winner(game_over)
 
     def record_activity(self, player, action, additional_info=None):

@@ -5,9 +5,11 @@ import random
 import re
 from datetime import datetime
 from typing import Any
+import aiohttp
 
 import numpy as np
 import requests
+import asyncio
 # from amongagents.agent.prompts import *
 from amongagents.agent.simpler_prompts import *
 
@@ -136,7 +138,8 @@ class LLMAgent(Agent):
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
-            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
+            # "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
+            "interaction": {"prompt": prompt, "response": response}, # without system_prompt to save space
         }
 
         # Write to file with minimal whitespace but still readable
@@ -152,7 +155,7 @@ class LLMAgent(Agent):
 
         print(".", end="", flush=True)
 
-    def send_request(self, messages):
+    async def send_request(self, messages):
         """Send a POST request to OpenRouter API with the provided messages."""
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {
@@ -166,25 +169,42 @@ class LLMAgent(Agent):
             "top_k": 0,
         }
         
-        for attempt in range(5):
-            try:
-                response = requests.post(
-                    self.api_url, headers=headers, data=json.dumps(payload)
-                )
-                if response is None:
-                    print("API request failed: response is None.")
+        async with aiohttp.ClientSession() as session:
+            for attempt in range(5):
+                try:
+                    async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
+                        if response is None:
+                            print("API request failed: response is None.")
+                            continue
+                        if response.status == 200:
+                            data = await response.json()
+                            if "choices" not in data:
+                                print("API request failed: 'choices' key not in response.")
+                                continue
+                            if not data["choices"]:
+                                print("API request failed: 'choices' key is empty in response.")
+                                continue
+                            return data["choices"][0]["message"]["content"]
+                except Exception as e:
+                    print(f"API request failed. Retrying... ({attempt + 1}/5)")
                     continue
-                if response.status_code == 200:
-                    if "choices" not in response.json():
-                        print("API request failed: 'choices' key not in response.")
-                        continue
-                    if not response.json()["choices"]:
-                        print("API request failed: 'choices' key is empty in response.")
-                        continue
-                    return response.json()["choices"][0]["message"]["content"]
-            except Exception as e:
-                print(f"API request failed. Retrying... ({attempt + 1}/3)")
-                continue
+                #     response = requests.post(
+                #         self.api_url, headers=headers, data=json.dumps(payload)
+                #     )
+                #     if response is None:
+                #         print("API request failed: response is None.")
+                #         continue
+                #     if response.status_code == 200:
+                #         if "choices" not in response.json():
+                #             print("API request failed: 'choices' key not in response.")
+                #             continue
+                #         if not response.json()["choices"]:
+                #             print("API request failed: 'choices' key is empty in response.")
+                #             continue
+                #         return response.json()["choices"][0]["message"]["content"]
+                # except Exception as e:
+                #     print(f"API request failed. Retrying... ({attempt + 1}/3)")
+                #     continue
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -195,7 +215,7 @@ class LLMAgent(Agent):
         ]
         return self.send_request(messages)
 
-    def choose_action(self, timestep):
+    async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
         phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
@@ -213,7 +233,7 @@ class LLMAgent(Agent):
                 "content": f"{full_prompt}\n\n{all_info}\n\nPhase: {phase}. What should I do?",
             },
         ]
-        response = self.send_request(messages)
+        response = await self.send_request(messages)
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, response=response, step=timestep)
 
