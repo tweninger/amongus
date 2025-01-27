@@ -1,6 +1,12 @@
 # environment file
 .env
 
+# expt-logs
+expt-logs/
+
+# evaluations/results
+evaluations/results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

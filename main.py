@@ -112,9 +112,8 @@ def multiple_games(experiment_name=None, num_games=1):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
-    parser.add_argument(
-        "--name", type=str, default=None, help="Optional name for the experiment."
-    )
+    parser.add_argument("--name", type=str, default=None, help="Optional name for the experiment.")
+    parser.add_argument("--num_games", type=int, default=1, help="Number of games to run.")
     args = parser.parse_args()
     # game(experiment_name=args.name)
-    multiple_games(experiment_name=args.name, num_games=2)
+    multiple_games(experiment_name=args.name, num_games=args.num_games)

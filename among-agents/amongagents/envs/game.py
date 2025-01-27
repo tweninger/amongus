@@ -240,7 +240,7 @@ class AmongUs:
 
         # choose action
 
-        action = agent.choose_action(self.timestep)
+        try:action = agent.choose_action(self.timestep)
         observation_location = ""
         if action.name == "ViewMonitor":
             observation_location = agent.choose_observation_location(
