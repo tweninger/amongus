@@ -255,6 +255,8 @@ class LLMAgent(Agent):
                 message = output_action.split("SPEAK: ")[1]
                 action.message = message
                 return action
+            else:
+                action.message = '...'
         return action
 
     def choose_observation_location(self, map):

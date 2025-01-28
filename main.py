@@ -41,8 +41,8 @@ COMMIT_HASH = (
 
 # Default experiment arguments
 DEFAULT_ARGS = {
-    "game_config": SEVEN_MEMBER_GAME,
-    # "game_config": FIVE_MEMBER_GAME,
+    # "game_config": SEVEN_MEMBER_GAME,
+    "game_config": SAMPLE_FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
