@@ -142,6 +142,10 @@ class Speak(Action):
     def can_execute_actions(env, player):
         if env.current_phase == "meeting" and env.discussion_rounds_left == 0:
             return []
+        # ADDITION BY ME
+        if env.current_phase == "task":
+            return []
+        
         return [Speak(current_location=player.location)]
 
 

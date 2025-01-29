@@ -368,7 +368,7 @@ class AmongUs:
             }
         self.activity_log.append(record)
         # print(record)
-        print('.', end='', flush=True)
+        # print('.', end='', flush=True)
         self.message_system.route_real_time_message(self, record)
         if str(record["action"]).startswith("COMPLETE TASK"):
             imprtant_event = {
@@ -404,7 +404,7 @@ class MessageSystem:
             message = f"Timestep {timestep}: [{current_phase}] {player.name} {action.action_text()}"
         elif current_phase == "meeting":
             round = record["round"]
-            message = f"Timestep {timestep}: [{current_phase} phase - round {round}] {player.name} {action.action_text()}"
+            message = f"Timestep {timestep}: [{current_phase} phase - round {round + 1}] {player.name} {action.action_text()}"
         return message
 
     def create_location_message(self, record, env):
@@ -414,7 +414,7 @@ class MessageSystem:
         elif env.current_phase == "meeting":
             max_rounds = env.game_config["discussion_rounds"]
             round = max_rounds - env.discussion_rounds_left
-            phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
+            phase_info = f"Meeting phase - Discussion round ({round + 1}/{max_rounds})"
             instruction = MEETING_PHASE_INSTRUCTION
         message = f"Game Time: {env.timestep}/{env.game_config['max_timesteps']}\n"
         message += f"Current phase: {phase_info}\n"

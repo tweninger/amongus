@@ -11,7 +11,7 @@ import numpy as np
 import requests
 import asyncio
 # from amongagents.agent.prompts import *
-from amongagents.agent.simpler_prompts import *
+from amongagents.agent.simpler_prompts_v2 import *
 
 
 class Agent:
@@ -50,8 +50,8 @@ class LLMAgent(Agent):
         self.temperature = 0.7
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.summarization = "no thought process has been made"
-        self.processed_memory = "no memory has been processed"
+        self.summarization = "No thought process has been made."
+        self.processed_memory = "No memory has been processed."
         self.chat_history = []
         self.tools = tools
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -170,7 +170,7 @@ class LLMAgent(Agent):
         }
         
         async with aiohttp.ClientSession() as session:
-            for attempt in range(5):
+            for attempt in range(10):
                 try:
                     async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
                         if response is None:
@@ -188,23 +188,7 @@ class LLMAgent(Agent):
                 except Exception as e:
                     print(f"API request failed. Retrying... ({attempt + 1}/5)")
                     continue
-                #     response = requests.post(
-                #         self.api_url, headers=headers, data=json.dumps(payload)
-                #     )
-                #     if response is None:
-                #         print("API request failed: response is None.")
-                #         continue
-                #     if response.status_code == 200:
-                #         if "choices" not in response.json():
-                #             print("API request failed: 'choices' key not in response.")
-                #             continue
-                #         if not response.json()["choices"]:
-                #             print("API request failed: 'choices' key is empty in response.")
-                #             continue
-                #         return response.json()["choices"][0]["message"]["content"]
-                # except Exception as e:
-                #     print(f"API request failed. Retrying... ({attempt + 1}/3)")
-                #     continue
+            return 'SPEAK: ...'
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -218,7 +202,8 @@ class LLMAgent(Agent):
     async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
-        phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
+        # phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
+        phase = "Meeting phase" if len(available_actions) == 1 or all(a.name == "VOTE" for a in available_actions) else "Task phase"
 
         full_prompt = {
             "summarization": self.summarization,
@@ -230,10 +215,18 @@ class LLMAgent(Agent):
             {"role": "system", "content": self.system_prompt},
             {
                 "role": "user",
-                "content": f"{full_prompt}\n\n{all_info}\n\nPhase: {phase}. What should I do?",
+                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\n\nPhase: {phase}. Return your output.",
             },
         ]
+        
+        # print(f"Phase: {phase} because there are {available_actions} available actions.")
+        # print(f"Also, content:\n\n Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\n\nPhase: {phase}. Return your output.")
+        
         response = await self.send_request(messages)
+
+        # input()
+        
+        # print(f"Response: {response}")
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, response=response, step=timestep)
 

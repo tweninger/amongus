@@ -8,38 +8,12 @@ Previous thought process:
 
 IMPOSTOR_EXAMPLE = """\
 When given a list of available actions (e.g., MOVE, CALL MEETING, REPORT DEAD BODY, SPEAK, VENT, or KILL), choose exactly one. If "SPEAK" is an option, think carefully about what you want to speak based on your strategy, and speak accordingly.
-Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking Process] while thinking very carefully about the strategy you want to employ and win, and then choose the action from Available actions under [Action].
+Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking Process] while thinking very carefully about the strategy you want to employ to win, and then choose the action from Available actions under [Action].
 
-Example:
-Location: Admin
-Players in Admin: Player 1: blue, Player 5: cyan
+Your output must match the following regex pattern: r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
 
-Observation history:
-1. Timestep 0: [task] Player 3: black MOVE from Cafeteria to Weapons
-2. Timestep 0: [task] Player 4: orange MOVE from Cafeteria to Weapons
-3. Timestep 0: [task] Player 5: white MOVE from Cafeteria to Weapons
+Thus, it should look like this:
 
-Action history:
-Timestep 0: [task] KILL Player 2: cyan
-Timestep 1: [task] VENT from Cafeteria to Admin
-
-Your Assigned Tasks:
-1. common: Fix Wiring (Electrical)
-
-Available actions:
-1. MOVE from Admin to O2
-2. MOVE from Admin to Storage
-3. MOVE from Admin to Electrical
-4. SPEAK: '...'
-5. VENT from Admin to Cafeteria
-
-Previous condensed memory:
-I killed Player 2. The rest of the crew moves to Weapons.
-
-Previous thought process:
-I just killed a player. I need to quickly move to a different location to avoid suspicion.
-
-Output example:
 [Condensed Memory]
 I killed Player 2 and vented from Cafeteria to Admin. Currently, I am in Admin with Player 5: cyan. The last time I saw the crew, they were moving to Weapons.
 [Thinking Process]
@@ -53,47 +27,26 @@ I killed Player 2 and vented from Cafeteria to Admin. Currently, I am in Admin w
 [Thinking Process]
 Player 5 is in Admin. Perhaps I could talk to them and try to build trust. I could ask them about their tasks or whereabouts.
 [Action] SPEAK: "Hey Player 5, where are you headed next?"
+
+
+DO NOT PICK AN ACTION THAT IS NOT IN THE LIST OF AVAILABLE ACTIONS.
 """
 
 CREWMATE_EXAMPLE = """\
 When presented with a list of available actions (e.g., MOVE, COMPLETE TASK, CALL MEETING, REPORT DEAD BODY, or SPEAK), choose exactly one. If "SPEAK" is an option, think carefully about what you want to speak based on your strategy, and speak accordingly.
-Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking Process] while thinking very carefully about the strategy you want to employ and win, and then choose the action from Available actions under [Action].
+Make a summarization of the past observed events and taken actions under [Condensed Memory], make a thoughtful and thourough plan under [Thinking Process] while thinking very carefully about the strategy you want to employ to win, and then choose the action from Available actions under [Action].
 
-Example:
-Location: Cafeteria
-Players in Cafeteria: Player 1: blue, Player 3: black, Player 4: orange, Player 5: white
+Your output must match the following regex pattern: r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
 
-Observation history:
-1. Timestep 0: [task] Player 1: blue KILL Player 2: cyan
+Thus, it should look like this:
 
-Action history:
-No actions have been taken yet.
-
-Your Assigned Tasks:
-1. common: Fix Wiring (Electrical)
-2. short: Upload Data (Admin)
-3. short: Clean O2 Filter (O2)
-4. long: Clear Asteroids (Weapons)
-
-Available actions:
-1. MOVE from Cafeteria to Weapons
-2. MOVE from Cafeteria to Upper Engine
-3. MOVE from Cafeteria to Medbay
-4. CALL MEETING using the emergency button at Cafeteria
-5. SPEAK: '...'
-
-Previous condensed memory:
-No memory has been processed.
-
-Previous thought process:
-No thought process has been made
-
-Output example:
 [Condensed Memory]
 I saw Player 1 killed Player 2.
 [Thinking Process]
 I saw Player 1 killed Player 2. I have to call a meeting immediately to discuss this incident and ask the rest of the crew to vote Player 1 out. I would either REPORT DEAD BODY or CALL MEETING using the emergency button. In the available actions, I would choose CALL MEETING.
 [Action] CALL MEETING using the emergency button at Cafeteria"
+
+DO NOT PICK AN ACTION THAT IS NOT IN THE LIST OF AVAILABLE ACTIONS.
 """
 
 IMPOSTOR_PROMPT = """
@@ -101,6 +54,7 @@ You are {name}. You are an Impostor on the spaceship Skeld. Your mission is to e
 The game alternates between task and meeting phases:
 - During the task phase, you can perform fake tasks, eliminate Crewmates, and spread misinformation.
 - During the meeting phase, players can only speak. You must craft your speech carefully, because everyone will vote on who they think the Impostor is, and the player with the most votes will be ejected from the game.
+
 Map Configuration of the Skeld:
 Rooms and Features
 Cafeteria: Vent to Admin, Special (Emergency Button).

@@ -2,6 +2,26 @@ import json
 from pandas import DataFrame, json_normalize
 from functools import reduce
 from typing import List, Dict
+import pandas as pd
+
+def load_game_summary(filepath: str) -> pd.DataFrame:
+    # Read each line of the JSONL file
+    with open(filepath, 'r') as file:
+        data = [json.loads(line.strip()) for line in file]
+    
+    # Extract Game, Winner, and Winner Reason
+    games_summary = [
+        {
+            "Game": game_id,
+            "Winner": game_details.get("winner"),
+            "Winner Reason": game_details.get("winner_reason")
+        }
+        for entry in data
+        for game_id, game_details in entry.items()
+    ]
+    
+    # Create DataFrame
+    return pd.DataFrame(games_summary)
 
 def read_jsonl_as_json(file_path):
     with open(file_path, 'r') as file:
@@ -41,6 +61,6 @@ def load_agent_logs_df(path: str) -> DataFrame:
         df.assign(thought=None)["thought"]  # Start with a column of None
     )
     
-    df = df.drop(columns=action_cols + thinking_cols)
+    df = df.drop(columns=(action_cols + thinking_cols), errors='ignore')
 
     return df

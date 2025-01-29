@@ -42,12 +42,13 @@ COMMIT_HASH = (
 # Default experiment arguments
 DEFAULT_ARGS = {
     # "game_config": SEVEN_MEMBER_GAME,
-    "game_config": SAMPLE_FIVE_MEMBER_GAME,
+    "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
     "agent_config": ALL_LLM,
-    "UI": False,
+    "UI": True,
+    # "UI": False,
 }
 
 def setup_experiment(experiment_name=None):
@@ -80,41 +81,6 @@ def setup_experiment(experiment_name=None):
 
     os.environ["EXPERIMENT_PATH"] = experiment_path
 
-# async def game(experiment_name=None, game_index=None):
-#     """Run the game."""
-#     setup_experiment(experiment_name)
-#     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
-#     print("UI created! Creating game..." if ui else "No UI selected. Running game without UI.")
-#     game_instance = AmongUs(
-#         game_config=DEFAULT_ARGS["game_config"],
-#         include_human=DEFAULT_ARGS["include_human"],
-#         test=DEFAULT_ARGS["test"],
-#         personality=DEFAULT_ARGS["personality"],
-#         agent_config=DEFAULT_ARGS["agent_config"],
-#         UI=ui,
-#         game_index=game_index,
-#     )
-#     print(f'Game {game_index} created! Running game...')
-#     await game_instance.run_game()
-#     print(f'Game {game_index} completed!')
-
-# def multiple_games(experiment_name=None, num_games=1):
-#     """Run multiple games and log the results."""
-#     setup_experiment(experiment_name)
-#     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
-#     for i in range(1, num_games+1):
-#         print(f"Running game {i}...")
-#         game_instance = AmongUs(
-#             game_config=DEFAULT_ARGS["game_config"],
-#             include_human=DEFAULT_ARGS["include_human"],
-#             test=DEFAULT_ARGS["test"],
-#             personality=DEFAULT_ARGS["personality"],
-#             agent_config=DEFAULT_ARGS["agent_config"],
-#             UI=ui,
-#             game_index=i,
-#         )
-#         game_instance.run_game()
-
 async def multiple_games(experiment_name=None, num_games=1):
     setup_experiment(experiment_name)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
@@ -137,6 +103,4 @@ if __name__ == "__main__":
     parser.add_argument("--name", type=str, default=None, help="Optional name for the experiment.")
     parser.add_argument("--num_games", type=int, default=1, help="Number of games to run.")
     args = parser.parse_args()
-    # game(experiment_name=args.name)
-    # multiple_games(experiment_name=args.name, num_games=args.num_games)
     asyncio.run(multiple_games(experiment_name=args.name, num_games=args.num_games))

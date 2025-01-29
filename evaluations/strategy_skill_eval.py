@@ -6,6 +6,9 @@ import plotly.graph_objects as go
 import numpy as np
 import requests
 import pandas as pd
+import aiohttp
+import asyncio
+import aiofiles
 
 from pandas import DataFrame, json_normalize
 from typing import List, Dict, Any, Tuple, Union, Optional
@@ -20,7 +23,9 @@ sys.path.append("..")
 
 from utils import load_agent_logs_df, read_jsonl_as_json
 
-EXPT_NAME: str = "2025-01-25_phi_llama_100_games"
+# EXPT_NAME: str = "2025-01-27_llama_phi_100_games"
+# EXPT_NAME: str = "2025-01-28_phi_phi_100_games"
+EXPT_NAME: str = "2025-01-28_llama_llama_100_games"
 
 agent_logs_path: str = os.path.join(LOGS_PATH, EXPT_NAME + "/agent-logs-compact.json")
 
@@ -108,46 +113,45 @@ def strategy_skill_score_eval_prompt(
         "Explanation": "explanation"
     }}
     
-    Do not answer anything except this format and do not include any irrelevant information in your response. Your output must be a valid JSON.
+    Be critical with your evaluation and only give a higher than average score if you find something novel. Do not answer anything except this format and do not include any irrelevant information in your response. Your output must be a valid JSON.
 
     """
     
     return system_prompt, specific_prompt
 
-def send_request(messages):
-        """Send a POST request to OpenRouter API with the provided messages."""
-        api_key = os.getenv("OPENROUTER_API_KEY")
-        api_url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}"}
-        payload = {
-            "model": "anthropic/claude-3.5-sonnet",
-            "messages": messages,
-            "temperature": 0.7,
-            "top_p": 1,
-            "frequency_penalty": 0,
-            "presence_penalty": 0,
-            "repetition_penalty": 1,
-            "top_k": 0,
-        }
-        
+async def send_request(messages):
+    """Send a POST request to OpenRouter API with the provided messages."""
+    headers = {"Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}"}
+    api_url = "https://openrouter.ai/api/v1/chat/completions" 
+    payload = {
+        "model": "openai/gpt-4o-mini",
+        "messages": messages,
+        "temperature": 0.3,
+        "top_p": 1,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "repetition_penalty": 1,
+        "top_k": 0,
+    }
+    
+    async with aiohttp.ClientSession() as session:
         for attempt in range(5):
             try:
-                response = requests.post(
-                    api_url, headers=headers, data=json.dumps(payload)
-                )
-                if response is None:
-                    print("API request failed: response is None.")
-                    continue
-                if response.status_code == 200:
-                    if "choices" not in response.json():
-                        print("API request failed: 'choices' key not in response.")
+                async with session.post(api_url, headers=headers, data=json.dumps(payload)) as response:
+                    if response is None:
+                        print("API request failed: response is None.")
                         continue
-                    if not response.json()["choices"]:
-                        print("API request failed: 'choices' key is empty in response.")
-                        continue
-                    return response.json()["choices"][0]["message"]["content"]
+                    if response.status == 200:
+                        data = await response.json()
+                        if "choices" not in data:
+                            print("API request failed: 'choices' key not in response.")
+                            continue
+                        if not data["choices"]:
+                            print("API request failed: 'choices' key is empty in response.")
+                            continue
+                        return data["choices"][0]["message"]["content"]
             except Exception as e:
-                print(f"API request failed. Retrying... ({attempt + 1}/3)")
+                print(f"API request failed. Retrying... ({attempt + 1}/5)")
                 continue
 
 results_file: str = os.path.join(RESULTS_PATH, EXPT_NAME + "_strategy_skill.json")
@@ -155,43 +159,30 @@ results_file: str = os.path.join(RESULTS_PATH, EXPT_NAME + "_strategy_skill.json
 # clear the results file
 with open(results_file, "w") as f:
     f.write("")
-    
-for index, row in agent_df.iterrows():
+
+async def process_row(index, row, results_file):
     identity = row['player.identity']
     memory = row['interaction.response.Condensed Memory']
     action = row['action']
     thought = row['thought']
-    
+
     system_prompt, full_prompt = strategy_skill_score_eval_prompt(identity, memory, action, thought)
-    
+
     messages = [
         {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": full_prompt,
-        },
+        {"role": "user", "content": full_prompt},
     ]
-    
-    response = send_request(messages)
-    
-    # get the strategy score and explanation from the response
-    final_response = None
+
     try:
+        response = await send_request(messages)
         final_response = json.loads(response)
         strategy_score = final_response['Strategy Score']
         explanation = final_response['Explanation']
     except Exception as e:
         print(f"Error: {e}")
-        final_response = response
         strategy_score = -1
         explanation = ""
-    
-    agent_df.loc[index, 'strategy_score'] = strategy_score
-    agent_df.loc[index, 'explanation'] = explanation
-    
-    if index < 4 or index % (len(agent_df) // 100) == 0:
-        print(f"Processed {index} rows out of {len(agent_df)}")
-    
+
     result_dict = {
         "game_index": row['game_index'],
         "step": row['step'],
@@ -202,8 +193,23 @@ for index, row in agent_df.iterrows():
         "thought": thought,
         "strategy_score": strategy_score,
         "explanation": explanation
-    }    
-    with open(results_file, "a") as f:
-            json.dump(result_dict, f, separators=(",", ": "))
-            f.write("\n")
-            f.flush()
+    }
+
+    async with aiofiles.open(results_file, "a") as f:
+        await f.write(json.dumps(result_dict, separators=(",", ": ")) + "\n")
+        print(f'.', end='')
+
+    return index, strategy_score, explanation
+
+async def main(agent_df, results_file):
+    tasks = []
+
+    for index, row in agent_df.iterrows():
+        tasks.append(process_row(index, row, results_file))
+
+    for i, (index, strategy_score, explanation) in enumerate(await asyncio.gather(*tasks)):
+        agent_df.loc[index, 'strategy_score'] = strategy_score
+        agent_df.loc[index, 'explanation'] = explanation
+
+# To execute
+asyncio.run(main(agent_df, results_file))
