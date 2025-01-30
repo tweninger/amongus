@@ -26,7 +26,7 @@ class Agent:
 
 
 class LLMAgent(Agent):
-    def __init__(self, player, tools, game_index, agent_config):
+    def __init__(self, player, tools, game_index, agent_config, list_of_impostors):
         super().__init__(player)
         if player.identity == "Crewmate":
             system_prompt = CREWMATE_PROMPT.format(name=player.name)
@@ -43,6 +43,7 @@ class LLMAgent(Agent):
                     personality=ImpostorPersonalities[player.personality]
                 )
             system_prompt += IMPOSTOR_EXAMPLE
+            system_prompt += f"List of impostors: {list_of_impostors}"
             model = random.choice(agent_config["IMPOSTOR_LLM_CHOICES"])
 
         self.system_prompt = system_prompt
@@ -215,7 +216,8 @@ class LLMAgent(Agent):
             {"role": "system", "content": self.system_prompt},
             {
                 "role": "user",
-                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\n\nPhase: {phase}. Return your output.",
+                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\
+                    \n\nPhase: {phase}. Return your output.",
             },
         ]
         

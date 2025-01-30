@@ -64,6 +64,7 @@ class AmongUs:
         self.all_phases = ["meeting", "task"]
         self.game_index = game_index
         self.summary_json = {f"Game {game_index}": {"config": game_config}}
+        self.list_of_impostors = []
 
     def initialize_game(self):
         # reset game state
@@ -141,7 +142,7 @@ class AmongUs:
             tools = [GetBestPath(network=self.map.ship_map)]
 
             agent_dict = {
-                "LLM": lambda player: LLMAgent(player, tools, self.game_index, self.agent_config),
+                "LLM": lambda player: LLMAgent(player, tools, self.game_index, self.agent_config, self.list_of_impostors),
                 "Random": RandomAgent,
             }
             self.agents = []
@@ -150,7 +151,9 @@ class AmongUs:
                     self.agents.append(HumanAgent(player))
                 else:
                     self.agents.append(agent_dict[self.agent_config[player.identity]](player))
-                    print(f"{i} Initializing agent with identity {player.identity} and LLM choice {self.agents[-1].model}")
+                    print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
+                if player.identity == "Impostor":
+                    self.list_of_impostors.append(player.name)
                     
                 # add to summary json
                 self.summary_json[f"Game {self.game_index}"]["Player " + str(i+1)] = {
@@ -283,7 +286,7 @@ class AmongUs:
 
         # Discussion
         for round in range(self.game_config["discussion_rounds"]):
-            print("Discussion round", round + 1)
+            print("Discussion round", round)
             for agent in self.agents:
                 await self.agent_step(agent)
             self.discussion_rounds_left -= 1
@@ -404,7 +407,7 @@ class MessageSystem:
             message = f"Timestep {timestep}: [{current_phase}] {player.name} {action.action_text()}"
         elif current_phase == "meeting":
             round = record["round"]
-            message = f"Timestep {timestep}: [{current_phase} phase - round {round + 1}] {player.name} {action.action_text()}"
+            message = f"Timestep {timestep}: [{current_phase} phase - round {round}] {player.name} {action.action_text()}"
         return message
 
     def create_location_message(self, record, env):
@@ -414,7 +417,7 @@ class MessageSystem:
         elif env.current_phase == "meeting":
             max_rounds = env.game_config["discussion_rounds"]
             round = max_rounds - env.discussion_rounds_left
-            phase_info = f"Meeting phase - Discussion round ({round + 1}/{max_rounds})"
+            phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
             instruction = MEETING_PHASE_INSTRUCTION
         message = f"Game Time: {env.timestep}/{env.game_config['max_timesteps']}\n"
         message += f"Current phase: {phase_info}\n"

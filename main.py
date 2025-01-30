@@ -6,9 +6,8 @@ import sys
 import asyncio
 
 from typing import Optional, List
-from functools import partial
 
-# Add among-agents package to the path
+# add among-agents package to the path
 sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
 
 import argparse
@@ -22,9 +21,8 @@ from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
 from dotenv import load_dotenv
 
-# Import necessary modules
+from utils import setup_experiment
 
-# Constants
 ROOT_PATH = os.path.abspath(".")
 LOGS_PATH = os.path.join(ROOT_PATH, "expt-logs")
 ASSETS_PATH = os.path.join(ROOT_PATH, "among-agents", "amongagents", "assets")
@@ -40,57 +38,38 @@ COMMIT_HASH = (
 )
 
 # Default experiment arguments
-DEFAULT_ARGS = {
-    # "game_config": SEVEN_MEMBER_GAME,
-    "game_config": FIVE_MEMBER_GAME,
+ARGS = {
+    "game_config": SEVEN_MEMBER_GAME,
+    # "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
-    "agent_config": ALL_LLM,
+    "agent_config": {
+        "Impostor": "LLM", 
+        "Crewmate": "LLM",    
+        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        # "CREWMATE_LLM_CHOICES": ["microsoft/phi-4"],
+        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        # "IMPOSTOR_LLM_CHOICES": ["microsoft/phi-4"],
+        # "IMPOSTOR_LLM_CHOICES": ["deepseek/deepseek-r1-distill-llama-70b"],
+        # "CREWMATE_LLM_CHOICES": ["deepseek/deepseek-r1-distill-llama-70b"],
+    },
     "UI": True,
     # "UI": False,
 }
 
-def setup_experiment(experiment_name=None):
-    """Set up experiment directory and files."""
-    os.makedirs(LOGS_PATH, exist_ok=True)
-
-    if not experiment_name:
-        experiment_number = 0
-        while os.path.exists(os.path.join(LOGS_PATH, f"{DATE}_exp_{experiment_number}")):
-            experiment_number += 1
-        experiment_name = f"{DATE}_exp_{experiment_number}"
-    else:
-        experiment_name = f"{DATE}_{experiment_name}"
-
-    experiment_path = os.path.join(LOGS_PATH, experiment_name)
-    os.makedirs(experiment_path, exist_ok=True)
-    
-    # delete everything in the experiment path
-    for file in os.listdir(experiment_path):
-        os.remove(os.path.join(experiment_path, file))
-
-    with open(
-        os.path.join(experiment_path, "experiment-details.txt"), "w"
-    ) as experiment_file:
-        experiment_file.write(f"Experiment {experiment_path}\n")
-        experiment_file.write(f"Date: {DATE}\n")
-        experiment_file.write(f"Commit: {COMMIT_HASH}\n")
-        experiment_file.write(f"Experiment args: {DEFAULT_ARGS}\n")
-        experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
-
-    os.environ["EXPERIMENT_PATH"] = experiment_path
-
 async def multiple_games(experiment_name=None, num_games=1):
-    setup_experiment(experiment_name)
-    ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if DEFAULT_ARGS["UI"] else None
+    setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
+    ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
+    with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
+        experiment_file.write(f"\nExperiment args: {ARGS}\n")
     tasks = [
         AmongUs(
-            game_config=DEFAULT_ARGS["game_config"],
-            include_human=DEFAULT_ARGS["include_human"],
-            test=DEFAULT_ARGS["test"],
-            personality=DEFAULT_ARGS["personality"],
-            agent_config=DEFAULT_ARGS["agent_config"],
+            game_config=ARGS["game_config"],
+            include_human=ARGS["include_human"],
+            test=ARGS["test"],
+            personality=ARGS["personality"],
+            agent_config=ARGS["agent_config"],
             UI=ui,
             game_index=i,
         ).run_game()

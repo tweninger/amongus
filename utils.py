@@ -3,6 +3,39 @@ from pandas import DataFrame, json_normalize
 from functools import reduce
 from typing import List, Dict
 import pandas as pd
+import os
+
+
+def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS):
+    """Set up experiment directory and files."""
+    
+    os.makedirs(LOGS_PATH, exist_ok=True)
+
+    if not experiment_name:
+        experiment_number = 0
+        while os.path.exists(os.path.join(LOGS_PATH, f"{DATE}_exp_{experiment_number}")):
+            experiment_number += 1
+        experiment_name = f"{DATE}_exp_{experiment_number}"
+    else:
+        experiment_name = f"{DATE}_{experiment_name}"
+
+    experiment_path = os.path.join(LOGS_PATH, experiment_name)
+    os.makedirs(experiment_path, exist_ok=True)
+    
+    # delete everything in the experiment path
+    for file in os.listdir(experiment_path):
+        os.remove(os.path.join(experiment_path, file))
+
+    with open(
+        os.path.join(experiment_path, "experiment-details.txt"), "w"
+    ) as experiment_file:
+        experiment_file.write(f"Experiment {experiment_path}\n")
+        experiment_file.write(f"Date: {DATE}\n")
+        experiment_file.write(f"Commit: {COMMIT_HASH}\n")
+        experiment_file.write(f"Experiment args: {DEFAULT_ARGS}\n")
+        experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
+
+    os.environ["EXPERIMENT_PATH"] = experiment_path
 
 def load_game_summary(filepath: str) -> pd.DataFrame:
     # Read each line of the JSONL file
