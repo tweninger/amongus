@@ -34,7 +34,7 @@ def setup_experiment(expt_name, results_path) -> None:
     agent_logs_path: str = os.path.join(LOGS_PATH, expt_name + "/agent-logs-compact.json")
     agent_df: DataFrame = load_agent_logs_df(agent_logs_path)
     cols_to_keep: List[str] = [
-        'game_index', 'step', 'player.name', 'player.identity', 'interaction.prompt.all_info',
+        'game_index', 'step', 'player.name', 'player.identity', 'interaction.prompt.All Info',
         'interaction.response.Condensed Memory', 'action', 'thought']
     agent_df = agent_df[cols_to_keep]
     agent_df = agent_df.fillna("")
@@ -61,12 +61,13 @@ async def send_request(messages, model):
         except Exception as e:
             print(f"Error: {e}")
             print(f"Attempt {attempt + 1} failed. Retrying...")
-            await asyncio.sleep(0.05) # sleep for 50ms before retrying
+            # exponential backoff
+            await asyncio.sleep(0.1 * 2 ** attempt)
 
 async def process_row(row, results_file, model):
     identity = row['player.identity']
     memory = row['interaction.response.Condensed Memory']
-    game_info = row['interaction.prompt.all_info']
+    game_info = row['interaction.prompt.All Info']
     action = row['action']
     thought = row['thought']
     name = row['player.name']
@@ -79,7 +80,7 @@ async def process_row(row, results_file, model):
         if not match:
             print("Invalid response format")
             print(response)
-            input()
+            # input()
         awareness, lying, deception, planning = match.groups()
     except Exception as e:
         print(f"Error: {e}")
