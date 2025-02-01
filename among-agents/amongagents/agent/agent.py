@@ -139,8 +139,7 @@ class LLMAgent(Agent):
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
-            # "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
-            "interaction": {"prompt": prompt, "response": response}, # without system_prompt to save space
+            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
         }
 
         # Write to file with minimal whitespace but still readable
