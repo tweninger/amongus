@@ -60,7 +60,7 @@ class LLMAgent(Agent):
         self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
         self.game_index = game_index
 
-    def log_interaction(self, sysprompt, prompt, response, step):
+    def log_interaction(self, sysprompt, prompt, original_response, step):
         """
         Helper method to store model interactions in properly nested JSON format.
         Handles deep nesting and properly parses all string-formatted dictionaries.
@@ -105,12 +105,12 @@ class LLMAgent(Agent):
                 prompt = parse_dict_string(prompt)
             except:
                 pass
-        if isinstance(response, str):
+        if isinstance(original_response, str):
             sections = {}
             current_section = None
             current_content = []
 
-            for line in response.split("\n"):
+            for line in original_response.split("\n"):
                 line = line.strip()
                 if line.startswith("[") and line.endswith("]"):
                     if current_section:
@@ -123,15 +123,15 @@ class LLMAgent(Agent):
             if current_section and current_content:
                 sections[current_section] = " ".join(current_content).strip()
 
-            response = sections if sections else response
+            new_response = sections if sections else original_response
 
             # Parse any dictionary strings in the response sections and handle [Action]
-            if isinstance(response, dict):
-                for key, value in response.items():
+            if isinstance(new_response, dict):
+                for key, value in new_response.items():
                     if isinstance(value, str):
-                        response[key] = extract_action(value)
+                        new_response[key] = extract_action(value)
                     else:
-                        response[key] = parse_dict_string(value)
+                        new_response[key] = parse_dict_string(value)
 
         # Create the interaction object with proper nesting
         interaction = {
@@ -139,7 +139,7 @@ class LLMAgent(Agent):
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
-            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": response},
+            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": new_response, "full_response": original_response},
         }
 
         # Write to file with minimal whitespace but still readable
@@ -224,7 +224,7 @@ class LLMAgent(Agent):
         
         response = await self.send_request(messages)
 
-        self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, response=response, step=timestep)
+        self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
         pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
         match = re.search(pattern, response)
