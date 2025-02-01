@@ -206,12 +206,6 @@ class LLMAgent(Agent):
         # phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
         phase = "Meeting phase" if len(available_actions) == 1 or all(a.name == "VOTE" for a in available_actions) else "Task phase"
 
-        full_prompt = {
-            "summarization": self.summarization,
-            "all_info": all_info,
-            "memory": self.processed_memory,
-        }
-
         messages = [
             {"role": "system", "content": self.system_prompt},
             {
@@ -221,14 +215,15 @@ class LLMAgent(Agent):
             },
         ]
         
-        # print(f"Phase: {phase} because there are {available_actions} available actions.")
-        # print(f"Also, content:\n\n Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\n\nPhase: {phase}. Return your output.")
+        # log everything needed to reproduce the interaction
+        full_prompt = {
+            "Summarization": self.summarization,
+            "All Info": all_info,
+            "Memory": self.processed_memory,
+            "Phase": phase,
+        }
         
         response = await self.send_request(messages)
-
-        # input()
-        
-        # print(f"Response: {response}")
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, response=response, step=timestep)
 

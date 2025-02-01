@@ -80,7 +80,7 @@ async def multiple_games(experiment_name=None, num_games=1):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
     parser.add_argument("--name", type=str, default=None, help="Optional name for the experiment.")
-    parser.add_argument("--num_games", type=int, default=1, help="Number of games to run.")
+    parser.add_argument("--num_games", type=int, default=2, help="Number of games to run.")
     parser.add_argument("--crewmate_llm", type=str, default="meta-llama/llama-3.3-70b-instruct", help="Crewmate LLM model.")
     parser.add_argument("--impostor_llm", type=str, default="meta-llama/llama-3.3-70b-instruct", help="Impostor LLM model.")
     args = parser.parse_args()
