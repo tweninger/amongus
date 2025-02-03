@@ -169,3 +169,4 @@ yarg==0.1.9
 yarl==1.18.3
 zipp==3.21.0
 aiofiles==24.1.0
+transformer_lens==2.11.0
