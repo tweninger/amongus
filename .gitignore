@@ -4,6 +4,11 @@
 # expt-logs
 expt-logs/
 
+# probes/TransformerLens
+probes/TransformerLens/
+probes/data/
+probes/transformers/
+
 # evaluations/results
 evaluations/results/
 
