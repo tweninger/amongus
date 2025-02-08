@@ -8,6 +8,7 @@ expt-logs/
 probes/TransformerLens/
 probes/data/
 probes/transformers/
+probes/checkpoints/
 
 # evaluations/results
 evaluations/results/
