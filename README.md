@@ -83,4 +83,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Using and building up on [AmongAgents](https://github.com/cyzus/among-agents).
 
-For anything, please contact Satvik Golechha (7vik) at zsatvik@gmail.com.
+If you face any bugs or issues with this codebase, please contact Satvik Golechha (7vik) at zsatvik@gmail.com.
