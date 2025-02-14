@@ -152,13 +152,14 @@ class TruthfulQADataset(ActivationDataset):
     def populate_dataset_with_row(self, row):
         correct_prompt, incorrect_prompt = self.row_to_prompts(row)
         correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt").to(self.device)
-        self.activation_cache.clear_activations()
+        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt").to(self.device)
         with t.no_grad():
-            self.model(correct_tokens)
+            self.activation_cache.clear_activations()
+            self.model.forward(correct_tokens)
             correct_activations = self.activation_cache.activations[0][0][-1]
             self.append(correct_activations, 1)
-            incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt").to(self.device)
-            self.model(incorrect_tokens)
+            self.activation_cache.clear_activations()
+            self.model.forward(incorrect_tokens)
             incorrect_activations = self.activation_cache.activations[0][0][-1]
             self.append(incorrect_activations, 0)
 

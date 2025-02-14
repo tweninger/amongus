@@ -63,7 +63,7 @@ class LinearProbe:
         for epoch in range(epochs):
             train_loss, train_acc = self.train_one_epoch(train_loader)
             test_loss, test_acc = self.evaluate(test_loader)
-            self.lr_scheduler.step()
+            # self.lr_scheduler.step()
             
             self.train_accs.append(train_acc)
             self.test_accs.append(test_acc)

@@ -14,7 +14,7 @@ config_gpt2: Dict[str, Any] = {
 config_phi4: Dict[str, Any] = {
     "short_name": "phi4",
     "model_name": "microsoft/phi-4",
-    "activation_size": 5192,
+    "activation_size": 5120,
     "hook_component": "model.layers[15].mlp",
     "dataset_name": "TruthfulQA",
     "test_split": 0.2,
