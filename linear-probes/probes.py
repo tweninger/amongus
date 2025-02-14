@@ -14,7 +14,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 class LinearProbe:
-    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.1, device='cpu'):
+    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.0001, step_size=100, gamma=0.1, device='cpu'):
         self.device = device
         self.model = LinearModel(input_dim).to(self.device)
         self.criterion = criterion if criterion else nn.BCEWithLogitsLoss()
@@ -37,7 +37,7 @@ class LinearProbe:
             self.optimizer.step()
             
             total_loss += loss.item()
-            correct += (y_pred.round() == y_batch).sum().item()
+            correct += ((y_pred > 0) == y_batch).sum().item()  # Changed from round() to > 0
             total += y_batch.size(0)
         
         return total_loss / len(train_loader), correct / total
@@ -54,7 +54,7 @@ class LinearProbe:
                 loss = self.criterion(y_pred, y_batch)
                 
                 total_loss += loss.item()
-                correct += (y_pred.round() == y_batch).sum().item()
+                correct += ((y_pred > 0) == y_batch).sum().item()  # Changed from round() to > 0
                 total += y_batch.size(0)
         
         return total_loss / len(test_loader), correct / total

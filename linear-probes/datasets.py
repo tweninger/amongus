@@ -133,6 +133,8 @@ class ActivationDataset(Dataset):
         with open(self.activations_path, 'rb') as f:
             self.data = pickle.load(f)
             print(f"Loaded activations from {self.activations_path}")
+
+
 class TruthfulQADataset(ActivationDataset):
     def __init__(self, config: Dict[str, Any], model=None, tokenizer=None, device=None):
         super().__init__(config["test_split"], config["dataset_name"], model, tokenizer, device, config["activation_size"])
