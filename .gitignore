@@ -1,14 +1,17 @@
 # environment file
 .env
 
+# deception-detection
+deception-detection/
+
 # expt-logs
 expt-logs/
 
 # probes/TransformerLens
-probes/TransformerLens/
-probes/data/
-probes/transformers/
-probes/checkpoints/
+linear-probes/TransformerLens/
+linear-probes/data/
+linear-probes/transformers/
+linear-probes/checkpoints/
 
 # evaluations/results
 evaluations/results/
