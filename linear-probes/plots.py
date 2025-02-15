@@ -6,7 +6,7 @@ from plotly.subplots import make_subplots
 from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score
 
 # Print performance metrics for each group
-def print_metrics(data, group_name, threshold=0.5):
+def print_metrics(data, group_name, threshold=0.5, behaviors=None):
     print(f"\nMetrics for {group_name}:")
     for behavior in behaviors:
         truth = data[f'{behavior}_truth']

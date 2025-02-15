@@ -1,6 +1,6 @@
 import torch as t
 
-def evaluate_probe_on_string(prompt, model, tokenizer, probe, tqa_dataset, device, tokens_to_average=5):
+def evaluate_probe_on_string(prompt, model, tokenizer, probe, dataset, device, tokens_to_average=5):
     """
     Evaluate probe on a single string and return averaged probe output
     
@@ -9,7 +9,7 @@ def evaluate_probe_on_string(prompt, model, tokenizer, probe, tqa_dataset, devic
         model: Language model
         tokenizer: Tokenizer for the model
         probe: Linear probe model
-        tqa_dataset: Dataset object containing activation cache
+        dataset: Dataset object containing activation cache
         device: Device to run model on
         tokens_to_average: Number of final tokens to average probe outputs over
         
@@ -19,18 +19,18 @@ def evaluate_probe_on_string(prompt, model, tokenizer, probe, tqa_dataset, devic
     tokens = tokenizer.encode(prompt, return_tensors="pt").to(device)
     
     with t.no_grad():
-        tqa_dataset.activation_cache.clear_activations()
+        dataset.activation_cache.clear_activations()
         model.forward(tokens)
-        activations = tqa_dataset.activation_cache.activations[0][0]
+        activations = dataset.activation_cache.activations[0][0]
         
         # Get last n token activations and average their probe outputs
         last_n_activations = activations[-tokens_to_average:]
-        probe_outputs = [round(probe.evaluate_single_activation(t.tensor(act)), 4) for act in last_n_activations]
+        probe_outputs = [round(probe.evaluate_single_activation(t.tensor(act, device=device)), 4) for act in last_n_activations]
         avg_probe_output = sum(probe_outputs) / len(probe_outputs)
         
     return avg_probe_output, probe_outputs
 
-def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, tqa_dataset, device, tokens_to_average=5, verbose=True):
+def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, dataset, device, tokens_to_average=5, verbose=True):
     """
     Evaluate probe on a test dataset and return probe outputs and accuracy
     
@@ -39,7 +39,7 @@ def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, tqa_dataset, dev
         model: Language model
         tokenizer: Tokenizer for the model
         probe: Linear probe model
-        tqa_dataset: Dataset object containing activation cache
+        dataset: Dataset object containing activation cache
         device: Device to run model on
         tokens_to_average: Number of final tokens to average probe outputs over
         verbose: Whether to print progress
@@ -56,7 +56,7 @@ def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, tqa_dataset, dev
         label = test_df.iloc[i]['label']
         
         avg_probe_output, probe_outputs = evaluate_probe_on_string(
-            prompt, model, tokenizer, probe, tqa_dataset, device, tokens_to_average
+            prompt, model, tokenizer, probe, dataset, device, tokens_to_average
         )
         
         if verbose and i % (len(test_df) // 10) == 0:

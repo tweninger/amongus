@@ -41,8 +41,10 @@ for module in [datasets, plots, configs, probes, evaluate_utils]:
 
 config = config_phi4
 
+# probe_path: str = f'checkpoints/tqa_lying_post_gen_probe_{config["short_name"]}.pkl'
+probe_path: str = f'checkpoints/dqa_pretend_probe_{config["short_name"]}.pkl'
 probe = probes.LinearProbe(config["activation_size"])
-with open(f'checkpoints/tqa_lying_post_gen_probe_{config["short_name"]}.pkl', 'rb') as f:
+with open(probe_path, 'rb') as f:
     probe.model = pickle.load(f).model
 
 model_name = config["model_name"]
@@ -52,12 +54,14 @@ if load_models:
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True, device_map="auto")
     device = model.device
-    tqa_dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device)
-    eval(f"model.{config['hook_component']}").register_forward_hook(tqa_dataset.activation_cache.hook_fn)
+    # tqa_dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device)
+    dqa_dataset = DishonestQADataset(config, model=model, tokenizer=tokenizer, device=device)
+    eval(f"model.{config['hook_component']}").register_forward_hook(dqa_dataset.activation_cache.hook_fn)
 
 else:
     model, tokenizer, device = None, None, 'cpu'
-    tqa_dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device)
+    # tqa_dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device)
+    dqa_dataset = DishonestQADataset(config, model=model, tokenizer=tokenizer, device=device)
 
 EXPT_NAMES: List[str] = ["2025-02-01_phi_phi_100_games_v3",]
 DESCRIPTIONS: List[str] = ["Crew: Phi, Imp: Phi",]
@@ -105,7 +109,7 @@ eval_rows_num = agent_logs_df.shape[0]
 
 for i in range(0, eval_rows_num):
     full_prompts = agent_logs_row_to_full_prompt(agent_logs_df.iloc[i])
-    probe_output, probe_outputs = evaluate_probe_on_string(full_prompts, model, tokenizer, probe, tqa_dataset, device)
+    probe_output, probe_outputs = evaluate_probe_on_string(full_prompts, model, tokenizer, probe, dqa_dataset, device)
     
     if i % (eval_rows_num // 10) == 0:
         print(f"Evaluated {i}/{eval_rows_num} rows, predicted {probe_output}")
@@ -119,9 +123,9 @@ for i in range(0, eval_rows_num):
     json_outputs.append(json_output)
 
 
-# store the probe outputs into './probe_outputs/post_gen_{EXPT_NAME}.json'
-with open(f'../linear-probes/probe_outputs/post_gen_v2_{EXPT_NAME}.json', 'w') as f:
+# store the probe outputs into './probe_outputs/pretend_{EXPT_NAME}.json'
+with open(f'../linear-probes/probe_outputs/pretend_{EXPT_NAME}.json', 'w') as f:
     json.dump(json_outputs, f)
-    print(f"Saved {len(json_outputs)} probe outputs to './probe_outputs/post_gen_v2_{EXPT_NAME}.json'")
+    print(f"Saved {len(json_outputs)} probe outputs to './probe_outputs/pretend_{EXPT_NAME}.json'")
 
 print("Done!")

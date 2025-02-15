@@ -14,7 +14,7 @@ class LinearModel(nn.Module):
     def forward(self, x):
         # Normalize input using running statistics
         clamped_std = t.clamp(self.std, min=1e-8)
-        x_normalized = (x - self.mean) / clamped_std
+        x_normalized = (x.to(self.std.device) - self.mean) / clamped_std
         return self.linear(x_normalized)
 
 class LinearProbe:
