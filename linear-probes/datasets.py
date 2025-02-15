@@ -65,10 +65,10 @@ class ActivationDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[t.Tensor, int]:
         return self.data[idx]
     
-    def get_splits(self, batch_size: int = 32, shuffle: bool = True,
-                  num_workers: int = 0, pin_memory: bool = True) -> Tuple[DataLoader, DataLoader]:
+    def get_train(self, batch_size: int = 32, shuffle: bool = True,
+                  num_workers: int = 0, pin_memory: bool = True) -> DataLoader:
         """
-        Get train and test DataLoaders
+        Get train DataLoader using the first (1-test_split) portion of data
         
         Args:
             batch_size (int): How many samples per batch to load
@@ -77,16 +77,16 @@ class ActivationDataset(Dataset):
             pin_memory (bool): If True, the data loader will copy Tensors into CUDA pinned memory
             
         Returns:
-            tuple: (train_loader, test_loader)
+            DataLoader: training data loader
         """
-        test_size = int(len(self) * self.test_split)
-        train_size = len(self) - test_size
+        train_size = int(len(self) * (1 - self.test_split))
+        train_data = self.data[:train_size]
         
-        train_dataset, test_dataset = random_split(
-            self, 
-            [train_size, test_size],
-            generator=t.Generator().manual_seed(42)
-        )
+        # Create a new dataset with just the training data
+        train_dataset = ActivationDataset(test_split=0, 
+                                        name=self.name, 
+                                        activation_size=self.activation_size)
+        train_dataset.data = train_data
         
         train_loader = DataLoader(
             train_dataset,
@@ -96,15 +96,7 @@ class ActivationDataset(Dataset):
             pin_memory=pin_memory
         )
         
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            pin_memory=pin_memory
-        )
-        
-        return train_loader, test_loader
+        return train_loader
     
     def get_stats(self) -> dict:
         """
@@ -116,12 +108,14 @@ class ActivationDataset(Dataset):
         if not self.data:
             return {"total_samples": 0, "class_distribution": {}}
             
-        labels = [y for _, y in self.data]
+        train_size = int(len(self) * (1 - self.test_split))
+        train_data = self.data[:train_size]
+        labels = [y for _, y in train_data]
         unique, counts = t.tensor(labels).unique(return_counts=True)
         class_dist = dict(zip(unique.tolist(), counts.tolist()))
         
         return {
-            "total_samples": len(self),
+            "total_samples": train_size,
             "class_distribution": class_dist
         }
 
@@ -151,27 +145,50 @@ class TruthfulQADataset(ActivationDataset):
         phi_format_incorrect_qa = f'''<|im_start|>user<|im_sep|>{question}<|im_end|><|im_start|>assistant<|im_sep|>{best_incorrect_answer}<|im_end|>'''
         return phi_format_correct_qa, phi_format_incorrect_qa
 
-    def populate_dataset_with_row(self, row):
+    def populate_dataset_with_row(self, row, num_tokens: int = 5):
         correct_prompt, incorrect_prompt = self.row_to_prompts(row)
         correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt").to(self.device)
-        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt").to(self.device)
+        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt").to(self.device)        
         with t.no_grad():
             self.activation_cache.clear_activations()
             self.model.forward(correct_tokens)
-            correct_activations = self.activation_cache.activations[0][0][-1]
-            self.append(correct_activations, 1)
+            correct_activations = self.activation_cache.activations[0][0]
+            for i in range(-num_tokens, 0):
+                self.append(correct_activations[i], 1)
+                
             self.activation_cache.clear_activations()
             self.model.forward(incorrect_tokens)
-            incorrect_activations = self.activation_cache.activations[0][0][-1]
-            self.append(incorrect_activations, 0)
+            incorrect_activations = self.activation_cache.activations[0][0]
+            for i in range(-num_tokens, 0):
+                self.append(incorrect_activations[i], 0)
 
-    def populate_dataset(self):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5):
         # if activations exist, load them
-        if os.path.exists(self.activations_path):
+        if os.path.exists(self.activations_path) and not force_redo:
             self.data = pickle.load(open(self.activations_path, 'rb'))
         else:
             for idx, row in self.tqa_df.iterrows():
-                self.populate_dataset_with_row(row)
+                self.populate_dataset_with_row(row, num_tokens)
                 if idx % (len(self.tqa_df) // 10) == 0:
                     print(f"Populated {idx} rows of {len(self.tqa_df)}")
             self.save()
+
+    def get_test(self) -> pd.DataFrame:
+        """
+        Get test set as a pandas DataFrame with full prompts and binary labels
+        
+        Returns:
+            pd.DataFrame: Test set with columns 'prompt' and 'label'
+        """
+        test_size = int(len(self.tqa_df) * self.test_split)
+        test_df = self.tqa_df[-test_size:]
+
+        prompts = []
+        labels = []
+
+        for _, row in test_df.iterrows():
+            correct_prompt, incorrect_prompt = self.row_to_prompts(row)
+            prompts.extend([correct_prompt, incorrect_prompt])
+            labels.extend([1, 0])
+            
+        return pd.DataFrame({'prompt': prompts, 'label': labels})
