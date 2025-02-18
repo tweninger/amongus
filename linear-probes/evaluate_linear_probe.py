@@ -29,7 +29,7 @@ sys.path.append("..")
 
 from utils import load_agent_logs_df, read_jsonl_as_json, load_game_summary
 import datasets, plots, configs, probes, evaluate_utils
-from datasets import TruthfulQADataset
+from datasets import TruthfulQADataset, DishonestQADataset
 from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves
 from configs import config_gpt2, config_phi4
 from evaluate_utils import evaluate_probe_on_string, evaluate_probe_on_dataset

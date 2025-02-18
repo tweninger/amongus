@@ -19,6 +19,7 @@ from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
+from amongagents.UI.WebMapUI import WebMapUI
 from dotenv import load_dotenv
 
 from utils import setup_experiment
@@ -61,6 +62,7 @@ ARGS = {
 async def multiple_games(experiment_name=None, num_games=1):
     setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
+    web_ui = WebMapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
         experiment_file.write(f"\nExperiment args: {ARGS}\n")
     tasks = [
@@ -70,7 +72,8 @@ async def multiple_games(experiment_name=None, num_games=1):
             test=ARGS["test"],
             personality=ARGS["personality"],
             agent_config=ARGS["agent_config"],
-            UI=ui,
+            # UI=ui,
+            UI=web_ui,
             game_index=i,
         ).run_game()
         for i in range(1, num_games+1)
