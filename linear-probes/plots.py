@@ -5,6 +5,52 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score
 
+from sklearn.metrics import roc_curve, auc
+import plotly.graph_objects as go
+
+def plot_roc_curve_eval(labels, probe_outputs):
+    """
+    Plot ROC curve for probe outputs and labels.
+    
+    Args:
+        labels: Ground truth binary labels
+        probe_outputs: Predicted probabilities from probe
+    """
+    # Calculate ROC curve
+    fpr, tpr, thresholds = roc_curve(labels, probe_outputs)
+    roc_auc = auc(fpr, tpr)
+
+    # Create ROC plot
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=fpr, y=tpr,
+                            mode='lines', 
+                            name=f'ROC curve (AUC = {roc_auc:.3f})'))
+    fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1],
+                            mode='lines',
+                            name='Random',
+                            line=dict(dash='dash')))
+
+    fig.update_layout(
+        title='Receiver Operating Characteristic (ROC) Curve',
+        xaxis_title='False Positive Rate',
+        yaxis_title='True Positive Rate',
+        showlegend=True
+    )
+
+    fig.update_layout(
+        title='',
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Computer Modern', size=16),
+        xaxis=dict(title='False Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=False),
+        yaxis=dict(title='True Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=False, range=(0,1)),
+        legend=dict(x=0.62, y=0.22, bgcolor='rgba(255, 255, 255, 0.8)'),
+        margin=dict(l=60, r=20, t=20, b=60),
+        width=500, height=400
+    )
+
+    return fig
+
 # Print performance metrics for each group
 def print_metrics(data, group_name, threshold=0.5, behaviors=None):
     print(f"\nMetrics for {group_name}:")
