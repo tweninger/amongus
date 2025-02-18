@@ -1,5 +1,8 @@
 {
     "python.analysis.extraPaths": [
         "./among-agents"
+    ],
+    "cSpell.words": [
+        "iterrows"
     ]
 }

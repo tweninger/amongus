@@ -28,7 +28,7 @@ class ActivationCache:
             handle.remove()
 
 class ActivationDataset(Dataset):
-    def __init__(self, test_split: float = 0.2, name: str = "", model=None, tokenizer=None, device=None, activation_size: int = 768):
+    def __init__(self, test_split: float = 1.0, name: str = "", model=None, tokenizer=None, device=None, activation_size: int = 768):
         """
         Initialize empty dataset with configurable test split ratio
         
@@ -66,7 +66,7 @@ class ActivationDataset(Dataset):
         return self.data[idx]
     
     def get_train(self, batch_size: int = 32, shuffle: bool = True,
-                  num_workers: int = 0, pin_memory: bool = True) -> DataLoader:
+                    num_workers: int = 0, pin_memory: bool = True) -> DataLoader:
         """
         Get train DataLoader, flattening activations across all prompts
         """
@@ -296,9 +296,9 @@ class AmongUsDataset(ActivationDataset):
 
         return phi_format_prompt
 
-    def populate_dataset_with_row(self, row, num_tokens: int = 5):
+    def populate_dataset_with_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         phi_format_prompt = self.agent_logs_row_to_full_prompt(row)
-        tokens = self.tokenizer.encode(phi_format_prompt, return_tensors="pt").to(self.device)
+        tokens = self.tokenizer.encode(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         with t.no_grad():
             self.activation_cache.clear_activations()
             self.model.forward(tokens)
@@ -311,16 +311,53 @@ class AmongUsDataset(ActivationDataset):
             label = 1 if row["player.identity"] == "Impostor" else 0
             self.append(acts, label)
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0):
+    def populate_dataset_with_batch(self, batch_size: int, num_tokens: int = 5, seq_len: int = 1024):
+        batched_prompts = []
+        labels = []
+        for idx, row in self.agent_logs_df.iterrows():
+            if idx >= batch_size:
+                break
+            phi_format_prompt = self.agent_logs_row_to_full_prompt(row)
+            batched_prompts.append(phi_format_prompt)
+            label = 1 if row["player.identity"] == "Impostor" else 0
+            labels.append(label)
+
+        tokens = self.tokenizer(batched_prompts, return_tensors="pt", padding=True, truncation=True, max_length=seq_len).to(self.device)
+        with t.no_grad():
+            self.activation_cache.clear_activations()
+            self.model.forward(**tokens)
+            if not self.activation_cache.activations:
+                raise ValueError("No activations found. Ensure the model and activation cache are set up correctly.")
+            for i, activations in enumerate(self.activation_cache.activations):
+                if len(activations[0]) < num_tokens:
+                    raise ValueError(f"Not enough activations to extract {num_tokens} tokens. Available: {len(activations[0])}")
+                acts = [activations[0][j] for j in range(-num_tokens, 0)]
+                self.append(acts, labels[i])
+
+    def populate_dataset(
+        self, 
+        force_redo: bool = False, 
+        num_tokens: int = 5, 
+        max_rows: int = 0, 
+        batched: bool = False, 
+        batch_size = None,
+        seq_len: int = 1024,
+        ):
         if os.path.exists(self.activations_path) and not force_redo:
             with open(self.activations_path, 'rb') as f:
                 self.data = pickle.load(f)
         else:
-            max_rows = max_rows if max_rows > 0 else len(self.agent_logs_df)
-            for idx, row in self.agent_logs_df.iterrows():
-                if idx >= max_rows:
-                    break
-                self.populate_dataset_with_row(row, num_tokens)
-                if max_rows > 0 and idx % (max_rows // 10) == 0:
-                    print(f"Populated {idx} rows of {len(self.agent_logs_df)}")
+            rows_to_cache = max_rows if max_rows > 0 else len(self.agent_logs_df)
+            if batched and batch_size:
+                for start_idx in range(0, rows_to_cache, batch_size):
+                    end_idx = min(start_idx + batch_size, rows_to_cache)
+                    self.populate_dataset_with_batch(end_idx - start_idx, num_tokens, seq_len)
+                    print(f"Populated {end_idx} rows of {len(self.agent_logs_df)}")
+            else:
+                for idx, row in self.agent_logs_df.iterrows():
+                    if idx >= rows_to_cache:
+                        break
+                    self.populate_dataset_with_row(row, num_tokens, seq_len)
+                    if rows_to_cache > 0 and idx % 1 == 0:
+                        print(f"Populated {idx} rows of {len(self.agent_logs_df)}")
             self.save()
