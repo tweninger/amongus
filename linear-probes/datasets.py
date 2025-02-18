@@ -5,6 +5,8 @@ import pickle
 import pandas as pd
 import os
 import sys
+from utils import free_unused_memory
+
 class ActivationCache:
     def __init__(self, model, tokenizer, device):
         self.model = model
@@ -358,6 +360,7 @@ class AmongUsDataset(ActivationDataset):
                     if idx >= rows_to_cache:
                         break
                     self.populate_dataset_with_row(row, num_tokens, seq_len)
+                    free_unused_memory()
                     if rows_to_cache > 0 and idx % 1 == 0:
                         print(f"Populated {idx} rows of {len(self.agent_logs_df)}")
             self.save()
