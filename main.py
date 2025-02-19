@@ -19,7 +19,7 @@ from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
-from amongagents.UI.WebMapUI import WebMapUI
+# from amongagents.UI.WebMapUI import WebMapUI
 from dotenv import load_dotenv
 
 from utils import setup_experiment
@@ -51,7 +51,8 @@ BIG_LIST_OF_MODELS: List[str] = [
 
 # Default experiment arguments
 ARGS = {
-    "game_config": SEVEN_MEMBER_GAME,
+    # "game_config": SEVEN_MEMBER_GAME,
+    "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
@@ -69,7 +70,7 @@ ARGS = {
 async def multiple_games(experiment_name=None, num_games=1):
     setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
-    web_ui = WebMapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
+    # web_ui = WebMapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
         experiment_file.write(f"\nExperiment args: {ARGS}\n")
     tasks = [
@@ -79,8 +80,8 @@ async def multiple_games(experiment_name=None, num_games=1):
             test=ARGS["test"],
             personality=ARGS["personality"],
             agent_config=ARGS["agent_config"],
-            # UI=ui,
-            UI=web_ui,
+            UI=ui,
+            # UI=web_ui, # under progress, do not use
             game_index=i,
         ).run_game()
         for i in range(1, num_games+1)
@@ -91,11 +92,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
     parser.add_argument("--name", type=str, default=None, help="Optional name for the experiment.")
     parser.add_argument("--num_games", type=int, default=2, help="Number of games to run.")
-    parser.add_argument("--crewmate_llm", type=str, default="meta-llama/llama-3.3-70b-instruct", help="Crewmate LLM model.")
-    parser.add_argument("--impostor_llm", type=str, default="meta-llama/llama-3.3-70b-instruct", help="Impostor LLM model.")
+    parser.add_argument("--crewmate_llm", type=str, default=None, help="Crewmate LLM model.")
+    parser.add_argument("--impostor_llm", type=str, default=None, help="Impostor LLM model.")
     args = parser.parse_args()
     if args.num_games > 1:
         ARGS["UI"] = False # can't run multiple games with UI
-    ARGS["agent_config"]["CREWMATE_LLM_CHOICES"] = [args.crewmate_llm]
-    ARGS["agent_config"]["IMPOSTOR_LLM_CHOICES"] = [args.impostor_llm]
+    if args.crewmate_llm:
+        ARGS["agent_config"]["CREWMATE_LLM_CHOICES"] = [args.crewmate_llm]
+    if args.impostor_llm:
+        ARGS["agent_config"]["IMPOSTOR_LLM_CHOICES"] = [args.impostor_llm]
     asyncio.run(multiple_games(experiment_name=args.name, num_games=args.num_games))
