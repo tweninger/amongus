@@ -133,7 +133,7 @@ def plot_roc_curves(probe_eval, title="ROC Curves for Different Behaviors (all a
         go.Figure: Plotly figure object with ROC curves
     """
     fig = make_subplots(rows=1, cols=3, 
-                        subplot_titles=('All Players', 'Crewmates Only', 'Impostors Only'),
+                        subplot_titles=('All Players','Impostors Only', 'Crewmates Only'),
                         shared_yaxes=True)
 
     # Colors for different behaviors
@@ -141,13 +141,13 @@ def plot_roc_curves(probe_eval, title="ROC Curves for Different Behaviors (all a
 
     # Add ROC curves for all groups
     add_roc_curves(probe_eval, 1, fig, behaviors, colors)
-    add_roc_curves(probe_eval[probe_eval['player_identity'] == 'Crewmate'], 2, fig, behaviors, colors)
-    add_roc_curves(probe_eval[probe_eval['player_identity'] == 'Impostor'], 3, fig, behaviors, colors)
+    add_roc_curves(probe_eval[probe_eval['player_identity'] == 'Impostor'], 2, fig, behaviors, colors)
+    add_roc_curves(probe_eval[probe_eval['player_identity'] == 'Crewmate'], 3, fig, behaviors, colors)
 
     # Update layout
     fig.update_layout(
-        height=400,
-        width=1200,
+        height=350,
+        width=900,
         title_text=title,
         showlegend=True
     )
@@ -164,7 +164,7 @@ def plot_roc_curves(probe_eval, title="ROC Curves for Different Behaviors (all a
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
 
     # legend inside the plot in a box
-    fig.update_layout(legend=dict(x=1.15, y=1, bgcolor="white", bordercolor="black", borderwidth=1))
+    fig.update_layout(legend=dict(x=1, y=1, bgcolor="white"))
 
     # everthing latex font (for research paper)
     fig.update_layout(font=dict(family='serif', size=15, color='black'))

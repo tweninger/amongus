@@ -52,8 +52,8 @@ BIG_LIST_OF_MODELS: List[str] = [
 
 # Default experiment arguments
 ARGS = {
-    # "game_config": SEVEN_MEMBER_GAME,
-    "game_config": FIVE_MEMBER_GAME,
+    "game_config": SEVEN_MEMBER_GAME,
+    # "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
