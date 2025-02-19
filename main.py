@@ -39,6 +39,7 @@ COMMIT_HASH = (
 )
 
 BIG_LIST_OF_MODELS: List[str] = [
+    "microsoft/phi-4",
     "anthropic/claude-3.5-sonnet",
     "deepseek/deepseek-r1-distill-llama-70b",
     "qwen/qwen-2.5-7b-instruct",
