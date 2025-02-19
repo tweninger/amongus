@@ -160,6 +160,7 @@ class AmongUs:
                     "name": player.name,
                     "color": player.color,
                     "identity": player.identity,
+                    "model": self.agents[-1].model,
                     "personality": player.personality,
                     "tasks": [task.name for task in player.tasks],
                 }

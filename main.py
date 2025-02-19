@@ -38,25 +38,32 @@ COMMIT_HASH = (
     subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
 )
 
+BIG_LIST_OF_MODELS: List[str] = [
+    "anthropic/claude-3.5-sonnet",
+    "deepseek/deepseek-r1-distill-llama-70b",
+    "qwen/qwen-2.5-7b-instruct",
+    "mistralai/mistral-7b-instruct",
+    "deepseek/deepseek-r1",
+    "meta-llama/llama-3.3-70b-instruct",
+    "openai/gpt-4o-mini",
+    "google/gemini-2.0-flash-001",
+]
+
 # Default experiment arguments
 ARGS = {
     "game_config": SEVEN_MEMBER_GAME,
-    # "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
     "agent_config": {
         "Impostor": "LLM", 
         "Crewmate": "LLM",    
-        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        # "CREWMATE_LLM_CHOICES": ["microsoft/phi-4"],
-        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        # "IMPOSTOR_LLM_CHOICES": ["microsoft/phi-4"],
-        # "IMPOSTOR_LLM_CHOICES": ["deepseek/deepseek-r1-distill-llama-70b"],
-        # "CREWMATE_LLM_CHOICES": ["deepseek/deepseek-r1-distill-llama-70b"],
+        # "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        # "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
     },
     "UI": True,
-    # "UI": False,
 }
 
 async def multiple_games(experiment_name=None, num_games=1):

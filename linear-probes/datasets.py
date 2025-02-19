@@ -207,7 +207,7 @@ class DishonestQADataset(ActivationDataset):
         super().__init__(config["test_split"], "DishonestQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
-        self.activations_path: str = f'./data/{self.name}_{config["short_name"]}_acts_dishonest.pkl'
+        self.activations_path: str = f'./data/TruthfulQA_{config["short_name"]}_acts_dishonest.pkl'
 
     def row_to_prompts(self, row: pd.Series) -> str:
         question = row['Question']

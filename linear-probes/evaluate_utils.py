@@ -112,7 +112,7 @@ def evaluate_probe_on_activation_dataset(acts_df, model, tokenizer, probe, devic
 
             av_probe_outputs.append(avg_probe_output)
 
-        if verbose and total % (len(acts_df) * len(labels) // 10) == 0:
+        if verbose and total % (len(acts_df) * len(labels) // 10) < len(labels):
             print(f"Evaluating {total}/{len(acts_df) * len(labels)}", end="\t")
             print(f"Probe outputs: {probe_outputs}")
     
