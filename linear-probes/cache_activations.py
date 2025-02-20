@@ -31,5 +31,5 @@ EXPT_NAME, DESCRIPTIONS = "2025-02-01_phi_phi_100_games_v3", "Crew: Phi, Imp: Ph
 dataset = AmongUsDataset({**config, "test_split": 1.0}, model=model, tokenizer=tokenizer, device=device, expt_name=EXPT_NAME)
 eval(f"model.{config['hook_component']}").register_forward_hook(dataset.activation_cache.hook_fn)
 
-dataset.populate_dataset(force_redo=True, max_rows=0, batched=False)
+dataset.populate_dataset(force_redo=True, max_rows=0, batched=False, seq_len=config["seq_len"], num_tokens=None)
 print(f'Done! Cached activations for {len(dataset.agent_logs_df)} rows.')

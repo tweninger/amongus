@@ -30,7 +30,7 @@ class ActivationCache:
             handle.remove()
 
 class ActivationDataset(Dataset):
-    def __init__(self, test_split: float = 1.0, name: str = "", model=None, tokenizer=None, device=None, activation_size: int = 768):
+    def __init__(self, test_split, name: str = "", model=None, tokenizer=None, device=None, activation_size: int = 768):
         """
         Initialize empty dataset with configurable test split ratio
         
@@ -143,8 +143,8 @@ class ActivationDataset(Dataset):
             print(f"Loaded activations from {self.activations_path}")
 
 class TruthfulQADataset(ActivationDataset):
-    def __init__(self, config: Dict[str, Any], model=None, tokenizer=None, device=None):
-        super().__init__(config["test_split"], "TruthfulQA", model, tokenizer, device, config["activation_size"])
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+        super().__init__(test_split, "TruthfulQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
         self.activations_path: str = f'./data/{self.name}_{config["short_name"]}_acts.pkl'
@@ -203,8 +203,8 @@ class TruthfulQADataset(ActivationDataset):
 
 class DishonestQADataset(ActivationDataset):
     # variant of TruthfulQA where we ask the model to be dishonest in the system prompt
-    def __init__(self, config: Dict[str, Any], model=None, tokenizer=None, device=None):
-        super().__init__(config["test_split"], "DishonestQA", model, tokenizer, device, config["activation_size"])
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+        super().__init__(test_split, "DishonestQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
         self.activations_path: str = f'./data/TruthfulQA_{config["short_name"]}_acts_dishonest.pkl'
@@ -272,9 +272,10 @@ class AmongUsDataset(ActivationDataset):
             tokenizer=None, 
             device=None, 
             raw_path: str = "../expt-logs/",
-            expt_name: str = "2025-02-01_phi_phi_100_games_v3"
+            expt_name: str = None,
+            test_split: float = None
             ):
-        super().__init__(config["test_split"], "AmongUs", model, tokenizer, device, config["activation_size"])
+        super().__init__(test_split, "AmongUs", model, tokenizer, device, config["activation_size"])
         self.name: str = "AmongUs"
         self.agent_logs_path: str = os.path.join(raw_path, expt_name + "/agent-logs-compact.json")
         sys.path.append("..")
@@ -298,7 +299,7 @@ class AmongUsDataset(ActivationDataset):
 
         return phi_format_prompt
 
-    def populate_dataset_with_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
+    def populate_dataset_with_row(self, row, num_tokens, seq_len):
         phi_format_prompt = self.agent_logs_row_to_full_prompt(row)
         tokens = self.tokenizer.encode(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         with t.no_grad():
@@ -307,9 +308,12 @@ class AmongUsDataset(ActivationDataset):
             if not self.activation_cache.activations:
                 raise ValueError("No activations found. Ensure the model and activation cache are set up correctly.")
             activations = self.activation_cache.activations[0][0]
-            if len(activations) < num_tokens:
-                raise ValueError(f"Not enough activations to extract {num_tokens} tokens. Available: {len(activations)}")
-            acts = [activations[i] for i in range(-num_tokens, 0)]
+            if num_tokens:
+                if len(activations) < num_tokens:
+                    raise ValueError(f"Not enough activations to extract {num_tokens} tokens. Available: {len(activations)}")
+                acts = [activations[i] for i in range(-num_tokens, 0)]
+            else:
+                acts = [activations[i] for i in range(len(activations))]
             label = 1 if row["player.identity"] == "Impostor" else 0
             self.append(acts, label)
 

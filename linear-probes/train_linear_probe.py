@@ -20,20 +20,19 @@ def train_probe(dataset_name: str):
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True, device_map="auto")
         device = model.device
-        dataset = eval(f"{dataset_name}")(config, model=model, tokenizer=tokenizer, device=device)
+        dataset = eval(f"{dataset_name}")(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
         eval(f"model.{config['hook_component']}").register_forward_hook(dataset.activation_cache.hook_fn)
     else:
         model, tokenizer, device = None, None, 'cpu'
-        dataset = eval(f"{dataset_name}")(config, model=model, tokenizer=tokenizer, device=device)
+        dataset = eval(f"{dataset_name}")(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
 
     dataset.populate_dataset(force_redo=False)
-
-    print(f'Training linear probe on {dataset_name} dataset with {len(dataset)} datapoints.')
-
     train_loader = dataset.get_train(batch_size=32)
     probe = LinearProbe(input_dim=dataset.activation_size, device=device)
 
-    probe.fit(train_loader, epochs=300)
+    print(f'Training probe on {len(train_loader)} batches and {len(train_loader.dataset)} samples.')
+
+    probe.fit(train_loader, epochs=100)
 
     checkpoint_path = f'checkpoints/{dataset_name}_probe_{config["short_name"]}.pkl'
     with open(checkpoint_path, 'wb') as f:
