@@ -59,7 +59,7 @@ def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, dataset, device,
             prompt, model, tokenizer, probe, dataset, device, tokens_to_average
         )
         
-        if verbose and i % (len(test_df) // 10) == 0:
+        if verbose and i % ((len(test_df) + 10) // 10) == 0:
             print(f"Evaluating {i}/{len(test_df)}", end="\t")
             print(f"Probe outputs: {probe_outputs}")
             
@@ -111,7 +111,7 @@ def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=N
 
         av_probe_outputs.append(avg_probe_output)
 
-        if verbose and i % (len(chunk_data) // 10) == 0:
+        if verbose and i % ((len(chunk_data) + 10) // 10) == 0:
             print(f"Evaluating {i}/{len(chunk_data)}", end="\t")
             print(f"Probe outputs: {probe_outputs}")
     

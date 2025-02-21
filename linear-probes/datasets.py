@@ -255,9 +255,11 @@ class AmongUsDataset(ActivationDataset):
         sys.path.append("..")
         from utils import load_agent_logs_df
         self.agent_logs_df = load_agent_logs_df(self.agent_logs_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_chunks/'
-        self.chunk_size = 100
-        self.num_total_chunks = (len(self.agent_logs_df) + self.chunk_size - 1) // self.chunk_size
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        # load number of chunks from existing directory
+        self.num_total_chunks = 0
+        while os.path.exists(self.get_chunk_path(self.num_total_chunks)):
+            self.num_total_chunks += 1
 
     def agent_logs_row_to_full_prompt(self, row: pd.Series) -> str:
         system_prompt = row["interaction.system_prompt"]
@@ -312,6 +314,7 @@ class AmongUsDataset(ActivationDataset):
         chunk_idx = 0
         while os.path.exists(self.get_chunk_path(chunk_idx)):
             chunk_idx += 1
+        print(f"Starting from chunk {chunk_idx}")
         
         # Calculate rows to process
         processed_rows = chunk_idx * chunk_size
