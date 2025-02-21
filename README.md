@@ -1,4 +1,4 @@
-# AmongUs
+# AmongUs: A Model Organism for Lying and Deception in LLM Agents
 
 This project focuses on making open-weight LLM agents play the game "Among Us" and studying how these models learn to express lying and deception within the context of the game.
 
