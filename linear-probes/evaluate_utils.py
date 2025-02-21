@@ -75,16 +75,16 @@ def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, dataset, device,
     print(f"Accuracy: {accuracy}")
     return av_probe_outputs, accuracy
 
-def evaluate_probe_on_activation_dataset(acts_df, model, tokenizer, probe, device, verbose=True):
+def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=None, verbose=True):
     """
     Evaluate probe on a test dataset of activations and return probe outputs and accuracy
     
     Args:
-        acts_df: DataLoader containing activation batches and labels
-        model: Language model (unused)
-        tokenizer: Tokenizer for the model (unused) 
+        chunk_data: List of tuples (activations_list, label) where activations_list contains
+                   numpy arrays of shape (activation_size,) for each token position
         probe: Linear probe model
         device: Device to run model on
+        num_tokens: Number of final tokens to average probe outputs over. If None, use all tokens.
         verbose: Whether to print progress
         
     Returns:
@@ -93,27 +93,26 @@ def evaluate_probe_on_activation_dataset(acts_df, model, tokenizer, probe, devic
     av_probe_outputs = []
     total, correct = 0, 0
     
-    for batch in acts_df:
-        acts_batch, labels = batch
-        total += len(labels)
+    for i, (activations, label) in enumerate(chunk_data):
+        total += 1
         
-        # acts_batch is list of N tensors of shape [batch_size, activation_size]
-        for i in range(len(labels)):
-            activations = [acts_batch[j][i] for j in range(len(acts_batch))]
-            label = labels[i].item()
-            
-            probe_outputs = [round(probe.evaluate_single_activation(act.to(device)), 4) for act in activations]
-            avg_probe_output = sum(probe_outputs) / len(probe_outputs)
+        # Take specified number of tokens from end of sequence
+        acts_to_use = activations[-num_tokens:] if num_tokens else activations
+        
+        # Get probe output for each token position
+        probe_outputs = [round(probe.evaluate_single_activation(t.tensor(act, device=device)), 4) 
+                        for act in acts_to_use]
+        avg_probe_output = sum(probe_outputs) / len(probe_outputs)
 
-            if label == 1 and avg_probe_output > 0.5:
-                correct += 1
-            elif label == 0 and avg_probe_output <= 0.5:
-                correct += 1
+        if label == 1 and avg_probe_output > 0.5:
+            correct += 1
+        elif label == 0 and avg_probe_output <= 0.5:
+            correct += 1
 
-            av_probe_outputs.append(avg_probe_output)
+        av_probe_outputs.append(avg_probe_output)
 
-        if verbose and total % (len(acts_df) * len(labels) // 10) < len(labels):
-            print(f"Evaluating {total}/{len(acts_df) * len(labels)}", end="\t")
+        if verbose and i % (len(chunk_data) // 10) == 0:
+            print(f"Evaluating {i}/{len(chunk_data)}", end="\t")
             print(f"Probe outputs: {probe_outputs}")
     
     accuracy = correct / total
