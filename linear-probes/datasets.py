@@ -154,7 +154,7 @@ class TruthfulQADataset(ActivationDataset):
             self.activation_cache.clear_activations()
             self.model.forward(correct_tokens)
             correct_activations = self.activation_cache.activations[0][0]
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             correct_acts = [correct_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [correct_activations[i] for i in range(len(correct_activations))]
             chunk_data.append((correct_acts, 1))
                 
@@ -207,7 +207,7 @@ class DishonestQADataset(ActivationDataset):
             # run a single forward pass to get activations
             full_output_tokens = self.tokenizer.encode(full_output_str, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
             self.model.forward(full_output_tokens)
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             correct_activations = self.activation_cache.activations[0][0]
             correct_acts = [correct_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [correct_activations[i] for i in range(len(correct_activations))]
             chunk_data.append((correct_acts, 1))
