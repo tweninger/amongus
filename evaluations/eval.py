@@ -35,7 +35,7 @@ def setup_experiment(expt_name, results_path) -> None:
     agent_df: DataFrame = load_agent_logs_df(agent_logs_path)
     cols_to_keep: List[str] = [
         'game_index', 'step', 'player.name', 'player.identity', 'interaction.prompt.All Info',
-        'interaction.response.Condensed Memory', 'action', 'thought']
+        'interaction.response.Condensed Memory', 'action', 'thought', 'timestamp']
     agent_df = agent_df[cols_to_keep]
     agent_df = agent_df.fillna("")
     results_file: str = os.path.join(results_path, expt_name + "_all_skill_scores.json")
@@ -98,7 +98,8 @@ async def process_row(row, results_file, model):
         "player_name": name,
         "game_info": game_info,
         "memory": memory,
-        "thought": thought
+        "thought": thought,
+        "timestamp": row['timestamp'],
     }
     async with aiofiles.open(results_file, "a") as f:
         try:
@@ -107,9 +108,16 @@ async def process_row(row, results_file, model):
             print(f"JSON ERROR: {e}")
         print(f"." , end="", flush=True)
 
-async def main(agent_df, results_file, model, run_async=True):
+async def main(agent_df, results_file, model, run_async=True, rate_limit=50):
     if run_async:
-        tasks = [process_row(row, results_file, model) for index, row in agent_df.iterrows()]
+        # create semaphore to limit concurrent tasks
+        semaphore = asyncio.Semaphore(rate_limit)
+        
+        async def limited_process_row(row):
+            async with semaphore:
+                await process_row(row, results_file, model)
+        
+        tasks = [limited_process_row(row) for index, row in agent_df.iterrows()]
         await asyncio.gather(*tasks)
     else:
         for index, row in agent_df.iterrows():

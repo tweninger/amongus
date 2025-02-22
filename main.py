@@ -68,25 +68,31 @@ ARGS = {
     "UI": True,
 }
 
-async def multiple_games(experiment_name=None, num_games=1):
+async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
     setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     # web_ui = WebMapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
         experiment_file.write(f"\nExperiment args: {ARGS}\n")
-    tasks = [
-        AmongUs(
-            game_config=ARGS["game_config"],
-            include_human=ARGS["include_human"],
-            test=ARGS["test"],
-            personality=ARGS["personality"],
-            agent_config=ARGS["agent_config"],
-            UI=ui,
-            # UI=web_ui, # under progress, do not use
-            game_index=i,
-        ).run_game()
-        for i in range(1, num_games+1)
-    ]
+
+    # Create semaphore to limit concurrent games
+    semaphore = asyncio.Semaphore(rate_limit)
+
+    async def run_limited_game(game_index):
+        async with semaphore:
+            game = AmongUs(
+                game_config=ARGS["game_config"],
+                include_human=ARGS["include_human"],
+                test=ARGS["test"],
+                personality=ARGS["personality"],
+                agent_config=ARGS["agent_config"],
+                UI=ui,
+                # UI=web_ui, # under progress, do not use
+                game_index=game_index,
+            )
+            await game.run_game()
+
+    tasks = [run_limited_game(i) for i in range(1, num_games+1)]
     await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
