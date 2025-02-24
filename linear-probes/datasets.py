@@ -6,6 +6,7 @@ import pandas as pd
 import os
 import sys
 from utils import free_unused_memory
+import yaml
 
 class ActivationCache:
     def __init__(self, model, tokenizer, device):
@@ -213,7 +214,6 @@ class DishonestQADataset(ActivationDataset):
             chunk_data.append((correct_acts, 1))
                 
             self.activation_cache.clear_activations()
-            self.model.generate(incorrect_tokens, max_new_tokens=10)
             out_tokens = self.model.generate(incorrect_tokens, max_new_tokens=10)
             out_token_ids = out_tokens.cpu().tolist()[0]
             full_output_str = self.tokenizer.decode(out_token_ids)
@@ -347,3 +347,97 @@ class AmongUsDataset(ActivationDataset):
             
         self.num_total_chunks = chunk_idx + 1
         print(f"Finished processing {rows_to_cache} rows into {self.num_total_chunks} chunks")
+
+class RolePlayingDataset(ActivationDataset):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+        super().__init__(test_split, "Roleplaying", model, tokenizer, device, config["activation_size"])
+        self.data_path: str = './data/Roleplaying/dataset.yaml'
+        with open(self.data_path) as f:
+            yaml_data = yaml.safe_load(f)
+        self.df = pd.DataFrame(yaml_data)
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.num_total_chunks = 1  # Roleplaying uses single chunk
+
+    def row_to_prompts(self, row: pd.Series) -> str:
+        system: str = row['scenario']
+        question: str = row['question']
+        honest_rollout: str = row['answer_prefix'] + row['honest_completion']
+        dishonest_rollout: str = row['answer_prefix'] + row['deceptive_completion']
+        phi_format_correct = f'''<|im_start|>system<|im_sep|>{system}.\
+<|im_end|><|im_start|>user<|im_sep|>{question}<|im_end|><|im_start|>assistant<|im_sep|>{honest_rollout}'''
+        phi_format_incorrect = f'''<|im_start|>system<|im_sep|>{system}.\
+<|im_end|><|im_start|>user<|im_sep|>{question}<|im_end|><|im_start|>assistant<|im_sep|>{dishonest_rollout}'''
+        return phi_format_correct, phi_format_incorrect
+
+    def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
+        correct_prompt, incorrect_prompt = self.row_to_prompts(row)
+        correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)        
+        chunk_data = []
+        with t.no_grad():
+            self.activation_cache.clear_activations()
+            self.model.forward(correct_tokens)
+            correct_activations = self.activation_cache.activations[0][0]
+            correct_acts = [correct_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [correct_activations[i] for i in range(len(correct_activations))]
+            chunk_data.append((correct_acts, 1))
+                
+            self.activation_cache.clear_activations()
+            self.model.forward(incorrect_tokens)
+            incorrect_activations = self.activation_cache.activations[0][0]
+            incorrect_acts = [incorrect_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [incorrect_activations[i] for i in range(len(incorrect_activations))]
+            chunk_data.append((incorrect_acts, 0))
+        return chunk_data
+    
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024):
+        if os.path.exists(self.get_chunk_path(0)) and not force_redo:
+            print(f"Loading existing chunk from {self.get_chunk_path(0)}")
+            return
+            
+        chunk_data = []
+        for idx, row in self.df.iterrows():
+            chunk_data.extend(self.process_row(row, num_tokens, seq_len))
+            if idx % (len(self.df) // 10) == 0:
+                print(f"Processed {idx} rows of {len(self.df)}")
+        self.save_chunk(chunk_data, 0)
+        free_unused_memory()
+        
+
+class RepEngDataset(ActivationDataset):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+        super().__init__(test_split, "RepEng", model, tokenizer, device, config["activation_size"])
+        self.data_path: str = './data/RepE/true_false_facts.csv'
+        self.df = pd.read_csv(self.data_path)
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.num_total_chunks = 1 # RepEng uses single chunk
+
+    def row_to_prompts(self, row: pd.Series) -> str:
+        statement = row['Statement']
+        system: str = "You are an AI assistant."
+        label: str = "honest" if row['Label'] == 1 else "dishonest"
+        user: str = f"Pretend you're a {label} person making statements about the world."
+        phi_format = f'''<|im_start|>system<|im_sep|>{system}\
+<|im_end|><|im_start|>user<|im_sep|>{user}<|im_end|><|im_start|>assistant<|im_sep|>{statement}'''
+        return phi_format, row['Label']
+
+    def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
+        phi_format_prompt, label = self.row_to_prompts(row)
+        tokens = self.tokenizer.encode(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        with t.no_grad():
+            self.activation_cache.clear_activations()
+            self.model.forward(tokens)
+            activations = self.activation_cache.activations[0][0]
+            acts = [activations[i] for i in range(-num_tokens, 0)] if num_tokens else [activations[i] for i in range(len(activations))]
+            return acts, label
+
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024):
+        if os.path.exists(self.get_chunk_path(0)) and not force_redo:
+            print(f"Loading existing chunk from {self.get_chunk_path(0)}")
+            return
+        chunk_data = []
+        for idx, row in self.df.iterrows():
+            chunk_data.extend(self.process_row(row, num_tokens, seq_len))
+            if idx % (len(self.df) // 10) == 0:
+                print(f"Processed {idx} rows of {len(self.df)}")
+        self.save_chunk(chunk_data, 0)
+        free_unused_memory()
+        self.num_total_chunks = 1
