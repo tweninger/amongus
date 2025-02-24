@@ -9,7 +9,7 @@ class LinearModel(nn.Module):
         super().__init__()
         self.register_buffer('mean', t.zeros(input_dim))
         self.register_buffer('std', t.ones(input_dim))
-        self.linear = nn.Linear(input_dim, 1)
+        self.linear = nn.Linear(input_dim, 1, bias=False)
 
     def forward(self, x):
         # Normalize input using running statistics
@@ -22,7 +22,7 @@ class LinearProbe:
         self.device = device
         self.model = LinearModel(input_dim).to(self.device)
         self.criterion = criterion if criterion else nn.BCEWithLogitsLoss()
-        self.optimizer = optimizer_cls(self.model.parameters(), lr=lr, weight_decay=1e-4)  # Added L2 regularization
+        self.optimizer = optimizer_cls(self.model.parameters(), lr=lr, weight_decay=1e-3)  # L2 regularization
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=gamma)
         self.train_accs = []
 

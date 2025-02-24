@@ -31,12 +31,18 @@ class ActivationCache:
             handle.remove()
 
 class ActivationDataset(Dataset):
-    def __init__(self, test_split, name: str = "", model=None, tokenizer=None, device=None, activation_size: int = 768):
+    def __init__(self, test_split, name: str = "", model=None, tokenizer=None, device=None, activation_size: int = 768, **kwargs):
         """
         Initialize empty dataset with configurable test split ratio
         
         Args:
             test_split (float): Proportion of data to use for testing (0-1)
+            name (str): Name of the dataset
+            model: Model to use for generating activations
+            tokenizer: Tokenizer to use for processing text
+            device: Device to run model on
+            activation_size (int): Size of activation vectors
+            **kwargs: Additional keyword arguments that may be needed by specific dataset implementations
         """
         self.test_split = test_split
         self.name = name
@@ -166,7 +172,7 @@ class TruthfulQADataset(ActivationDataset):
             chunk_data.append((incorrect_acts, 0))
         return chunk_data
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
@@ -226,7 +232,7 @@ class DishonestQADataset(ActivationDataset):
             chunk_data.append((incorrect_acts, 0))
         return chunk_data
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
@@ -388,7 +394,7 @@ class RolePlayingDataset(ActivationDataset):
             chunk_data.append((incorrect_acts, 0))
         return chunk_data
     
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
@@ -411,13 +417,13 @@ class RepEngDataset(ActivationDataset):
         self.num_total_chunks = 1 # RepEng uses single chunk
 
     def row_to_prompts(self, row: pd.Series) -> str:
-        statement = row['Statement']
+        statement = row['statement']
         system: str = "You are an AI assistant."
-        label: str = "honest" if row['Label'] == 1 else "dishonest"
+        label: str = "honest" if row['label'] == 1 else "dishonest"
         user: str = f"Pretend you're a {label} person making statements about the world."
         phi_format = f'''<|im_start|>system<|im_sep|>{system}\
 <|im_end|><|im_start|>user<|im_sep|>{user}<|im_end|><|im_start|>assistant<|im_sep|>{statement}'''
-        return phi_format, row['Label']
+        return phi_format, row['label']
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         phi_format_prompt, label = self.row_to_prompts(row)
@@ -427,15 +433,15 @@ class RepEngDataset(ActivationDataset):
             self.model.forward(tokens)
             activations = self.activation_cache.activations[0][0]
             acts = [activations[i] for i in range(-num_tokens, 0)] if num_tokens else [activations[i] for i in range(len(activations))]
-            return acts, label
+            return (acts, label)
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
         chunk_data = []
         for idx, row in self.df.iterrows():
-            chunk_data.extend(self.process_row(row, num_tokens, seq_len))
+            chunk_data.append(self.process_row(row, num_tokens, seq_len))
             if idx % (len(self.df) // 10) == 0:
                 print(f"Processed {idx} rows of {len(self.df)}")
         self.save_chunk(chunk_data, 0)

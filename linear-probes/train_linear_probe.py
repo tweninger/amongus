@@ -5,7 +5,7 @@ import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
 sys.path.append(os.path.dirname(os.path.abspath('.')))
 import configs
-from datasets import TruthfulQADataset, DishonestQADataset, AmongUsDataset
+from datasets import TruthfulQADataset, DishonestQADataset, AmongUsDataset, RolePlayingDataset, RepEngDataset
 from probes import LinearProbe
 from configs import config_phi4
 

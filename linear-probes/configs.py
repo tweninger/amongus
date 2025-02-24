@@ -16,7 +16,7 @@ config_phi4: Dict[str, Any] = {
     "model_name": "microsoft/phi-4",
     "activation_size": 5120,
     "seq_len": 16384,
-    "hook_component": "model.layers[15].mlp",
+    "hook_component": "model.layers[20].mlp",
     "test_split": 0.2,
     "batch_size": 32,
     "learning_rate": 0.001,

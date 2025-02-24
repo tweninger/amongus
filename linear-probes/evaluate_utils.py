@@ -117,7 +117,5 @@ def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=N
     
     accuracy = correct / total
     if verbose:
-        print(f"Accuracy: {accuracy}")
-    else:
         print(f".", end="")
     return av_probe_outputs, accuracy
