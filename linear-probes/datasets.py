@@ -298,18 +298,27 @@ class AmongUsDataset(ActivationDataset):
                 acts = [activations[i] for i in range(-num_tokens, 0)]
             else:
                 acts = [activations[i] for i in range(len(activations))]
-            label = 1 if row["player.identity"] == "Impostor" else 0
+            label = 0 if row["player.identity"] == "Impostor" else 1
             return acts, label
 
     def populate_dataset(
         self, 
-        force_redo: bool = False, 
+        force_redo: bool = False,
         num_tokens: int = 5,
         max_rows: int = 0,
         seq_len: int = 1024,
         chunk_size: int = 100,
+        just_load: bool = True,
         ):
         """Get activations row by row and save in chunks"""
+        if just_load:
+            chunk_idx = 0
+            while os.path.exists(self.get_chunk_path(chunk_idx)):
+                chunk_idx += 1
+            self.num_total_chunks = chunk_idx
+            print(f"Loaded {self.num_total_chunks} existing chunks")
+            return
+
         if force_redo and os.path.exists(self.activations_dir):
             import shutil
             shutil.rmtree(self.activations_dir)
