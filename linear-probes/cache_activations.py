@@ -11,7 +11,7 @@ import datasets, plots, configs, evaluate_utils
 for module in [datasets, plots, configs, evaluate_utils]:
     importlib.reload(module)
 
-from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset
+from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset, ApolloProbeDataset
 from configs import config_phi4, config_gpt2
 
 def main(dataset_name: str):
@@ -34,14 +34,15 @@ def main(dataset_name: str):
         dataset = eval(dataset_name)(config, model=model, tokenizer=tokenizer, device=device, test_split=1.0)
     
     eval(f"model.{config['hook_component']}").register_forward_hook(dataset.activation_cache.hook_fn)
-    dataset.populate_dataset(force_redo=True, max_rows=0, seq_len=config["seq_len"], num_tokens=None, chunk_size=100)
+    num_tokens = 5 if dataset_name == "ApolloProbeDataset" else None
+    dataset.populate_dataset(force_redo=True, max_rows=0, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=100)
     print(f'Done! Cached activations for {dataset.num_total_chunks} chunks.')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Cache activations for a dataset')
     parser.add_argument('--dataset', type=str, default="DishonestQADataset",
                         choices=["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", 
-                                "RepEngDataset", "RolePlayingDataset"],
+                                "RepEngDataset", "RolePlayingDataset", "ApolloProbeDataset"],
                         help='Name of dataset class to use')
     args = parser.parse_args()
     main(args.dataset)

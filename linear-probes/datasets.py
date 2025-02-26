@@ -509,6 +509,9 @@ class ApolloProbeDataset(ActivationDataset):
             
         chunk_data = []
         for idx, row in self.df.iterrows():
+            if row['label'] == 0:
+                # do not add incorrect statements
+                continue
             chunk_data.extend(self.process_row(row, num_tokens, seq_len))
             if idx % (len(self.df) // 10) == 0:
                 print(f"Processed {idx} rows of {len(self.df)}")
