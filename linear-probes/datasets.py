@@ -456,3 +456,62 @@ class RepEngDataset(ActivationDataset):
         self.save_chunk(chunk_data, 0)
         free_unused_memory()
         self.num_total_chunks = 1
+
+class ApolloProbeDataset(ActivationDataset):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+        super().__init__(test_split, "ApolloProbe", model, tokenizer, device, config["activation_size"])
+        self.data_path: str = './data/ApolloProbe/common_claim_true_false.csv'
+        self.df = pd.read_csv(self.data_path)
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.num_total_chunks = 1 # ApolloProbe uses single chunk
+
+    def row_to_prompts(self, row: pd.Series) -> str:
+        statement = row['statement']
+        # no system prompt and tags for this one
+        correct_user: str = "Pretend you're an honest person making statements about the world."
+        incorrect_user: str = "Pretend you're a dishonest person making statements about the world."
+        phi_format_correct = f'''<|im_start|>user<|im_sep|>{correct_user}<|im_end|><|im_start|>assistant<|im_sep|>{statement}'''
+        phi_format_incorrect = f'''<|im_start|>user<|im_sep|>{incorrect_user}<|im_end|><|im_start|>assistant<|im_sep|>{statement}'''
+        return phi_format_correct, phi_format_incorrect
+
+    def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
+        correct_prompt, incorrect_prompt = self.row_to_prompts(row)
+        correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)        
+        chunk_data = []
+        
+        # Find the position after "<|im_start|>user<|im_sep|>" in both prompts
+        correct_user_start = correct_prompt.find("<|im_start|>user<|im_sep|>") + len("<|im_start|>user<|im_sep|>")
+        incorrect_user_start = incorrect_prompt.find("<|im_start|>user<|im_sep|>") + len("<|im_start|>user<|im_sep|>")
+        
+        # Get token indices for the user message start positions
+        correct_user_token_start = len(self.tokenizer.encode(correct_prompt[:correct_user_start], add_special_tokens=False))
+        incorrect_user_token_start = len(self.tokenizer.encode(incorrect_prompt[:incorrect_user_start], add_special_tokens=False))
+        
+        with t.no_grad():
+            self.activation_cache.clear_activations()
+            self.model.forward(correct_tokens)
+            correct_activations = self.activation_cache.activations[0][0]
+            correct_acts = [correct_activations[correct_user_token_start + i] for i in range(num_tokens)]
+            chunk_data.append((correct_acts, 1))
+                
+            self.activation_cache.clear_activations()
+            self.model.forward(incorrect_tokens)
+            incorrect_activations = self.activation_cache.activations[0][0]
+            incorrect_acts = [incorrect_activations[incorrect_user_token_start + i] for i in range(num_tokens)]
+            chunk_data.append((incorrect_acts, 0))
+        return chunk_data
+
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
+        if os.path.exists(self.get_chunk_path(0)) and not force_redo:
+            print(f"Loading existing chunk from {self.get_chunk_path(0)}")
+            return
+            
+        chunk_data = []
+        for idx, row in self.df.iterrows():
+            chunk_data.extend(self.process_row(row, num_tokens, seq_len))
+            if idx % (len(self.df) // 10) == 0:
+                print(f"Processed {idx} rows of {len(self.df)}")
+        self.save_chunk(chunk_data, 0)
+        free_unused_memory()
+        self.num_total_chunks = 1
