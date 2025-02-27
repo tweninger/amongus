@@ -35,7 +35,7 @@ def main(dataset_name: str):
     
     eval(f"model.{config['hook_component']}").register_forward_hook(dataset.activation_cache.hook_fn)
     num_tokens = 5 if dataset_name == "ApolloProbeDataset" else None
-    dataset.populate_dataset(force_redo=True, max_rows=0, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=100)
+    dataset.populate_dataset(force_redo=True, just_load=False, max_rows=0, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=500)
     print(f'Done! Cached activations for {dataset.num_total_chunks} chunks.')
 
 if __name__ == "__main__":

@@ -481,24 +481,24 @@ class ApolloProbeDataset(ActivationDataset):
         chunk_data = []
         
         # Find the position after "<|im_start|>user<|im_sep|>" in both prompts
-        correct_user_start = correct_prompt.find("<|im_start|>user<|im_sep|>") + len("<|im_start|>user<|im_sep|>")
-        incorrect_user_start = incorrect_prompt.find("<|im_start|>user<|im_sep|>") + len("<|im_start|>user<|im_sep|>")
+        correct_assistant_start = correct_prompt.find("<|im_start|>assistant<|im_sep|>") + len("<|im_start|>assistant<|im_sep|>")
+        incorrect_assistant_start = incorrect_prompt.find("<|im_start|>assistant<|im_sep|>") + len("<|im_start|>assistant<|im_sep|>")
         
         # Get token indices for the user message start positions
-        correct_user_token_start = len(self.tokenizer.encode(correct_prompt[:correct_user_start], add_special_tokens=False))
-        incorrect_user_token_start = len(self.tokenizer.encode(incorrect_prompt[:incorrect_user_start], add_special_tokens=False))
+        correct_assistant_token_start = len(self.tokenizer.encode(correct_prompt[:correct_assistant_start], add_special_tokens=False))
+        incorrect_assistant_token_start = len(self.tokenizer.encode(incorrect_prompt[:incorrect_assistant_start], add_special_tokens=False))
         
         with t.no_grad():
             self.activation_cache.clear_activations()
             self.model.forward(correct_tokens)
             correct_activations = self.activation_cache.activations[0][0]
-            correct_acts = [correct_activations[correct_user_token_start + i] for i in range(num_tokens)]
+            correct_acts = [correct_activations[correct_assistant_token_start + i] for i in range(num_tokens)]
             chunk_data.append((correct_acts, 1))
                 
             self.activation_cache.clear_activations()
             self.model.forward(incorrect_tokens)
             incorrect_activations = self.activation_cache.activations[0][0]
-            incorrect_acts = [incorrect_activations[incorrect_user_token_start + i] for i in range(num_tokens)]
+            incorrect_acts = [incorrect_activations[incorrect_assistant_token_start + i] for i in range(num_tokens)]
             chunk_data.append((incorrect_acts, 0))
         return chunk_data
 

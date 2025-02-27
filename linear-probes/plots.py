@@ -8,13 +8,15 @@ from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, rec
 from sklearn.metrics import roc_curve, auc
 import plotly.graph_objects as go
 
-def plot_roc_curve_eval(labels, probe_outputs):
+def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
     """
     Plot ROC curve for probe outputs and labels.
     
     Args:
         labels: Ground truth binary labels
         probe_outputs: Predicted probabilities from probe
+        labels_2: Optional second set of ground truth binary labels
+        names: Optional list of 2 strings for legend labels
     """
     # Calculate ROC curve
     fpr, tpr, thresholds = roc_curve(labels, probe_outputs)
@@ -22,9 +24,26 @@ def plot_roc_curve_eval(labels, probe_outputs):
 
     # Create ROC plot
     fig = go.Figure()
+    
+    # Set name for first curve based on provided names
+    curve_name = f'ROC curve (AUC = {roc_auc:.3f})' if names is None else f'{names[0]} (AUC = {roc_auc:.3f})'
+    
     fig.add_trace(go.Scatter(x=fpr, y=tpr,
                             mode='lines', 
-                            name=f'ROC curve (AUC = {roc_auc:.3f})'))
+                            name=curve_name))
+    
+    # Add second curve if labels_2 is provided
+    if labels_2 is not None:
+        fpr_2, tpr_2, _ = roc_curve(labels_2, probe_outputs)
+        roc_auc_2 = auc(fpr_2, tpr_2)
+        
+        # Set name for second curve based on provided names
+        curve_name_2 = f'ROC curve 2 (AUC = {roc_auc_2:.3f})' if names is None or len(names) < 2 else f'{names[1]} (AUC = {roc_auc_2:.3f})'
+        
+        fig.add_trace(go.Scatter(x=fpr_2, y=tpr_2,
+                                mode='lines',
+                                name=curve_name_2))
+    
     fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1],
                             mode='lines',
                             name='Random',
