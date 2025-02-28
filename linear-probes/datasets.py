@@ -137,7 +137,7 @@ class ActivationDataset(Dataset):
         }
 
 class TruthfulQADataset(ActivationDataset):
-    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None, **kwargs):
         super().__init__(test_split, "TruthfulQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
@@ -185,7 +185,7 @@ class TruthfulQADataset(ActivationDataset):
         self.save_chunk(chunk_data, 0)
 
 class DishonestQADataset(ActivationDataset):
-    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None, **kwargs):
         super().__init__(test_split, "DishonestQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
@@ -253,7 +253,8 @@ class AmongUsDataset(ActivationDataset):
             device=None, 
             raw_path: str = "../expt-logs/",
             expt_name: str = None,
-            test_split: float = None
+            test_split: float = None,
+            **kwargs
             ):
         super().__init__(test_split, "AmongUs", model, tokenizer, device, config["activation_size"])
         self.name: str = "AmongUs"
@@ -364,7 +365,7 @@ class AmongUsDataset(ActivationDataset):
         print(f"Finished processing {rows_to_cache} rows into {self.num_total_chunks} chunks")
 
 class RolePlayingDataset(ActivationDataset):
-    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None, **kwargs):
         super().__init__(test_split, "Roleplaying", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/Roleplaying/dataset.yaml'
         with open(self.data_path) as f:
@@ -418,7 +419,7 @@ class RolePlayingDataset(ActivationDataset):
         
 
 class RepEngDataset(ActivationDataset):
-    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None, **kwargs):
         super().__init__(test_split, "RepEng", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/RepE/true_false_facts.csv'
         self.df = pd.read_csv(self.data_path)
@@ -458,7 +459,7 @@ class RepEngDataset(ActivationDataset):
         self.num_total_chunks = 1
 
 class ApolloProbeDataset(ActivationDataset):
-    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None):
+    def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None, **kwargs):
         super().__init__(test_split, "ApolloProbe", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/ApolloProbe/common_claim_true_false.csv'
         self.df = pd.read_csv(self.data_path)

@@ -51,8 +51,8 @@ def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
 
     fig.update_layout(
         title='Receiver Operating Characteristic (ROC) Curve',
-        xaxis_title='False Positive Rate',
-        yaxis_title='True Positive Rate',
+        xaxis_title='False Positive Rate (FPR)',
+        yaxis_title='True Positive Rate (TPR)',
         showlegend=True
     )
 
@@ -61,11 +61,11 @@ def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
         plot_bgcolor='white',
         paper_bgcolor='white',
         font=dict(family='Computer Modern', size=16),
-        xaxis=dict(title='False Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=False),
-        yaxis=dict(title='True Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=False, range=(0,1)),
-        legend=dict(x=0.62, y=0.22, bgcolor='rgba(255, 255, 255, 0.8)'),
+        xaxis=dict(title='False Positive Rate (FPR)', gridcolor='lightgray', showgrid=True, zeroline=False),
+        yaxis=dict(title='True Positive Rate (TPR)', gridcolor='lightgray', showgrid=True, zeroline=False, range=(0,1)),
+        legend=dict(x=0.52, y=0.12, bgcolor='rgba(255, 255, 255, 0.8)'),
         margin=dict(l=60, r=20, t=20, b=60),
-        width=500, height=400
+        width=450, height=400
     )
 
     return fig
