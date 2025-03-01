@@ -28,10 +28,10 @@ config_phi4_linear_probe: Dict[str, Any] = {
     "test_split": 0.2,
     "batch_size": 32,
     "learning_rate": 0.001,
-    "probe_training_epochs": 10,
+    "probe_training_epochs": 4,
     "probe_training_batch_size": 32,
     "probe_training_learning_rate": 0.001,
-    "probe_training_num_tokens": 5,
+    "probe_training_num_tokens": 10,
     "probe_training_chunk_idx": 0,
 }
 

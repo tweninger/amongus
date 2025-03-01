@@ -82,10 +82,13 @@ def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
         yaxis=dict(title='True Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=True, range=(0,1)),
         legend=dict(x=0.32, y=0.05, bgcolor='rgba(255, 255, 255, 0.8)'),
         # margin=dict(l=60, r=20, t=20, b=60),
-        width=400, height=400
+        width=500, height=500
     )
 
-    return fig, roc_auc
+    if labels_2 is None:
+        return fig, roc_auc
+    else:
+        return fig, [roc_auc, roc_auc_2]
 
 # Print performance metrics for each group
 def print_metrics(data, group_name, threshold=0.5, behaviors=None):

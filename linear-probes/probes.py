@@ -3,6 +3,8 @@ import torch as t
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import random
+import numpy as np
 
 class LinearModel(nn.Module):
     def __init__(self, input_dim):
@@ -18,13 +20,26 @@ class LinearModel(nn.Module):
         return self.linear(x_normalized)
 
 class LinearProbe:
-    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.7, device='cpu'):
+    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.7, device='cpu', seed=42):
+        # Set seeds for reproducibility
+        self.seed = seed
+        self._set_seeds(seed)
+        
         self.device = device
         self.model = LinearModel(input_dim).to(self.device)
         self.criterion = criterion if criterion else nn.BCEWithLogitsLoss()
         self.optimizer = optimizer_cls(self.model.parameters(), lr=lr, weight_decay=1e-3)  # L2 regularization
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=gamma)
         self.train_accs = []
+
+    def _set_seeds(self, seed):
+        """Set seeds for reproducibility"""
+        random.seed(seed)
+        np.random.seed(seed)
+        t.manual_seed(seed)
+        t.cuda.manual_seed_all(seed)
+        t.backends.cudnn.deterministic = True
+        t.backends.cudnn.benchmark = False
 
     def update_normalization_stats(self, loader):
         mean_sum = t.zeros(self.model.linear.weight.shape[1]).to(self.device)
@@ -90,6 +105,9 @@ class LinearProbe:
             return score
 
     def fit(self, train_loader: DataLoader, epochs=1000):
+        # Reset seeds before training for reproducibility
+        self._set_seeds(self.seed)
+        
         # Calculate normalization statistics from training data
         self.update_normalization_stats(train_loader)
         
