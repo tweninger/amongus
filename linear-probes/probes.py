@@ -99,7 +99,7 @@ class LinearProbe:
             
             self.train_accs.append(train_acc)
             
-            if epoch % (epochs // 10) == 0:
+            if epochs > 10 and epoch % (epochs // 10) == 0 or epochs <= 10:
                 print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}, Train Acc = {train_acc:.4f}")
         
         print(f"Final Train Acc: {self.train_accs[-1]:.4f}")

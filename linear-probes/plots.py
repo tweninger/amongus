@@ -18,6 +18,17 @@ def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
         labels_2: Optional second set of ground truth binary labels
         names: Optional list of 2 strings for legend labels
     """
+    # Among Us color theme
+    among_us_colors = [
+        ("#c51111", "#7a0838"),  # Red
+        ("#132ed1", "#09158e"),  # Blue
+        ("#117f2d", "#0a4d2e"),  # Green
+        ("#ed54ba", "#ab2bad"),  # Pink
+        ("#ef7d0d", "#b33e15"),  # Orange
+        ("#f5f543", "#c28722"),  # Yellow
+        ("#6b2fbb", "#3b177c"),  # Purple
+    ]
+    
     # Calculate ROC curve
     fpr, tpr, thresholds = roc_curve(labels, probe_outputs)
     roc_auc = auc(fpr, tpr)
@@ -26,11 +37,12 @@ def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
     fig = go.Figure()
     
     # Set name for first curve based on provided names
-    curve_name = f'ROC curve (AUC = {roc_auc:.3f})' if names is None else f'{names[0]} (AUC = {roc_auc:.3f})'
+    curve_name = f'ROC (AUC = {roc_auc:.3f})' if names is None else f'{names[0]} (AUC = {roc_auc:.3f})'
     
     fig.add_trace(go.Scatter(x=fpr, y=tpr,
                             mode='lines', 
-                            name=curve_name))
+                            name=curve_name,
+                            line=dict(color=among_us_colors[1][0], width=2.5)))
     
     # Add second curve if labels_2 is provided
     if labels_2 is not None:
@@ -38,37 +50,42 @@ def plot_roc_curve_eval(labels, probe_outputs, labels_2=None, names=None):
         roc_auc_2 = auc(fpr_2, tpr_2)
         
         # Set name for second curve based on provided names
-        curve_name_2 = f'ROC curve 2 (AUC = {roc_auc_2:.3f})' if names is None or len(names) < 2 else f'{names[1]} (AUC = {roc_auc_2:.3f})'
+        curve_name_2 = f'ROC (AUC = {roc_auc_2:.3f})' if names is None or len(names) < 2 else f'{names[1]} (AUC = {roc_auc_2:.3f})'
         
         fig.add_trace(go.Scatter(x=fpr_2, y=tpr_2,
                                 mode='lines',
-                                name=curve_name_2))
+                                name=curve_name_2,
+                                line=dict(color=among_us_colors[0][0], width=2.5)))
     
     fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1],
                             mode='lines',
                             name='Random',
-                            line=dict(dash='dash')))
+                            line=dict(dash='dash', color='gray')))
 
     fig.update_layout(
         title='Receiver Operating Characteristic (ROC) Curve',
-        xaxis_title='False Positive Rate (FPR)',
-        yaxis_title='True Positive Rate (TPR)',
+        xaxis_title='False Positive Rate',
+        yaxis_title='True Positive Rate',
         showlegend=True
     )
+
+    # ticks on both axes
+    fig.update_xaxes(tickvals=[0, 0.2, 0.4, 0.6, 0.8, 1])
+    fig.update_yaxes(tickvals=[0, 0.2, 0.4, 0.6, 0.8, 1])
 
     fig.update_layout(
         title='',
         plot_bgcolor='white',
         paper_bgcolor='white',
         font=dict(family='Computer Modern', size=16),
-        xaxis=dict(title='False Positive Rate (FPR)', gridcolor='lightgray', showgrid=True, zeroline=False),
-        yaxis=dict(title='True Positive Rate (TPR)', gridcolor='lightgray', showgrid=True, zeroline=False, range=(0,1)),
-        legend=dict(x=0.52, y=0.12, bgcolor='rgba(255, 255, 255, 0.8)'),
-        margin=dict(l=60, r=20, t=20, b=60),
-        width=450, height=400
+        xaxis=dict(title='False Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=True, range=(0,1)),
+        yaxis=dict(title='True Positive Rate', gridcolor='lightgray', showgrid=True, zeroline=True, range=(0,1)),
+        legend=dict(x=0.32, y=0.05, bgcolor='rgba(255, 255, 255, 0.8)'),
+        # margin=dict(l=60, r=20, t=20, b=60),
+        width=400, height=400
     )
 
-    return fig
+    return fig, roc_auc
 
 # Print performance metrics for each group
 def print_metrics(data, group_name, threshold=0.5, behaviors=None):
