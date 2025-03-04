@@ -53,6 +53,7 @@ datasets: List[str] = [
     "DishonestQADataset",
     "AmongUsDataset",
     "RepEngDataset",
+    "RolePlayingDataset",
 ]
 
 config = config_phi4_linear_probe
@@ -119,6 +120,21 @@ def evaluate_probe(
     rocs["RepEng"] = roc
     # save the figure in high-res PDF
     fig.write_image(f"results/{dataset_name}/roc_RepEng.pdf", scale=1)
+
+    # evaluate on RolePlaying
+    dataset = RolePlayingDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
+    test_acts_chunk = dataset.get_test_acts()
+    av_probe_outputs, accuracy = evaluate_probe_on_activation_dataset(
+        chunk_data=test_acts_chunk,
+        probe=probe,
+        device=device,
+        num_tokens=30,
+    )
+    labels = t.tensor([batch[1] for batch in test_acts_chunk]).numpy()
+    fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
+    rocs["RolePlaying"] = roc
+    # save the figure in high-res PDF
+    fig.write_image(f"results/{dataset_name}/roc_RolePlaying.pdf", scale=1)
 
     # evaluate on AmongUs
 
