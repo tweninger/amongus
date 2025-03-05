@@ -20,4 +20,17 @@ config_phi4: Dict[str, Any] = {
     "test_split": 0.2,
     "batch_size": 32,
     "learning_rate": 0.001,
+    "expt_name": "2025-02-01_phi_phi_100_games_v3",
+}
+
+config_llama3: Dict[str, Any] = {
+    "short_name": "llama3",
+    "model_name": "meta-llama/Llama-3.3-70B-Instruct",
+    "activation_size": 8192,
+    "seq_len": 131072,
+    "hook_component": "model.layers[40].mlp",
+    "test_split": 0.2,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "expt_name": "2025-02-01_llama_llama_100_games_v3",
 }
