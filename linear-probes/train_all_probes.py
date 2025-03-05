@@ -7,6 +7,7 @@ import os
 import sys
 import pickle
 from typing import Dict, Any, List
+from configs import config_phi4, config_gpt2, config_llama3
 
 sys.path.append(os.path.dirname(os.path.abspath('.')))
 sys.path.append('.')
@@ -19,22 +20,6 @@ from datasets import (
 )
 from probes import LinearProbe
 
-config_phi4_linear_probe: Dict[str, Any] = {
-    "short_name": "phi4",
-    "model_name": "microsoft/phi-4",
-    "activation_size": 5120,
-    "seq_len": 16384,
-    "hook_component": "model.layers[20].mlp",
-    "test_split": 0.2,
-    "batch_size": 32,
-    "learning_rate": 0.001,
-    "probe_training_epochs": 4,
-    "probe_training_batch_size": 32,
-    "probe_training_learning_rate": 0.001,
-    "probe_training_num_tokens": 10,
-    "probe_training_chunk_idx": 0,
-}
-
 datasets: List[str] = [
     "TruthfulQADataset",
     "DishonestQADataset",
@@ -42,7 +27,7 @@ datasets: List[str] = [
     "RepEngDataset",
 ]
 
-config = config_phi4_linear_probe
+config = config_llama3
 model, tokenizer, device = None, None, 'cpu'
 amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
 
@@ -51,11 +36,11 @@ amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
 for dataset_name in datasets:
     print(f"Loading {dataset_name}...")
     dataset = eval(f"{dataset_name}")(
-        config, 
+        config,
         model=model,
         tokenizer=tokenizer, 
         device=device, 
-        test_split=0.2, 
+        test_split=0.2,
         expt_name=amongus_expt_name
         )
     train_loader = dataset.get_train(

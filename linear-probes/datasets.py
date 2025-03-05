@@ -29,7 +29,7 @@ class ActivationCache:
         self.handles = []
 
     def hook_fn(self, module, input, output):
-        self.activations.append(output.detach().cpu().numpy())
+        self.activations.append(output.detach().cpu().float().numpy())
 
     def register_hook(self, layer):
         handle = layer.register_forward_hook(self.hook_fn)
@@ -167,25 +167,24 @@ class TruthfulQADataset(ActivationDataset):
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         correct_prompt, incorrect_prompt = self.row_to_prompts(row)
-        correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
-        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)        
+        correct_inputs = self.tokenizer(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        incorrect_inputs = self.tokenizer(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         chunk_data = []
         with t.no_grad():
             self.activation_cache.clear_activations()
-            self.model.forward(correct_tokens)
+            self.model.forward(correct_inputs['input_ids'], attention_mask=correct_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             correct_activations = self.activation_cache.activations[0][0]
-            # import pdb; pdb.set_trace()
             correct_acts = [correct_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [correct_activations[i] for i in range(len(correct_activations))]
             chunk_data.append((correct_acts, 1))
                 
             self.activation_cache.clear_activations()
-            self.model.forward(incorrect_tokens)
+            self.model.forward(incorrect_inputs['input_ids'], attention_mask=incorrect_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             incorrect_activations = self.activation_cache.activations[0][0]
             incorrect_acts = [incorrect_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [incorrect_activations[i] for i in range(len(incorrect_activations))]
             chunk_data.append((incorrect_acts, 0))
         return chunk_data
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None, **kwargs):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
@@ -214,37 +213,36 @@ class DishonestQADataset(ActivationDataset):
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         correct_prompt, incorrect_prompt = self.row_to_prompts(row)
-        correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
-        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)        
+        correct_inputs = self.tokenizer(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        incorrect_inputs = self.tokenizer(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         chunk_data = []
         with t.no_grad():
             self.activation_cache.clear_activations()
-            out_tokens = self.model.generate(correct_tokens, max_new_tokens=10)
+            out_tokens = self.model.generate(correct_inputs['input_ids'], attention_mask=correct_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id, max_new_tokens=10)
             out_token_ids = out_tokens.cpu().tolist()[0]
             full_output_str = self.tokenizer.decode(out_token_ids)
             self.activation_cache.clear_activations()
             # run a single forward pass to get activations
-            full_output_tokens = self.tokenizer.encode(full_output_str, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
-            self.model.forward(full_output_tokens)
-            # import pdb; pdb.set_trace()
+            full_output_inputs = self.tokenizer(full_output_str, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+            self.model.forward(full_output_inputs['input_ids'], attention_mask=full_output_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             correct_activations = self.activation_cache.activations[0][0]
             correct_acts = [correct_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [correct_activations[i] for i in range(len(correct_activations))]
             chunk_data.append((correct_acts, 1))
                 
             self.activation_cache.clear_activations()
-            out_tokens = self.model.generate(incorrect_tokens, max_new_tokens=10)
+            out_tokens = self.model.generate(incorrect_inputs['input_ids'], attention_mask=incorrect_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id, max_new_tokens=10)
             out_token_ids = out_tokens.cpu().tolist()[0]
             full_output_str = self.tokenizer.decode(out_token_ids)
             self.activation_cache.clear_activations()
             # run a single forward pass to get activations
-            full_output_tokens = self.tokenizer.encode(full_output_str, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
-            self.model.forward(full_output_tokens)
+            full_output_inputs = self.tokenizer(full_output_str, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+            self.model.forward(full_output_inputs['input_ids'], attention_mask=full_output_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             incorrect_activations = self.activation_cache.activations[0][0]
             incorrect_acts = [incorrect_activations[i] for i in range(-num_tokens, 0)] if num_tokens else [incorrect_activations[i] for i in range(len(incorrect_activations))]
             chunk_data.append((incorrect_acts, 0))
         return chunk_data
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None, **kwargs):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
@@ -298,10 +296,10 @@ class AmongUsDataset(ActivationDataset):
 
     def process_row(self, row, num_tokens, seq_len):
         phi_format_prompt = self.agent_logs_row_to_full_prompt(row)
-        tokens = self.tokenizer.encode(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        inputs = self.tokenizer(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         with t.no_grad():
             self.activation_cache.clear_activations()
-            self.model.forward(tokens)
+            self.model.forward(inputs['input_ids'], attention_mask=inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             if not self.activation_cache.activations:
                 raise ValueError("No activations found. Ensure the model and activation cache are set up correctly.")
             activations = self.activation_cache.activations[0][0]
@@ -394,11 +392,11 @@ class RolePlayingDataset(ActivationDataset):
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         prompt, label = self.row_to_prompts(row)
-        tokens = self.tokenizer.encode(prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        inputs = self.tokenizer(prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         chunk_data = []
         with t.no_grad():
             self.activation_cache.clear_activations()
-            self.model.forward(tokens)
+            self.model.forward(inputs['input_ids'], attention_mask=inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             activations = self.activation_cache.activations[0][0]
             acts = [activations[i] for i in range(-num_tokens, 0)] if num_tokens else [activations[i] for i in range(len(activations))]
             chunk_data.append((acts, label))
@@ -416,7 +414,6 @@ class RolePlayingDataset(ActivationDataset):
         self.save_chunk(chunk_data, 0)
         free_unused_memory()
         
-
 class RepEngDataset(ActivationDataset):
     def __init__(self, config: Dict[str, Any]=None, model=None, tokenizer=None, device=None, test_split=None, **kwargs):
         super().__init__(test_split, "RepEng", model, tokenizer, device, config["activation_size"])
@@ -436,15 +433,15 @@ class RepEngDataset(ActivationDataset):
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         phi_format_prompt, label = self.row_to_prompts(row)
-        tokens = self.tokenizer.encode(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        inputs = self.tokenizer(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         with t.no_grad():
             self.activation_cache.clear_activations()
-            self.model.forward(tokens)
+            self.model.forward(inputs['input_ids'], attention_mask=inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             activations = self.activation_cache.activations[0][0]
             acts = [activations[i] for i in range(-num_tokens, 0)] if num_tokens else [activations[i] for i in range(len(activations))]
             return (acts, label)
 
-    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None):
+    def populate_dataset(self, force_redo: bool = False, num_tokens: int = 5, max_rows: int = 0, seq_len: int = 1024, chunk_size=None, **kwargs):
         if os.path.exists(self.get_chunk_path(0)) and not force_redo:
             print(f"Loading existing chunk from {self.get_chunk_path(0)}")
             return
@@ -477,8 +474,8 @@ class ApolloProbeDataset(ActivationDataset):
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
         correct_prompt, incorrect_prompt = self.row_to_prompts(row)
-        correct_tokens = self.tokenizer.encode(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
-        incorrect_tokens = self.tokenizer.encode(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)        
+        correct_inputs = self.tokenizer(correct_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
+        incorrect_inputs = self.tokenizer(incorrect_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)        
         chunk_data = []
         
         # Find the position after "<|im_start|>user<|im_sep|>" in both prompts
@@ -491,13 +488,13 @@ class ApolloProbeDataset(ActivationDataset):
         
         with t.no_grad():
             self.activation_cache.clear_activations()
-            self.model.forward(correct_tokens)
+            self.model.forward(correct_inputs['input_ids'], attention_mask=correct_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             correct_activations = self.activation_cache.activations[0][0]
             correct_acts = [correct_activations[correct_assistant_token_start + i] for i in range(num_tokens)]
             chunk_data.append((correct_acts, 1))
                 
             self.activation_cache.clear_activations()
-            self.model.forward(incorrect_tokens)
+            self.model.forward(incorrect_inputs['input_ids'], attention_mask=incorrect_inputs['attention_mask'], pad_token_id=self.tokenizer.eos_token_id)
             incorrect_activations = self.activation_cache.activations[0][0]
             incorrect_acts = [incorrect_activations[incorrect_assistant_token_start + i] for i in range(num_tokens)]
             chunk_data.append((incorrect_acts, 0))

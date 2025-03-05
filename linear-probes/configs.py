@@ -21,6 +21,11 @@ config_phi4: Dict[str, Any] = {
     "batch_size": 32,
     "learning_rate": 0.001,
     "expt_name": "2025-02-01_phi_phi_100_games_v3",
+    "probe_training_epochs": 4,
+    "probe_training_batch_size": 32,
+    "probe_training_learning_rate": 0.001,
+    "probe_training_num_tokens": 10,
+    "probe_training_chunk_idx": 0,
 }
 
 config_llama3: Dict[str, Any] = {
@@ -33,4 +38,9 @@ config_llama3: Dict[str, Any] = {
     "batch_size": 32,
     "learning_rate": 0.001,
     "expt_name": "2025-02-01_llama_llama_100_games_v3",
+    "probe_training_epochs": 4,
+    "probe_training_batch_size": 32,
+    "probe_training_learning_rate": 0.001,
+    "probe_training_num_tokens": 10,
+    "probe_training_chunk_idx": 0,
 }

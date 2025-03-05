@@ -17,12 +17,13 @@ from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_prec
 
 from datasets import TruthfulQADataset, DishonestQADataset, AmongUsDataset, RolePlayingDataset, RepEngDataset
 from evaluate_utils import evaluate_probe_on_activation_dataset
-from configs import config_phi4
+from configs import config_phi4, config_gpt2, config_llama3
 from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves, print_metrics, plot_roc_curve_eval
 import probes
 from pprint import pprint as pp
 
 config = config_phi4
+model, tokenizer, device = None, None, 'cpu'
 
 from datasets import (
     TruthfulQADataset,
@@ -32,22 +33,6 @@ from datasets import (
 )
 from probes import LinearProbe
 
-config_phi4_linear_probe: Dict[str, Any] = {
-    "short_name": "phi4",
-    "model_name": "microsoft/phi-4",
-    "activation_size": 5120,
-    "seq_len": 16384,
-    "hook_component": "model.layers[20].mlp",
-    "test_split": 0.2,
-    "batch_size": 32,
-    "learning_rate": 0.001,
-    "probe_training_epochs": 10,
-    "probe_training_batch_size": 32,
-    "probe_training_learning_rate": 0.001,
-    "probe_training_num_tokens": 5,
-    "probe_training_chunk_idx": 0,
-}
-
 datasets: List[str] = [
     "TruthfulQADataset",
     "DishonestQADataset",
@@ -55,10 +40,6 @@ datasets: List[str] = [
     "RepEngDataset",
     "RolePlayingDataset",
 ]
-
-config = config_phi4_linear_probe
-model, tokenizer, device = None, None, 'cpu'
-amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
 
 def evaluate_probe(
     dataset_name: str, 
@@ -70,11 +51,11 @@ def evaluate_probe(
 
     rocs = {}
     # make a directory to save the results for this dataset inside results/dataset_name
-    os.makedirs(f"results/{dataset_name}", exist_ok=True)
+    os.makedirs(f"results/{dataset_name}_{config["short_name"]}", exist_ok=True)
     # remove the old results
-    for file in os.listdir(f"results/{dataset_name}"):
+    for file in os.listdir(f"results/{dataset_name}_{config["short_name"]}"):
         if file.endswith(".json") or file.endswith(".pdf"):
-            os.remove(os.path.join(f"results/{dataset_name}", file))
+            os.remove(os.path.join(f"results/{dataset_name}_{config["short_name"]}", file))
     
     # evaluate on TQA
     dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -89,7 +70,7 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["TQA"] = roc
     # save the figure in high-res PDF using plotly
-    fig.write_image(f"results/{dataset_name}/roc_TQA.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_TQA.pdf", scale=1)
 
     # evaluate on DQA
     dataset = DishonestQADataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -104,7 +85,7 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["DQA"] = roc
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}/roc_DQA.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_DQA.pdf", scale=1)
 
     # evaluate on RepEng
     dataset = RepEngDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -119,7 +100,7 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["RepEng"] = roc
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}/roc_RepEng.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_RepEng.pdf", scale=1)
 
     # evaluate on RolePlaying
     dataset = RolePlayingDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -134,14 +115,13 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["RolePlaying"] = roc
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}/roc_RolePlaying.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_RolePlaying.pdf", scale=1)
 
     # evaluate on AmongUs
 
-    dataset = AmongUsDataset(config, model=model, tokenizer=tokenizer, device=device, expt_name=amongus_expt_name, test_split=1)
+    dataset = AmongUsDataset(config, model=model, tokenizer=tokenizer, device=device, expt_name=config['expt_name'], test_split=1)
     all_probe_outputs = []
     chunk_size: int = 500
-    # list_of_chunks_to_eval = list(range(dataset.num_total_chunks))
     list_of_chunks_to_eval = [2, 3]
     row_indices = []
 
@@ -234,7 +214,7 @@ def evaluate_probe(
     )
     rocs["AmongUs"] = roc_list
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}/roc_AmongUs.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_AmongUs.pdf", scale=1)
 
     return rocs
 
