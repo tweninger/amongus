@@ -295,6 +295,7 @@ class AmongUsDataset(ActivationDataset):
         return formatted_prompt
 
     def process_row(self, row, num_tokens, seq_len):
+        free_unused_memory()
         phi_format_prompt = self.agent_logs_row_to_full_prompt(row)
         inputs = self.tokenizer(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         with t.no_grad():
@@ -356,6 +357,7 @@ class AmongUsDataset(ActivationDataset):
             row = self.agent_logs_df.iloc[idx]
             acts, label = self.process_row(row, num_tokens, seq_len)
             current_chunk.append((acts, label))
+            free_unused_memory()
                 
             # Save chunk when it reaches chunk_size
             if len(current_chunk) >= chunk_size:
@@ -391,6 +393,7 @@ class RolePlayingDataset(ActivationDataset):
         return formatted, row['llm_eval_gt']
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
+        free_unused_memory()
         prompt, label = self.row_to_prompts(row)
         inputs = self.tokenizer(prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         chunk_data = []
@@ -432,6 +435,7 @@ class RepEngDataset(ActivationDataset):
         return formatted, row['label']
 
     def process_row(self, row, num_tokens: int = 5, seq_len: int = 1024):
+        free_unused_memory()
         phi_format_prompt, label = self.row_to_prompts(row)
         inputs = self.tokenizer(phi_format_prompt, return_tensors="pt", max_length=seq_len, truncation=True).to(self.device)
         with t.no_grad():

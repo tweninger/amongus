@@ -22,7 +22,7 @@ from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves, p
 import probes
 from pprint import pprint as pp
 
-config = config_phi4
+config = config_llama3
 model, tokenizer, device = None, None, 'cpu'
 
 from datasets import (
@@ -38,7 +38,7 @@ datasets: List[str] = [
     "DishonestQADataset",
     "AmongUsDataset",
     "RepEngDataset",
-    "RolePlayingDataset",
+    # "RolePlayingDataset",
 ]
 
 def evaluate_probe(
@@ -51,11 +51,11 @@ def evaluate_probe(
 
     rocs = {}
     # make a directory to save the results for this dataset inside results/dataset_name
-    os.makedirs(f"results/{dataset_name}_{config["short_name"]}", exist_ok=True)
+    os.makedirs(f"results/{dataset_name}_{config['short_name']}", exist_ok=True)
     # remove the old results
-    for file in os.listdir(f"results/{dataset_name}_{config["short_name"]}"):
+    for file in os.listdir(f"results/{dataset_name}_{config['short_name']}"):
         if file.endswith(".json") or file.endswith(".pdf"):
-            os.remove(os.path.join(f"results/{dataset_name}_{config["short_name"]}", file))
+            os.remove(os.path.join(f"results/{dataset_name}_{config['short_name']}", file))
     
     # evaluate on TQA
     dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -70,7 +70,7 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["TQA"] = roc
     # save the figure in high-res PDF using plotly
-    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_TQA.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config['short_name']}/roc_TQA.pdf", scale=1)
 
     # evaluate on DQA
     dataset = DishonestQADataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -85,7 +85,7 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["DQA"] = roc
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_DQA.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config['short_name']}/roc_DQA.pdf", scale=1)
 
     # evaluate on RepEng
     dataset = RepEngDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -100,7 +100,7 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["RepEng"] = roc
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_RepEng.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config['short_name']}/roc_RepEng.pdf", scale=1)
 
     # evaluate on RolePlaying
     dataset = RolePlayingDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -115,14 +115,14 @@ def evaluate_probe(
     fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
     rocs["RolePlaying"] = roc
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_RolePlaying.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config['short_name']}/roc_RolePlaying.pdf", scale=1)
 
     # evaluate on AmongUs
 
     dataset = AmongUsDataset(config, model=model, tokenizer=tokenizer, device=device, expt_name=config['expt_name'], test_split=1)
     all_probe_outputs = []
     chunk_size: int = 500
-    list_of_chunks_to_eval = [2, 3]
+    list_of_chunks_to_eval = [1, 2]
     row_indices = []
 
     for chunk_idx in tqdm(list_of_chunks_to_eval):
@@ -167,7 +167,7 @@ def evaluate_probe(
 
     probe_output_df = pd.DataFrame(json_outputs)
     
-    EXPT_NAMES: List[str] = ["2025-02-01_phi_phi_100_games_v3",]
+    EXPT_NAMES: List[str] = [config["expt_name"],]
     LOGS_PATH: str = "../evaluations/results/"
     RAW_PATH: str = "../expt-logs/"
     DESCRIPTIONS: List[str] = ["Crew: Phi, Imp: Phi",]
@@ -214,7 +214,7 @@ def evaluate_probe(
     )
     rocs["AmongUs"] = roc_list
     # save the figure in high-res PDF
-    fig.write_image(f"results/{dataset_name}_{config["short_name"]}/roc_AmongUs.pdf", scale=1)
+    fig.write_image(f"results/{dataset_name}_{config['short_name']}/roc_AmongUs.pdf", scale=1)
 
     return rocs
 

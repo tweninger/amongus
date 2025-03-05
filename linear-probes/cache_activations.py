@@ -39,7 +39,8 @@ def main(dataset_name: str):
     print(f'Done! Cached activations for {dataset.num_total_chunks} chunks.')
 
 if __name__ == "__main__":
-    datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset", "RolePlayingDataset"]
+    # datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset", "RolePlayingDataset"]
+    datasets_to_cache = ["RolePlayingDataset"]
     for dataset_name in datasets_to_cache:
         print(f"Caching activations for {dataset_name}...")
         main(dataset_name)
