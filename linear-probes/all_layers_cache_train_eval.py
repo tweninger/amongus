@@ -245,7 +245,7 @@ def evaluate_probe(
     dataset = AmongUsDataset(config, model=model, tokenizer=tokenizer, device=device, expt_name=config['expt_name'], test_split=1)
     all_probe_outputs = []
     chunk_size: int = 500
-    list_of_chunks_to_eval = [1, 2]
+    list_of_chunks_to_eval = [2]
     row_indices = []
 
     for chunk_idx in tqdm(list_of_chunks_to_eval):
