@@ -153,7 +153,7 @@ class TruthfulQADataset(ActivationDataset):
         super().__init__(test_split, "TruthfulQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_{config["layer"]}/'
         self.num_total_chunks = 1  # TruthfulQA uses single chunk
         self.format = eval(config["short_name"] + "_format")
 
@@ -201,7 +201,7 @@ class DishonestQADataset(ActivationDataset):
         super().__init__(test_split, "DishonestQA", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/TruthfulQA/TruthfulQA.csv'
         self.tqa_df = pd.read_csv(self.data_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_{config["layer"]}/'
         self.num_total_chunks = 1  # DishonestQA uses single chunk
         self.format = eval(config["short_name"] + "_format")
 
@@ -272,7 +272,7 @@ class AmongUsDataset(ActivationDataset):
         sys.path.append("..")
         from utils import load_agent_logs_df
         self.agent_logs_df = load_agent_logs_df(self.agent_logs_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_{config["layer"]}/'
         # load number of chunks from existing directory
         self.num_total_chunks = 0
         self.format = eval(config["short_name"] + "_format")
@@ -381,7 +381,7 @@ class RolePlayingDataset(ActivationDataset):
         super().__init__(test_split, "Roleplaying", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/Roleplaying/phi4_rollouts.csv'
         self.df = pd.read_csv(self.data_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_{config["layer"]}/'
         self.num_total_chunks = 1  # Roleplaying uses single chunk
         self.format = eval(config["short_name"] + "_format")
 
@@ -422,7 +422,7 @@ class RepEngDataset(ActivationDataset):
         super().__init__(test_split, "RepEng", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/RepE/true_false_facts.csv'
         self.df = pd.read_csv(self.data_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_{config["layer"]}/'
         self.num_total_chunks = 1 # RepEng uses single chunk
         self.format = eval(config["short_name"] + "_format")
 
@@ -463,7 +463,7 @@ class ApolloProbeDataset(ActivationDataset):
         super().__init__(test_split, "ApolloProbe", model, tokenizer, device, config["activation_size"])
         self.data_path: str = './data/ApolloProbe/common_claim_true_false.csv'
         self.df = pd.read_csv(self.data_path)
-        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts/'
+        self.activations_dir: str = f'./data/{self.name}_{config["short_name"]}_acts_{config["layer"]}/'
         self.num_total_chunks = 1 # ApolloProbe uses single chunk
         self.format = eval(config["short_name"] + "_format")
 

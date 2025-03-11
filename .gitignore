@@ -11,7 +11,7 @@ expt-logs/
 linear-probes/TransformerLens/
 linear-probes/data/
 linear-probes/transformers/
-# linear-probes/checkpoints/
+linear-probes/checkpoints/
 
 # evaluations/results
 evaluations/results/
