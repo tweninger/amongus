@@ -1,6 +1,6 @@
 ## CACHE ACTS, TRAIN AND EVALUATE ALL LAYERS AND ALL DATASET PROBES
 
-#### STEP 1: CACHE ALL LAYER ALL ACTIVATIONS
+##### IMPORTS
 
 import sys
 import argparse
@@ -8,29 +8,41 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch as t
 import importlib
 import os
-
+import pickle
+import json
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from pandas import DataFrame, json_normalize
+from tqdm import tqdm
+import os
+import numpy as np
+from typing import Dict, Any, List, Tuple
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
+from probes import LinearProbe
 sys.path.append(os.path.dirname(os.path.abspath('.')))
 
-import datasets, plots, configs, evaluate_utils
-for module in [datasets, plots, configs, evaluate_utils]:
-    importlib.reload(module)
+from evaluate_utils import evaluate_probe_on_activation_dataset
+from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves, print_metrics, plot_roc_curve_eval
+import probes
+from pprint import pprint as pp
 
 from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset, ApolloProbeDataset
 from configs import config_phi4, config_gpt2, config_llama3
+base_config = config_phi4
+amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
 
-def cache_dataset(dataset_name: str, layer):
+#### STEP 1: CACHE ALL LAYER ALL ACTIVATIONS
+
+def cache_dataset_layer_acts(dataset_name: str, layer):
     config = config_phi4
     config["layer"] = str(layer)
-    config["hook_component"] = f"model.layers[{layer}].mlp"
+    config["hook_component"] = f"model.layers[{layer}]"
     model_name = config["model_name"]
     load_models = True
-
-    if load_models:
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True, device_map="auto")
-        device = model.device
-    else:
-        model, tokenizer, device = None, None, 'cpu'
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True, device_map="auto")
+    device = model.device
 
     # Create dataset based on the provided name
     if dataset_name == "AmongUsDataset":
@@ -41,81 +53,38 @@ def cache_dataset(dataset_name: str, layer):
     
     eval(f"model.{config['hook_component']}").register_forward_hook(dataset.activation_cache.hook_fn)
     num_tokens = 5 if dataset_name == "ApolloProbeDataset" else None
-    dataset.populate_dataset(force_redo=True, just_load=False, max_rows=1500, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=500)
+    dataset.populate_dataset(force_redo=True, just_load=False, max_rows=1000, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=500)
     print(f'Done! Cached activations for {dataset.num_total_chunks} chunks.')
 
-# datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
-datasets_to_cache = []
+datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
+# datasets_to_cache = []
 
 for dataset_name in datasets_to_cache:
     print(f"Caching activations for {dataset_name}...")
     for layer in range(config_phi4["num_layers"]):
         print(f"Processing layer {layer}/{config_phi4['num_layers']-1}...")
-        cache_dataset(dataset_name, layer)
+        cache_dataset_layer_acts(dataset_name, layer)
 print("All dataset activations cached.")
 
 ### STEP 2: TRAIN ALL PROBES
 
-import os
-import sys
-import pickle
-from typing import Dict, Any, List
-from configs import config_phi4, config_gpt2, config_llama3
+datasets_to_train = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
+# datasets_to_train: List[str] = []
 
-sys.path.append(os.path.dirname(os.path.abspath('.')))
-sys.path.append('.')
-
-from datasets import (
-    TruthfulQADataset,
-    DishonestQADataset, 
-    AmongUsDataset,
-    RepEngDataset,
-)
-from probes import LinearProbe
-
-# datasets: List[str] = [
-#     "TruthfulQADataset",
-#     "DishonestQADataset",
-#     "AmongUsDataset",
-#     "RepEngDataset",
-# ]
-
-datasets: List[str] = []
-
-base_config = config_phi4
 model, tokenizer, device = None, None, 'cpu'
-amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
 
 ################### TRAINING PROBES
 
 for layer in range(base_config["num_layers"]):
     print(f"Processing layer {layer}/{base_config['num_layers']-1}...")
-    # Create a new copy of config for this layer
     config = base_config.copy()
-    # Update config for current layer
     config["layer"] = str(layer)
-    config["hook_component"] = f"model.layers[{layer}].mlp"
 
     for dataset_name in datasets:
         print(f"Loading {dataset_name} for layer {layer}...")
-        dataset = eval(f"{dataset_name}")(
-            config,
-            model=model,
-            tokenizer=tokenizer, 
-            device=device, 
-            test_split=0.2,
-            expt_name=amongus_expt_name
-            )
-        train_loader = dataset.get_train(
-            batch_size=config["probe_training_batch_size"],
-            num_tokens=config["probe_training_num_tokens"],
-            chunk_idx=config["probe_training_chunk_idx"],
-        )
-        probe = LinearProbe(
-            input_dim=dataset.activation_size, 
-            device=device, 
-            lr=config["probe_training_learning_rate"]
-            )
+        dataset = eval(f"{dataset_name}")(config, model=model, tokenizer=tokenizer,  device=device,  test_split=0.2, expt_name=amongus_expt_name)
+        train_loader = dataset.get_train(batch_size=config["probe_training_batch_size"], num_tokens=config["probe_training_num_tokens"], chunk_idx=config["probe_training_chunk_idx"])
+        probe = LinearProbe(input_dim=dataset.activation_size,  device=device,  lr=config["probe_training_learning_rate"])
         print(f'Training probe on {len(train_loader)} batches and {len(train_loader.dataset)} samples.')
         probe.fit(train_loader, epochs=config["probe_training_epochs"])
 
@@ -128,46 +97,7 @@ print(f"Probes trained and saved for all datasets across all layers.")
 
 ### STEP 3: EVALUATE ALL PROBES
 
-import sys
-import pickle
-sys.path.append('.')
-import torch as t
-import json
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from pandas import DataFrame, json_normalize
-from tqdm import tqdm
-import os
-import numpy as np
-from typing import Dict, Any, List, Tuple
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
-
-from datasets import TruthfulQADataset, DishonestQADataset, AmongUsDataset, RolePlayingDataset, RepEngDataset
-from evaluate_utils import evaluate_probe_on_activation_dataset
-from configs import config_phi4, config_gpt2, config_llama3
-from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves, print_metrics, plot_roc_curve_eval
-import probes
-from pprint import pprint as pp
-
-base_config = config_phi4
-model, tokenizer, device = None, None, 'cpu'
-
-from datasets import (
-    TruthfulQADataset,
-    DishonestQADataset, 
-    AmongUsDataset,
-    RepEngDataset,
-)
-from probes import LinearProbe
-
-datasets: List[str] = [
-    "TruthfulQADataset",
-    "DishonestQADataset",
-    "AmongUsDataset",
-    "RepEngDataset",
-    # "RolePlayingDataset",
-]
+datasets_to_eval = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
 
 def evaluate_probe(
     dataset_name: str, 
@@ -226,20 +156,6 @@ def evaluate_probe(
     fpr, tpr, _ = roc_curve(labels, av_probe_outputs)
     roc_auc = auc(fpr, tpr)
     rocs["RepEng"] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "auc": roc_auc}
-
-    # # evaluate on RolePlaying
-    # dataset = RolePlayingDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
-    # test_acts_chunk = dataset.get_test_acts()
-    # av_probe_outputs, accuracy = evaluate_probe_on_activation_dataset(
-    #     chunk_data=test_acts_chunk,
-    #     probe=probe,
-    #     device=device,
-    #     num_tokens=30,
-    # )
-    # labels = t.tensor([batch[1] for batch in test_acts_chunk]).numpy()
-    # fpr, tpr, _ = roc_curve(labels, av_probe_outputs)
-    # roc_auc = auc(fpr, tpr)
-    # rocs["RolePlaying"] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "auc": roc_auc}
 
     # evaluate on AmongUs
     dataset = AmongUsDataset(config, model=model, tokenizer=tokenizer, device=device, expt_name=config['expt_name'], test_split=1)
