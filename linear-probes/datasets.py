@@ -29,7 +29,11 @@ class ActivationCache:
         self.handles = []
 
     def hook_fn(self, module, input, output):
-        self.activations.append(output.detach().cpu().float().numpy())
+        if isinstance(output, tuple):
+            output_tensor = output[0]
+        else:
+            output_tensor = output
+        self.activations.append(output_tensor.detach().cpu().float().numpy())
 
     def register_hook(self, layer):
         handle = layer.register_forward_hook(self.hook_fn)

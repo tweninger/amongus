@@ -17,7 +17,7 @@ config_phi4: Dict[str, Any] = {
     "activation_size": 5120,
     "seq_len": 16384,
     # "hook_component": "model.layers[20].mlp",
-    "hook_component": "model.model.layers[20]"
+    "hook_component": "model.model.layers[20]",
     "layer": 20,
     "num_layers": 40,
     "test_split": 0.2,

@@ -31,6 +31,8 @@ from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepE
 from configs import config_phi4, config_gpt2, config_llama3
 base_config = config_phi4
 amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
+layers_to_work_on: List[int] = list(range(base_config["num_layers"]))
+# layers_to_work_on: List[int] = [20]
 
 #### STEP 1: CACHE ALL LAYER ALL ACTIVATIONS
 
@@ -61,7 +63,7 @@ datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset"
 
 for dataset_name in datasets_to_cache:
     print(f"Caching activations for {dataset_name}...")
-    for layer in range(config_phi4["num_layers"]):
+    for layer in layers_to_work_on:
         print(f"Processing layer {layer}/{config_phi4['num_layers']-1}...")
         cache_dataset_layer_acts(dataset_name, layer)
 print("All dataset activations cached.")
@@ -75,12 +77,12 @@ model, tokenizer, device = None, None, 'cpu'
 
 ################### TRAINING PROBES
 
-for layer in range(base_config["num_layers"]):
+for layer in layers_to_work_on:
     print(f"Processing layer {layer}/{base_config['num_layers']-1}...")
     config = base_config.copy()
     config["layer"] = str(layer)
 
-    for dataset_name in datasets:
+    for dataset_name in datasets_to_train:
         print(f"Loading {dataset_name} for layer {layer}...")
         dataset = eval(f"{dataset_name}")(config, model=model, tokenizer=tokenizer,  device=device,  test_split=0.2, expt_name=amongus_expt_name)
         train_loader = dataset.get_train(batch_size=config["probe_training_batch_size"], num_tokens=config["probe_training_num_tokens"], chunk_idx=config["probe_training_chunk_idx"])
@@ -104,7 +106,8 @@ def evaluate_probe(
     probe: LinearProbe,
     config: Dict[str, Any], 
     model=None, 
-    tokenizer= None
+    tokenizer= None,
+    plot_stuff=False,
     ) -> None:
 
     rocs = {}
@@ -128,6 +131,9 @@ def evaluate_probe(
     fpr, tpr, _ = roc_curve(labels, av_probe_outputs)
     roc_auc = auc(fpr, tpr)
     rocs["TQA"] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "auc": roc_auc}
+    if plot_stuff:
+        fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
+        fig.write_image(f"results/{dataset_name}_{config['short_name']}/layer_{layer}_roc_TQA.pdf", scale=1)
 
     # evaluate on DQA
     dataset = DishonestQADataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -142,6 +148,9 @@ def evaluate_probe(
     fpr, tpr, _ = roc_curve(labels, av_probe_outputs)
     roc_auc = auc(fpr, tpr)
     rocs["DQA"] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "auc": roc_auc}
+    if plot_stuff:
+        fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
+        fig.write_image(f"results/{dataset_name}_{config['short_name']}/layer_{layer}_roc_DQA.pdf", scale=1)
 
     # evaluate on RepEng
     dataset = RepEngDataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -156,12 +165,15 @@ def evaluate_probe(
     fpr, tpr, _ = roc_curve(labels, av_probe_outputs)
     roc_auc = auc(fpr, tpr)
     rocs["RepEng"] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "auc": roc_auc}
+    if plot_stuff:
+        fig, roc = plot_roc_curve_eval(labels, av_probe_outputs)
+        fig.write_image(f"results/{dataset_name}_{config['short_name']}/layer_{layer}_roc_RepEng.pdf", scale=1)
 
     # evaluate on AmongUs
     dataset = AmongUsDataset(config, model=model, tokenizer=tokenizer, device=device, expt_name=config['expt_name'], test_split=1)
     all_probe_outputs = []
     chunk_size: int = 500
-    list_of_chunks_to_eval = [2]
+    list_of_chunks_to_eval = [1]
     row_indices = []
 
     for chunk_idx in tqdm(list_of_chunks_to_eval):
@@ -257,13 +269,21 @@ def evaluate_probe(
         {"name": "deception", "fpr": fpr_deception.tolist(), "tpr": tpr_deception.tolist(), "auc": roc_auc_deception}
     ]
 
-    return rocs
+    if plot_stuff:
+        fig, roc_list = plot_roc_curve_eval(
+            labels=probe_eval['lying_truth'],
+            probe_outputs=probe_eval['probe_output'],
+            labels_2=probe_eval['deception_truth'],
+            names=['lying', 'deception']
+        )
+        fig.write_image(f"results/{dataset_name}_{config['short_name']}/layer_{layer}_roc_AmongUs.pdf", scale=1)
 
+    return rocs
     
 # Dictionary to store AUROC values for each dataset and layer
 all_results = {}
 
-for probe_dataset_name in datasets:
+for probe_dataset_name in datasets_to_eval:
     print(f"Evaluating probes trained on {probe_dataset_name} across all layers...")
     
     # Initialize results structure for this dataset
@@ -279,7 +299,7 @@ for probe_dataset_name in datasets:
     all_layer_rocs = {}
     
     # Evaluate probes for each layer
-    for layer in range(base_config["num_layers"]):
+    for layer in layers_to_work_on:
         print(f"Processing layer {layer}/{base_config['num_layers']-1}...")
         probe = LinearProbe(base_config["activation_size"])
         
@@ -290,7 +310,7 @@ for probe_dataset_name in datasets:
         
         config = base_config.copy()
         config["layer"] = str(layer)
-        rocs = evaluate_probe(probe_dataset_name, probe, config)
+        rocs = evaluate_probe(probe_dataset_name, probe, config, plot_stuff=True if len(layers_to_work_on) == 1 else False)
         
         # Store the full ROC data for this layer
         all_layer_rocs[f"layer_{layer}"] = rocs
