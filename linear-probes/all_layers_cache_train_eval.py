@@ -58,8 +58,8 @@ def cache_dataset_layer_acts(dataset_name: str, layer):
     dataset.populate_dataset(force_redo=True, just_load=False, max_rows=1000, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=500)
     print(f'Done! Cached activations for {dataset.num_total_chunks} chunks.')
 
-datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
-# datasets_to_cache = []
+# datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
+datasets_to_cache = ["TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
 
 for dataset_name in datasets_to_cache:
     print(f"Caching activations for {dataset_name}...")
