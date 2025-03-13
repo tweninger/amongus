@@ -58,9 +58,9 @@ This loads up the HuggingFace models and caches the activations of the specified
 
 Use `configs.py` to specify the model and layer to cache, and other configuration options.
 
-## GPT-4o Ground Truth Evaluation (for Lying, Awareness, Deception, and Planning)
+## LLM-based Evaluation (for Lying, Awareness, Deception, and Planning)
 
-To evaluate the GPT-4o model on the game logs, run:
+To evaluate the game actions by passing agent outputs to an LLM, run:
 
 ```
 bash evaluations/run_evals.sh
@@ -93,14 +93,12 @@ It will store the results in `linear-probes/results/`, which are used to generat
 
 ## Sparse Autoencoders (SAEs)
 
-We use the [Goodfire API](https://goodfire.ai/) to evaluate SAE features on the game logs. To do this, run:
+We use the [Goodfire API](https://goodfire.ai/) to evaluate SAE features on the game logs. To do this, run the notebook:
 
 ```
-python reports/goodfire.py
+reports/2025_02_27_sparse_autoencoders.ipynb
 ```
 You will need to add a `.env` file with a Goodfire API key.
-
-(TODO)
 
 ## Project Structure
 
