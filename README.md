@@ -1,4 +1,4 @@
-# *AmongUs*: A Model Organism for Deception
+# *AmongUs*: A Sandbox for Agentic Deception
 
 This project introduces the game "Among Us" as a model organism for lying and deception and studies how AI agents learn to express lying and deception, while evaluating the effectiveness of AI safety techniques to detect and control out-of-distribution deception.
 
