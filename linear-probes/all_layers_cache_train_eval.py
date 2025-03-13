@@ -54,12 +54,12 @@ def cache_dataset_layer_acts(dataset_name: str, layer):
         dataset = eval(dataset_name)(config, model=model, tokenizer=tokenizer, device=device, test_split=1.0)
     
     eval(f"model.{config['hook_component']}").register_forward_hook(dataset.activation_cache.hook_fn)
-    num_tokens = 5 if dataset_name == "ApolloProbeDataset" else None
+    num_tokens = 5
     dataset.populate_dataset(force_redo=True, just_load=False, max_rows=1000, seq_len=config["seq_len"], num_tokens=num_tokens, chunk_size=500)
     print(f'Done! Cached activations for {dataset.num_total_chunks} chunks.')
 
 # datasets_to_cache = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
-datasets_to_cache = ["TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
+datasets_to_cache = []
 
 for dataset_name in datasets_to_cache:
     print(f"Caching activations for {dataset_name}...")
@@ -70,8 +70,8 @@ print("All dataset activations cached.")
 
 ### STEP 2: TRAIN ALL PROBES
 
-datasets_to_train = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
-# datasets_to_train: List[str] = []
+# datasets_to_train = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
+datasets_to_train: List[str] = []
 
 model, tokenizer, device = None, None, 'cpu'
 
