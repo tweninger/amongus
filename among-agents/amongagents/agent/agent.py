@@ -10,9 +10,7 @@ import aiohttp
 import numpy as np
 import requests
 import asyncio
-# from amongagents.agent.prompts import *
-from amongagents.agent.simpler_prompts_v2 import *
-
+from amongagents.agent.neutral_prompts import *
 
 class Agent:
     def __init__(self, player):

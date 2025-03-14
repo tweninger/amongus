@@ -31,8 +31,8 @@ from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepE
 from configs import config_phi4, config_gpt2, config_llama3
 base_config = config_phi4
 amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
-layers_to_work_on: List[int] = list(range(base_config["num_layers"]))
-# layers_to_work_on: List[int] = [20]
+# layers_to_work_on: List[int] = list(range(base_config["num_layers"]))
+layers_to_work_on: List[int] = [20]
 
 #### STEP 1: CACHE ALL LAYER ALL ACTIVATIONS
 
@@ -102,7 +102,7 @@ print(f"Probes trained and saved for all datasets across all layers.")
 datasets_to_eval = ["AmongUsDataset", "TruthfulQADataset", "DishonestQADataset", "RepEngDataset"]
 
 def evaluate_probe(
-    dataset_name: str, 
+    dataset_name: str,
     probe: LinearProbe,
     config: Dict[str, Any], 
     model=None, 
@@ -114,9 +114,9 @@ def evaluate_probe(
     # make a directory to save the results for this dataset inside results/dataset_name
     os.makedirs(f"results/{dataset_name}_{config['short_name']}", exist_ok=True)
     # remove the old results
-    for file in os.listdir(f"results/{dataset_name}_{config['short_name']}"):
-        if file.endswith(".json") or file.endswith(".pdf"):
-            os.remove(os.path.join(f"results/{dataset_name}_{config['short_name']}", file))
+    # for file in os.listdir(f"results/{dataset_name}_{config['short_name']}"):
+    #     if file.endswith(".json") or file.endswith(".pdf"):
+    #         os.remove(os.path.join(f"results/{dataset_name}_{config['short_name']}", file))
     
     # evaluate on TQA
     dataset = TruthfulQADataset(config, model=model, tokenizer=tokenizer, device=device, test_split=0.2)
@@ -310,7 +310,7 @@ for probe_dataset_name in datasets_to_eval:
         
         config = base_config.copy()
         config["layer"] = str(layer)
-        rocs = evaluate_probe(probe_dataset_name, probe, config, plot_stuff=True if len(layers_to_work_on) == 1 else False)
+        rocs = evaluate_probe(probe_dataset_name, probe, config, plot_stuff=True if (layer == 20) else False)
         
         # Store the full ROC data for this layer
         all_layer_rocs[f"layer_{layer}"] = rocs
@@ -327,10 +327,11 @@ for probe_dataset_name in datasets_to_eval:
     
     print(f"Probes trained on {probe_dataset_name} evaluated across all layers.")
 
-# Save the complete results
+# Save the complete results if all layers are processed or file does not exist
 complete_results_path = f"results/all_datasets_layer_auroc_{config['short_name']}.json"
-with open(complete_results_path, 'w') as f:
-    json.dump(all_results, f)
-    print(f"Complete results saved to {complete_results_path}")
+if len(layers_to_work_on) == base_config["num_layers"] or not os.path.exists(complete_results_path):
+    with open(complete_results_path, 'w') as f:
+        json.dump(all_results, f)
+        print(f"Complete results saved to {complete_results_path}")
 
 print("All probes evaluated across all layers.")
