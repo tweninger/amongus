@@ -27,7 +27,7 @@ from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves, p
 import probes
 from pprint import pprint as pp
 
-from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset, ApolloProbeDataset
+from probe_datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset, ApolloProbeDataset
 from configs import config_phi4, config_gpt2, config_llama3
 base_config = config_phi4
 amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"

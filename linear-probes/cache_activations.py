@@ -11,7 +11,7 @@ import datasets, plots, configs, evaluate_utils
 for module in [datasets, plots, configs, evaluate_utils]:
     importlib.reload(module)
 
-from datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset, ApolloProbeDataset
+from probe_datasets import AmongUsDataset, TruthfulQADataset, DishonestQADataset, RepEngDataset, RolePlayingDataset, ApolloProbeDataset
 from configs import config_phi4, config_gpt2, config_llama3
 
 def main(dataset_name: str):

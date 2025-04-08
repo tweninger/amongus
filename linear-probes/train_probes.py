@@ -12,7 +12,7 @@ from configs import config_phi4, config_gpt2, config_llama3
 sys.path.append(os.path.dirname(os.path.abspath('.')))
 sys.path.append('.')
 
-from datasets import (
+from probe_datasets import (
     TruthfulQADataset,
     DishonestQADataset, 
     AmongUsDataset,

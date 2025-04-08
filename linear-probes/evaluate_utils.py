@@ -75,7 +75,7 @@ def evaluate_probe_on_dataset(test_df, model, tokenizer, probe, dataset, device,
     print(f"Accuracy: {accuracy}")
     return av_probe_outputs, accuracy
 
-def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=None, verbose=True):
+def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=None, verbose=True, output_token_scores=False):
     """
     Evaluate probe on a test dataset of activations and return probe outputs and accuracy
     
@@ -88,21 +88,24 @@ def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=N
         verbose: Whether to print progress
         
     Returns:
-        tuple: (average probe outputs, accuracy)
+        tuple: (average probe outputs, accuracy, probe outputs) if output_token_scores is True, otherwise (average probe outputs, accuracy)
     """
     av_probe_outputs = []
+    all_probe_outputs = []
     total, correct = 0, 0
     
-    for i, (activations, label) in enumerate(chunk_data):
+    from tqdm import tqdm
+    
+    for i, (activations, label) in enumerate(tqdm(chunk_data)):
         total += 1
         
         # Take specified number of tokens from end of sequence
         acts_to_use = activations[-num_tokens:] if num_tokens else activations
         
         # Get probe output for each token position
-        probe_outputs = [round(probe.evaluate_single_activation(t.tensor(act, device=device)), 4) 
+        token_probe_outputs = [round(probe.evaluate_single_activation(t.tensor(act, device=device)), 4) 
                         for act in acts_to_use]
-        avg_probe_output = sum(probe_outputs) / len(probe_outputs)
+        avg_probe_output = sum(token_probe_outputs) / len(token_probe_outputs)
 
         if label == 1 and avg_probe_output > 0.5:
             correct += 1
@@ -110,12 +113,16 @@ def evaluate_probe_on_activation_dataset(chunk_data, probe, device, num_tokens=N
             correct += 1
 
         av_probe_outputs.append(avg_probe_output)
+        all_probe_outputs.append(token_probe_outputs)
 
         if verbose and i % ((len(chunk_data) + 10) // 10) == 0:
             print(f"Evaluating {i}/{len(chunk_data)}", end="\t")
-            print(f"Probe outputs: {probe_outputs}")
+            print(f"Probe outputs: {token_probe_outputs}")
     
     accuracy = correct / total
     if verbose:
         print(f".", end="")
-    return av_probe_outputs, accuracy
+    if output_token_scores:
+        return av_probe_outputs, accuracy, all_probe_outputs
+    else:
+        return av_probe_outputs, accuracy

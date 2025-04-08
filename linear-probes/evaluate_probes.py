@@ -15,7 +15,7 @@ import numpy as np
 from typing import Dict, Any, List, Tuple
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 
-from datasets import TruthfulQADataset, DishonestQADataset, AmongUsDataset, RolePlayingDataset, RepEngDataset
+from probe_datasets import TruthfulQADataset, DishonestQADataset, AmongUsDataset, RolePlayingDataset, RepEngDataset
 from evaluate_utils import evaluate_probe_on_activation_dataset
 from configs import config_phi4, config_gpt2, config_llama3
 from plots import plot_behavior_distribution, plot_roc_curves, add_roc_curves, print_metrics, plot_roc_curve_eval
