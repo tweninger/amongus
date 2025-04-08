@@ -6,7 +6,7 @@ import json
 import os
 
 from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
-from amongagents.agent.prompts import (
+from amongagents.agent.neutral_prompts import (
     MEETING_PHASE_INSTRUCTION,
     TASK_PHASE_INSTRUCTION,
     CrewmatePersonalities,

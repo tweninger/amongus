@@ -54,18 +54,18 @@ BIG_LIST_OF_MODELS: List[str] = [
 
 # Default experiment arguments
 ARGS = {
-    "game_config": SEVEN_MEMBER_GAME,
-    # "game_config": FIVE_MEMBER_GAME,
+    # "game_config": SEVEN_MEMBER_GAME,
+    "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
     "agent_config": {
         "Impostor": "LLM", 
         "Crewmate": "LLM",    
-        # "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        # "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
-        "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        # "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        # "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
     },
     "UI": True,
 }
@@ -101,11 +101,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
     parser.add_argument("--name", type=str, default=None, help="Optional name for the experiment.")
     parser.add_argument("--num_games", type=int, default=2, help="Number of games to run.")
+    parser.add_argument("--display_ui", type=bool, default=False, help="Display UI.")
     parser.add_argument("--crewmate_llm", type=str, default=None, help="Crewmate LLM model.")
     parser.add_argument("--impostor_llm", type=str, default=None, help="Impostor LLM model.")
     args = parser.parse_args()
-    if args.num_games > 1:
-        ARGS["UI"] = False # can't run multiple games with UI
+    if args.num_games > 1 or args.display_ui == False:
+        ARGS["UI"] = False
     if args.crewmate_llm:
         ARGS["agent_config"]["CREWMATE_LLM_CHOICES"] = [args.crewmate_llm]
     if args.impostor_llm:
