@@ -1,4 +1,4 @@
-SAMPLE_FIVE_MEMBER_GAME = {
+THREE_MEMBER_GAME = {
     "num_players": 3,
     "num_impostors": 1,
     "num_common_tasks": 1,

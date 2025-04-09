@@ -171,3 +171,6 @@ zipp==3.21.0
 aiofiles==24.1.0
 transformer_lens==2.11.0
 flask==3.1.0
+websockets==15.0.1
+passlib==1.7.4
+streamlit==1.44.1
