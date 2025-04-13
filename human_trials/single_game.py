@@ -90,20 +90,63 @@ def main():
     # App title
     st.title("Among Us: A Sandbox for Agentic Deception")
     
-    # Initialize session state for game results
+    # Initialize session state for game results and updates
     if "game_results" not in st.session_state:
         st.session_state.game_results = None
+    if "game_updates" not in st.session_state:
+        st.session_state.game_updates = []
+    if "update_placeholder" not in st.session_state:
+        st.session_state.update_placeholder = st.empty()
+    if "update_counter" not in st.session_state:
+        st.session_state.update_counter = 0
     
+    # Create a container for the message display
+    message_container = st.container()
+
     if st.session_state.game_results is None:
         st.write("Click the button below to run a single game simulation.")
         
+        # Add collapsible container for Skeld map
+        with st.expander("View The Skeld Map", expanded=False):
+            st.image("assets/skeld.png", width=600, use_container_width=False)
+
+        # Display game updates in a scrollable container
+        with message_container:
+            if st.session_state.game_updates:
+                st.subheader("Game Updates")
+                # Use a text area for updates instead of HTML
+                updates_text = "\n".join([f"{datetime.datetime.now().strftime('%H:%M:%S')} - {msg}" for msg in st.session_state.game_updates])
+                st.text_area("Game Updates", value=updates_text, height=150, key="game_updates_display", label_visibility="collapsed")
+
         if st.button("Run Game"):
+            # Create a placeholder for live updates
+            updates_placeholder = st.empty()
+            st.session_state.update_placeholder = updates_placeholder
+            
+            def update_display():
+                # Increment the counter to create a unique key
+                st.session_state.update_counter += 1
+                unique_key = f"live_updates_display_{st.session_state.update_counter}"
+                
+                # Update the display with current game updates
+                with updates_placeholder.container():
+                    st.subheader("Game Updates")
+                    # Use a text area for updates instead of HTML
+                    updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
+                    st.text_area("Game Updates", value=updates_text, height=150, key=unique_key, label_visibility="collapsed")
+            
             with st.spinner("Running game simulation..."):
-                # Run the game and get results
+                # Set up initial display
+                update_display()
+                
+                # Run the game
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 game_results = loop.run_until_complete(run_single_game())
                 loop.close()
+                
+                # Final update of display
+                update_display()
                 
                 st.session_state.game_results = game_results
                 st.rerun()
@@ -117,12 +160,31 @@ def main():
         
         st.write("Model used: meta-llama/llama-3.3-70b-instruct")
         
-        # Display any other available information
-        st.json(st.session_state.game_results)
+        # Display winner reason - handle potential JSON parsing error
+        try:
+            winner_reason = st.session_state.game_results[game_number]["winner_reason"]
+            if isinstance(winner_reason, str):
+                st.write("Winner Reason:")
+                st.write(winner_reason)
+            else:
+                st.json(winner_reason)
+        except Exception as e:
+            st.write("Winner Reason:")
+            st.write(st.session_state.game_results[game_number]["winner_reason"])
+        
+        # Display game updates in a scrollable container
+        with message_container:
+            if st.session_state.game_updates:
+                st.subheader("Game Updates")
+                # Use a text area for updates instead of HTML
+                updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
+                st.text_area("Game Updates", value=updates_text, height=150, key="game_updates_display", label_visibility="collapsed")
         
         # Add button to run another game
         if st.button("Run Another Game"):
             st.session_state.game_results = None
+            # Clear game updates to start fresh
+            st.session_state.game_updates = []
             st.rerun()
             
         # Comment about extending functionality
