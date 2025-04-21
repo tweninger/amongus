@@ -4,6 +4,7 @@
 import os
 import sys
 import asyncio
+import random
 
 from typing import Optional, List
 
@@ -75,12 +76,20 @@ async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
 
     async def run_limited_game(game_index):
         async with semaphore:
+            if ARGS.get("tournament_style") == "1on1":
+                # Randomly select one model for each role for this specific game
+                game_config = ARGS["agent_config"].copy()
+                game_config["CREWMATE_LLM_CHOICES"] = [random.choice(BIG_LIST_OF_MODELS)]
+                game_config["IMPOSTOR_LLM_CHOICES"] = [random.choice(BIG_LIST_OF_MODELS)]
+            else:
+                game_config = ARGS["agent_config"]
+                
             game = AmongUs(
                 game_config=ARGS["game_config"],
                 include_human=ARGS["include_human"],
                 test=ARGS["test"],
                 personality=ARGS["personality"],
-                agent_config=ARGS["agent_config"],
+                agent_config=game_config,
                 UI=ui,
                 game_index=game_index,
             )
@@ -96,6 +105,8 @@ if __name__ == "__main__":
     parser.add_argument("--display_ui", type=bool, default=False, help="Display UI.")
     parser.add_argument("--crewmate_llm", type=str, default=None, help="Crewmate LLM model.")
     parser.add_argument("--impostor_llm", type=str, default=None, help="Impostor LLM model.")
+    parser.add_argument("--streamlit", type=bool, default=False, help="Streamlit.")
+    parser.add_argument("--tournament_style", type=str, default="random", help="random or 1on1.")
     args = parser.parse_args()
     if args.num_games > 1 or args.display_ui == False:
         ARGS["UI"] = False
@@ -103,4 +114,5 @@ if __name__ == "__main__":
         ARGS["agent_config"]["CREWMATE_LLM_CHOICES"] = [args.crewmate_llm]
     if args.impostor_llm:
         ARGS["agent_config"]["IMPOSTOR_LLM_CHOICES"] = [args.impostor_llm]
+    ARGS["tournament_style"] = args.tournament_style
     asyncio.run(multiple_games(experiment_name=args.name, num_games=args.num_games))
