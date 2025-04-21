@@ -14,7 +14,7 @@ import datetime
 import subprocess
 
 from amongagents.envs.configs.agent_config import ALL_LLM
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, SAMPLE_FIVE_MEMBER_GAME
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, FIVE_MEMBER_GAME
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
@@ -37,7 +37,7 @@ COMMIT_HASH = (
 BIG_LIST_OF_MODELS: List[str] = [
     "microsoft/phi-4",
     "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
+    "anthropic/claude-3.7-sonnet:thinking",
     "openai/o3-mini-high",
     "openai/gpt-4o-mini",
     "deepseek/deepseek-r1-distill-llama-70b",
@@ -49,19 +49,20 @@ BIG_LIST_OF_MODELS: List[str] = [
 ]
 
 ARGS = {
-    "game_config": FIVE_MEMBER_GAME,
+    "game_config": SEVEN_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
     "agent_config": {
         "Impostor": "LLM",
-        "Crewmate": "LLM",    
-        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        # "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
-        # "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "Crewmate": "LLM",
+        # "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        # "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
     },
-    "UI": True,
+    "UI": False,
+    "Streamlit": False,
 }
 
 async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
