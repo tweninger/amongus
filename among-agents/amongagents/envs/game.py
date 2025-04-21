@@ -164,7 +164,6 @@ class AmongUs:
                     "personality": player.personality,
                     "tasks": [task.name for task in player.tasks],
                 }
-                
 
     def report_winner(self, winner):
         winner_reason_map = {

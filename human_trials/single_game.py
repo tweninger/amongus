@@ -18,19 +18,16 @@ from utils import setup_experiment
 ROOT_PATH = os.path.abspath(".")
 LOGS_PATH = os.path.join(ROOT_PATH, "expt-logs")
 
-# Initialize environment variables
 load_dotenv()
 
-# Get experiment date and Git commit hash
 DATE = datetime.datetime.now().strftime("%Y-%m-%d")
 COMMIT_HASH = (
     subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
 )
 
-# Default experiment arguments
 ARGS = {
-    "game_config": THREE_MEMBER_GAME,
-    "include_human": False,
+    "game_config": FIVE_MEMBER_GAME,
+    "include_human": True,
     "test": False,
     "personality": False,
     "agent_config": {
@@ -39,7 +36,7 @@ ARGS = {
         "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
         "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
     },
-    "UI": False,  # Disable UI since we're using Streamlit
+    "UI": False,
 }
 
 async def run_single_game():
@@ -47,7 +44,6 @@ async def run_single_game():
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
         experiment_file.write(f"\nExperiment args: {ARGS}\n")
 
-    # Create semaphore to limit concurrent games (keeping the structure even though we only run one game)
     semaphore = asyncio.Semaphore(1)
 
     async def run_limited_game(game_index):
@@ -62,13 +58,11 @@ async def run_single_game():
                 game_index=game_index,
             )
             await game.run_game()
-            return game.summary_json  # Return the game summary
+            return game.summary_json
 
-    # Run a single game
     return await run_limited_game(1)
 
 def main():
-    # Set page config (must be first Streamlit command)
     st.set_page_config(
         page_title="Among Us (Deception Sandbox)",
         page_icon="🚀",

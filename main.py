@@ -7,7 +7,6 @@ import asyncio
 
 from typing import Optional, List
 
-# add among-agents package to the path
 sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
 
 import argparse
@@ -19,7 +18,6 @@ from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
-# from amongagents.UI.WebMapUI import WebMapUI
 from dotenv import load_dotenv
 
 from utils import setup_experiment
@@ -29,10 +27,8 @@ LOGS_PATH = os.path.join(ROOT_PATH, "expt-logs")
 ASSETS_PATH = os.path.join(ROOT_PATH, "among-agents", "amongagents", "assets")
 BLANK_MAP_IMAGE = os.path.join(ASSETS_PATH, "blankmap.png")
 
-# Initialize environment variables
 load_dotenv()
 
-# Get experiment date and Git commit hash
 DATE = datetime.datetime.now().strftime("%Y-%m-%d")
 COMMIT_HASH = (
     subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
@@ -52,15 +48,13 @@ BIG_LIST_OF_MODELS: List[str] = [
     "google/gemini-2.0-flash-001",
 ]
 
-# Default experiment arguments
 ARGS = {
-    # "game_config": SEVEN_MEMBER_GAME,
     "game_config": FIVE_MEMBER_GAME,
     "include_human": False,
     "test": False,
     "personality": False,
     "agent_config": {
-        "Impostor": "LLM", 
+        "Impostor": "LLM",
         "Crewmate": "LLM",    
         "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
         "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
@@ -73,11 +67,9 @@ ARGS = {
 async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
     setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
-    # web_ui = WebMapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
         experiment_file.write(f"\nExperiment args: {ARGS}\n")
 
-    # Create semaphore to limit concurrent games
     semaphore = asyncio.Semaphore(rate_limit)
 
     async def run_limited_game(game_index):
@@ -89,7 +81,6 @@ async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
                 personality=ARGS["personality"],
                 agent_config=ARGS["agent_config"],
                 UI=ui,
-                # UI=web_ui, # under progress, do not use
                 game_index=game_index,
             )
             await game.run_game()
