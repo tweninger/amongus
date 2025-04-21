@@ -10,6 +10,7 @@ import datetime
 import subprocess
 import uuid
 import threading
+import random
 
 sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
 sys.path.append(os.path.abspath(".."))
@@ -24,11 +25,41 @@ from config import CONFIG
 ROOT_PATH = os.path.abspath(".")
 LOGS_PATH = os.path.join(ROOT_PATH, CONFIG["logs_path"])
 
-# Initialize environment variables
 load_dotenv()
 
-# Setup experiment once at module load time
 experiment_name = CONFIG["experiment_name"]
+
+# Define the list of models for tournament style
+BIG_LIST_OF_MODELS: List[str] = [
+    "microsoft/phi-4",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet:thinking",
+    "openai/o3-mini-high",
+    "openai/gpt-4o-mini",
+    "deepseek/deepseek-r1-distill-llama-70b",
+    "qwen/qwen-2.5-7b-instruct",
+    "mistralai/mistral-7b-instruct",
+    "deepseek/deepseek-r1",
+    "meta-llama/llama-3.3-70b-instruct",
+    "google/gemini-2.0-flash-001",
+]
+
+# Game configuration
+GAME_ARGS = {
+    "game_config": FIVE_MEMBER_GAME,
+    "include_human": True,  # Set to True for human players
+    "test": False,
+    "personality": False,
+    "agent_config": {
+        "Impostor": "LLM",
+        "Crewmate": "LLM",
+        "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+    },
+    "UI": False,
+    "Streamlit": True,  # Set to True for Streamlit UI
+    "tournament_style": "random",  # Default tournament style
+}
 
 def setup_experiment_once():
     """Setup experiment only once during the Streamlit session"""
@@ -44,7 +75,7 @@ def setup_experiment_once():
     if "experiment_setup" not in st.session_state:
         st.session_state.experiment_setup = True
         print(f"Setting up experiment {experiment_name}")
-        setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], CONFIG["game_args"])
+        setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], GAME_ARGS)
 
 def get_next_game_index():
     """Get the next game index by reading the experiment log file"""
@@ -84,12 +115,23 @@ async def run_game_with_index():
         experiment_file.write(f"\nGame {game_index} started.\n")
 
     async def run_limited_game():
+        # Get tournament style from session state or default to "random"
+        tournament_style = st.session_state.get("tournament_style", "random")
+        
+        # Prepare agent config based on tournament style
+        agent_config = GAME_ARGS["agent_config"].copy()
+        
+        if tournament_style == "1on1":
+            # Randomly select one model for each role for this specific game
+            agent_config["CREWMATE_LLM_CHOICES"] = [random.choice(BIG_LIST_OF_MODELS)]
+            agent_config["IMPOSTOR_LLM_CHOICES"] = [random.choice(BIG_LIST_OF_MODELS)]
+        
         game = AmongUs(
-            game_config=FIVE_MEMBER_GAME,
-            include_human=CONFIG["game_args"]["include_human"],
-            test=CONFIG["game_args"]["test"],
-            personality=CONFIG["game_args"]["personality"],
-            agent_config=CONFIG["game_args"]["agent_config"],
+            game_config=GAME_ARGS["game_config"],
+            include_human=GAME_ARGS["include_human"],
+            test=GAME_ARGS["test"],
+            personality=GAME_ARGS["personality"],
+            agent_config=agent_config,
             UI=None,  # No UI, using Streamlit instead
             game_index=game_index,
         )
@@ -111,6 +153,10 @@ def main():
     if "experiment_setup" not in st.session_state:
         st.session_state.experiment_setup = False
     
+    # Initialize tournament style in session state
+    if "tournament_style" not in st.session_state:
+        st.session_state.tournament_style = GAME_ARGS["tournament_style"]
+    
     # Setup experiment only if not already done
     if not st.session_state.experiment_setup:
         setup_experiment_once()
@@ -129,6 +175,16 @@ def main():
     
     # App title
     st.title("Among Us: A Sandbox for Agentic Deception")
+    
+    # Tournament style selection
+    st.sidebar.header("Game Settings")
+    tournament_style = st.sidebar.radio(
+        "Tournament Style",
+        options=["random", "1on1"],
+        index=0 if st.session_state.tournament_style == "random" else 1,
+        help="Random: All models are randomly selected. 1on1: One model is randomly selected for each role."
+    )
+    st.session_state.tournament_style = tournament_style
     
     # Initialize session state for game results and updates
     if "game_results" not in st.session_state:
@@ -203,7 +259,15 @@ def main():
         game_number = list(st.session_state.game_results.keys())[0]
         st.subheader(f"Game: {game_number}")
         
-        st.write(f"Model used: {CONFIG['game_args']['agent_config']['IMPOSTOR_LLM_CHOICES'][0]}")
+        # Display tournament style
+        st.write(f"Tournament Style: {st.session_state.tournament_style}")
+        
+        # Display model information based on tournament style
+        if st.session_state.tournament_style == "1on1":
+            st.write(f"Crewmate Model: {GAME_ARGS['agent_config']['CREWMATE_LLM_CHOICES'][0]}")
+            st.write(f"Impostor Model: {GAME_ARGS['agent_config']['IMPOSTOR_LLM_CHOICES'][0]}")
+        else:
+            st.write(f"Models used: {', '.join(GAME_ARGS['agent_config']['IMPOSTOR_LLM_CHOICES'])}")
         
         # Display winner reason - handle potential JSON parsing error
         try:
