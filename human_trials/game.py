@@ -1,10 +1,9 @@
-# !/usr/bin/env python3
-# usage: streamlit run game.py
+#!/usr/bin/env python3
+# usage: python game.py
 
 import os
 import sys
 import asyncio
-import streamlit as st
 from typing import List
 import datetime
 import subprocess
@@ -66,11 +65,10 @@ GAME_ARGS = {
         "CREWMATE_LLM_CHOICES": TESTING_MODELS,
     },
     "UI": False,
-    "Streamlit": True,  # Set to True for Streamlit UI
     "tournament_style": "random",  # Default tournament style
 }
 
-# Path to the game state file that persists between Streamlit refreshes
+# Path to the game state file that persists between refreshes
 GAME_STATE_FILE = os.path.join(ROOT_PATH, "game_state.json")
 
 # Context manager to suppress stderr
@@ -84,16 +82,13 @@ def suppress_stderr():
         sys.stderr = stderr
 
 def setup_experiment_once():
-    """Setup experiment only once during the Streamlit session"""
+    """Setup experiment directory and files"""
     # Check if experiment directory already exists
     experiment_dir = os.path.join(LOGS_PATH, experiment_name)
     if os.path.exists(experiment_dir):
-        # If directory exists, just set the flag and return
-        if "experiment_setup" not in st.session_state:
-            st.session_state.experiment_setup = True
         return
     
-    # Only run setup if not already done in this session
+    # Only run setup if not already done
     if not os.environ.get("EXPERIMENT_PATH"):
         os.environ["EXPERIMENT_PATH"] = experiment_dir
         print(f"Setting up experiment {experiment_name}")
@@ -127,7 +122,7 @@ def get_next_game_index():
 GAME_INSTANCE = None
 
 def save_game_state(game):
-    """Save the current game state to a file for persistence across Streamlit refreshes"""
+    """Save the current game state to a file for persistence"""
     # Create a simple state object with essential game information
     state = {
         "game_index": game.game_index,
@@ -151,7 +146,7 @@ def load_game_state():
     return None
 
 async def run_game_instance():
-    """Run a single game instance that persists across Streamlit refreshes"""
+    """Run a single game instance"""
     global GAME_INSTANCE
     
     # Check if we already have a game running
@@ -176,7 +171,7 @@ async def run_game_instance():
             test=GAME_ARGS["test"],
             personality=GAME_ARGS["personality"],
             agent_config=GAME_ARGS["agent_config"],
-            UI=None,  # No UI, using Streamlit instead
+            UI=None,  # No UI, using Flask instead
             game_index=game_index,
         )
         
@@ -197,20 +192,10 @@ async def run_game_instance():
     return GAME_INSTANCE
 
 def main():
-    # Set page config (must be first Streamlit command)
-    st.set_page_config(
-        page_title="Among Us (Deception Sandbox)",
-        page_icon="🚀",
-        layout="centered"
-    )
+    print("Starting Among Us game...")
     
-    # Initialize session state for experiment setup
-    if "experiment_setup" not in st.session_state:
-        st.session_state.experiment_setup = False
-    
-    # Setup experiment only if not already done
-    if not st.session_state.experiment_setup:
-        setup_experiment_once()
+    # Setup experiment
+    setup_experiment_once()
     
     # Get or create the game instance
     loop = asyncio.new_event_loop()
@@ -219,94 +204,23 @@ def main():
     
     # Check if the game has been initialized
     if not hasattr(game, 'timestep'):
-        st.warning("Game is initializing. Please wait...")
-        st.stop()
-    
-    # Custom styling
-    st.markdown("""
-    <style>
-    .main {
-        padding: 2rem;
-    }
-    .stButton button {
-        width: 100%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Inject custom CSS to set the width of the sidebar
-    st.markdown(
-        """
-        <style>
-            section[data-testid="stSidebar"] {
-                width: 500px !important; # Set the width to your desired value
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    # App title
-    st.title("Among Us: A Sandbox for Agentic Deception")
+        print("Game is initializing. Please wait...")
+        return
     
     # Load the game state
     game_state = load_game_state()
     
     # Display game state
     if game_state:
-        st.header(f"Game {game_state['game_index']} - Step {game_state['timestep']}")
+        print(f"Game {game_state['game_index']} - Step {game_state['timestep']}")
         
         # Calculate time since last update
         last_update = game_state.get('last_update', 0)
         elapsed = time.time() - last_update
-        st.write(f"Last update: {elapsed:.1f} seconds ago")
-        
-        # Auto-refresh if the game state has changed
-        if "last_timestep" not in st.session_state:
-            st.session_state.last_timestep = game_state['timestep']
-        elif st.session_state.last_timestep != game_state['timestep']:
-            st.session_state.last_timestep = game_state['timestep']
-            st.rerun()
+        print(f"Last update: {elapsed:.1f} seconds ago")
     
-    # Instructions in sidebar
-    st.sidebar.header("Game Instructions")
-    st.sidebar.markdown("""
-    ## How to Play Among Us
-    
-    **Game Phases:**
-    1. **Task Phase**: Move around the ship, complete tasks, and gather information
-    2. **Meeting Phase**: Discuss with other players and vote out suspected Impostors
-    
-    **Actions Available:**
-    - **Move**: Navigate between rooms
-    - **Complete Task**: Finish assigned tasks (Crewmates only)
-    - **Call Meeting**: Trigger an emergency meeting
-    - **Speak**: Communicate with other players
-    - **Vote**: Choose who to eject during meetings
-    - **Kill**: Eliminate a player (Impostors only)
-    - **Use Vent**: Travel through vents (Impostors only)
-    - **Sabotage**: Create chaos (Impostors only)
-    
-    **Win Conditions:**
-    - **Crewmates**: Complete all tasks or eject all Impostors
-    - **Impostors**: Eliminate enough Crewmates to equal their number
-    """)
-    
-    # Display Skeld map
-    with st.expander("View The Skeld Map", expanded=False):
-        st.image(os.path.join(CONFIG["assets_path"], "skeld.png"), width=600, use_container_width=False)
-    
-    # Add a placeholder for game updates
-    if "update_placeholder" not in st.session_state:
-        st.session_state.update_placeholder = st.empty()
-    
-    # The game is running in a separate thread, so we just need to display its state
-    st.header("Game is Running")
-    st.write("The game is running and waiting for human input. If it's your turn to act, you'll see an interface below.")
-    
-    # Auto-refresh the page periodically to check for game state updates
-    time.sleep(1)  # Small delay to prevent excessive CPU usage
-    st.rerun()
+    print("Game is running in the background.")
+    print("Use the Flask app to interact with the game.")
 
 if __name__ == "__main__":
     main() 

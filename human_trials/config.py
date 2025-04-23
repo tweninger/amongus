@@ -29,7 +29,7 @@ CONFIG = {
         },
         "UI": False,
     },
-    "experiment_name": f"streamlit_session_{SESSION_ID}",
+    "experiment_name": f"flask_session_{SESSION_ID}",
     "logs_path": "expt-logs",
     "assets_path": "assets",
 }

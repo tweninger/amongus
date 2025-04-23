@@ -57,13 +57,10 @@ ARGS = {
     "agent_config": {
         "Impostor": "LLM",
         "Crewmate": "LLM",
-        # "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        # "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
         "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
         "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
     },
     "UI": False,
-    "Streamlit": False,
 }
 
 async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):

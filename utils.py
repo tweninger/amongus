@@ -36,7 +36,6 @@ def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS
         experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
 
     os.environ["EXPERIMENT_PATH"] = experiment_path
-    os.environ["STREAMLIT"] = str(DEFAULT_ARGS["Streamlit"])
 
 def load_game_summary(filepath: str) -> pd.DataFrame:
     # Read each line of the JSONL file
