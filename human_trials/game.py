@@ -11,6 +11,11 @@ import subprocess
 import uuid
 import threading
 import random
+import json
+import time
+import signal
+import io
+import contextlib
 
 sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
 sys.path.append(os.path.abspath(".."))
@@ -29,7 +34,6 @@ load_dotenv()
 
 experiment_name = CONFIG["experiment_name"]
 
-# Define the list of models for tournament style
 BIG_LIST_OF_MODELS: List[str] = [
     "microsoft/phi-4",
     "anthropic/claude-3.5-sonnet",
@@ -44,7 +48,10 @@ BIG_LIST_OF_MODELS: List[str] = [
     "google/gemini-2.0-flash-001",
 ]
 
-# Game configuration
+TESTING_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct",
+]
+
 GAME_ARGS = {
     "game_config": FIVE_MEMBER_GAME,
     "include_human": True,  # Set to True for human players
@@ -53,13 +60,28 @@ GAME_ARGS = {
     "agent_config": {
         "Impostor": "LLM",
         "Crewmate": "LLM",
-        "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
-        "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        # "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        # "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "IMPOSTOR_LLM_CHOICES": TESTING_MODELS,
+        "CREWMATE_LLM_CHOICES": TESTING_MODELS,
     },
     "UI": False,
     "Streamlit": True,  # Set to True for Streamlit UI
     "tournament_style": "random",  # Default tournament style
 }
+
+# Path to the game state file that persists between Streamlit refreshes
+GAME_STATE_FILE = os.path.join(ROOT_PATH, "game_state.json")
+
+# Context manager to suppress stderr
+@contextlib.contextmanager
+def suppress_stderr():
+    stderr = sys.stderr
+    sys.stderr = io.StringIO()
+    try:
+        yield
+    finally:
+        sys.stderr = stderr
 
 def setup_experiment_once():
     """Setup experiment only once during the Streamlit session"""
@@ -72,8 +94,8 @@ def setup_experiment_once():
         return
     
     # Only run setup if not already done in this session
-    if "experiment_setup" not in st.session_state:
-        st.session_state.experiment_setup = True
+    if not os.environ.get("EXPERIMENT_PATH"):
+        os.environ["EXPERIMENT_PATH"] = experiment_dir
         print(f"Setting up experiment {experiment_name}")
         setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], GAME_ARGS)
 
@@ -101,45 +123,78 @@ def get_next_game_index():
     
     return next_index
 
-async def run_game_with_index():
-    """Run a single game with an incremented game index."""
-    # Ensure setup has been done before trying to get next game index
-    if not st.session_state.experiment_setup:
-        setup_experiment_once()
-        
-    # Get the next game index
-    game_index = get_next_game_index()
-    
-    # Append game index to the experiment details
-    with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
-        experiment_file.write(f"\nGame {game_index} started.\n")
+# Global variable to hold the game instance
+GAME_INSTANCE = None
 
-    async def run_limited_game():
-        # Get tournament style from session state or default to "random"
-        tournament_style = st.session_state.get("tournament_style", "random")
+def save_game_state(game):
+    """Save the current game state to a file for persistence across Streamlit refreshes"""
+    # Create a simple state object with essential game information
+    state = {
+        "game_index": game.game_index,
+        "timestep": game.timestep,  # The timestep attribute is initialized in initialize_game method
+        "running": True,
+        "last_update": time.time()
+    }
+    
+    # Write to the state file
+    with open(GAME_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+def load_game_state():
+    """Load the game state from file"""
+    if os.path.exists(GAME_STATE_FILE):
+        try:
+            with open(GAME_STATE_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return None
+    return None
+
+async def run_game_instance():
+    """Run a single game instance that persists across Streamlit refreshes"""
+    global GAME_INSTANCE
+    
+    # Check if we already have a game running
+    state = load_game_state()
+    
+    if GAME_INSTANCE is None:
+        # Ensure setup has been done before starting a new game
+        if not os.environ.get("EXPERIMENT_PATH"):
+            setup_experiment_once()
+            
+        # Get the next game index
+        game_index = get_next_game_index()
         
-        # Prepare agent config based on tournament style
-        agent_config = GAME_ARGS["agent_config"].copy()
+        # Append game index to the experiment details
+        with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
+            experiment_file.write(f"\nGame {game_index} started.\n")
         
-        if tournament_style == "1on1":
-            # Randomly select one model for each role for this specific game
-            agent_config["CREWMATE_LLM_CHOICES"] = [random.choice(BIG_LIST_OF_MODELS)]
-            agent_config["IMPOSTOR_LLM_CHOICES"] = [random.choice(BIG_LIST_OF_MODELS)]
-        
-        game = AmongUs(
+        # Create a new game instance
+        GAME_INSTANCE = AmongUs(
             game_config=GAME_ARGS["game_config"],
             include_human=GAME_ARGS["include_human"],
             test=GAME_ARGS["test"],
             personality=GAME_ARGS["personality"],
-            agent_config=agent_config,
+            agent_config=GAME_ARGS["agent_config"],
             UI=None,  # No UI, using Streamlit instead
             game_index=game_index,
         )
-        await game.run_game()
-        return game.summary_json  # Return the game summary
-
-    # Run a single game
-    return await run_limited_game()
+        
+        # Initialize the game before saving state
+        GAME_INSTANCE.initialize_game()
+        
+        # Save initial game state
+        save_game_state(GAME_INSTANCE)
+        
+        # Start the game in a separate thread with stderr suppression
+        def run_game_with_suppression():
+            with suppress_stderr():
+                asyncio.run(GAME_INSTANCE.run_game())
+                
+        threading.Thread(target=run_game_with_suppression, daemon=True).start()
+    
+    # Always return the current game instance
+    return GAME_INSTANCE
 
 def main():
     # Set page config (must be first Streamlit command)
@@ -153,13 +208,19 @@ def main():
     if "experiment_setup" not in st.session_state:
         st.session_state.experiment_setup = False
     
-    # Initialize tournament style in session state
-    if "tournament_style" not in st.session_state:
-        st.session_state.tournament_style = GAME_ARGS["tournament_style"]
-    
     # Setup experiment only if not already done
     if not st.session_state.experiment_setup:
         setup_experiment_once()
+    
+    # Get or create the game instance
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    game = loop.run_until_complete(run_game_instance())
+    
+    # Check if the game has been initialized
+    if not hasattr(game, 'timestep'):
+        st.warning("Game is initializing. Please wait...")
+        st.stop()
     
     # Custom styling
     st.markdown("""
@@ -173,140 +234,79 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
+    # Inject custom CSS to set the width of the sidebar
+    st.markdown(
+        """
+        <style>
+            section[data-testid="stSidebar"] {
+                width: 500px !important; # Set the width to your desired value
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    
     # App title
     st.title("Among Us: A Sandbox for Agentic Deception")
     
-    # Tournament style selection
-    st.sidebar.header("Game Settings")
-    tournament_style = st.sidebar.radio(
-        "Tournament Style",
-        options=["random", "1on1"],
-        index=0 if st.session_state.tournament_style == "random" else 1,
-        help="Random: All models are randomly selected. 1on1: One model is randomly selected for each role."
-    )
-    st.session_state.tournament_style = tournament_style
+    # Load the game state
+    game_state = load_game_state()
     
-    # Initialize session state for game results and updates
-    if "game_results" not in st.session_state:
-        st.session_state.game_results = None
-    if "game_updates" not in st.session_state:
-        st.session_state.game_updates = []
+    # Display game state
+    if game_state:
+        st.header(f"Game {game_state['game_index']} - Step {game_state['timestep']}")
+        
+        # Calculate time since last update
+        last_update = game_state.get('last_update', 0)
+        elapsed = time.time() - last_update
+        st.write(f"Last update: {elapsed:.1f} seconds ago")
+        
+        # Auto-refresh if the game state has changed
+        if "last_timestep" not in st.session_state:
+            st.session_state.last_timestep = game_state['timestep']
+        elif st.session_state.last_timestep != game_state['timestep']:
+            st.session_state.last_timestep = game_state['timestep']
+            st.rerun()
+    
+    # Instructions in sidebar
+    st.sidebar.header("Game Instructions")
+    st.sidebar.markdown("""
+    ## How to Play Among Us
+    
+    **Game Phases:**
+    1. **Task Phase**: Move around the ship, complete tasks, and gather information
+    2. **Meeting Phase**: Discuss with other players and vote out suspected Impostors
+    
+    **Actions Available:**
+    - **Move**: Navigate between rooms
+    - **Complete Task**: Finish assigned tasks (Crewmates only)
+    - **Call Meeting**: Trigger an emergency meeting
+    - **Speak**: Communicate with other players
+    - **Vote**: Choose who to eject during meetings
+    - **Kill**: Eliminate a player (Impostors only)
+    - **Use Vent**: Travel through vents (Impostors only)
+    - **Sabotage**: Create chaos (Impostors only)
+    
+    **Win Conditions:**
+    - **Crewmates**: Complete all tasks or eject all Impostors
+    - **Impostors**: Eliminate enough Crewmates to equal their number
+    """)
+    
+    # Display Skeld map
+    with st.expander("View The Skeld Map", expanded=False):
+        st.image(os.path.join(CONFIG["assets_path"], "skeld.png"), width=600, use_container_width=False)
+    
+    # Add a placeholder for game updates
     if "update_placeholder" not in st.session_state:
         st.session_state.update_placeholder = st.empty()
-    if "update_counter" not in st.session_state:
-        st.session_state.update_counter = 0
     
-    # Create a container for the message display
-    message_container = st.container()
-
-    # Check if experiment is properly set up
-    if "EXPERIMENT_PATH" not in os.environ:
-        st.error("Experiment setup failed. Please refresh the page.")
-        return
-
-    if st.session_state.game_results is None:
-        st.write("Click the button below to run a single game simulation.")
-        
-        # Add collapsible container for Skeld map
-        with st.expander("View The Skeld Map", expanded=False):
-            st.image(os.path.join(CONFIG["assets_path"], "skeld.png"), width=600, use_container_width=False)
-
-        # Display game updates in a scrollable container
-        with message_container:
-            if st.session_state.game_updates:
-                st.subheader("Game Updates")
-                # Use a text area for updates instead of HTML
-                updates_text = "\n".join([f"{datetime.datetime.now().strftime('%H:%M:%S')} - {msg}" for msg in st.session_state.game_updates])
-                st.text_area("Game Updates", value=updates_text, height=150, key="game_updates_display", label_visibility="collapsed")
-
-        if st.button("Run Game"):
-            # Create a placeholder for live updates
-            updates_placeholder = st.empty()
-            st.session_state.update_placeholder = updates_placeholder
-            
-            def update_display():
-                # Increment the counter to create a unique key
-                st.session_state.update_counter += 1
-                unique_key = f"live_updates_display_{st.session_state.update_counter}"
-                
-                # Update the display with current game updates
-                with updates_placeholder.container():
-                    st.subheader("Game Updates")
-                    # Use a text area for updates instead of HTML
-                    updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
-                    st.text_area("Game Updates", value=updates_text, height=150, key=unique_key, label_visibility="collapsed")
-            
-            with st.spinner("Running game simulation..."):
-                # Set up initial display
-                update_display()
-                
-                # Run the game
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                game_results = loop.run_until_complete(run_game_with_index())
-                loop.close()
-                
-                # Final update of display
-                update_display()
-                
-                st.session_state.game_results = game_results
-                st.rerun()
-    else:
-        # Display game results
-        st.header("Game Results")
-        
-        # Extract game number and model information
-        game_number = list(st.session_state.game_results.keys())[0]
-        st.subheader(f"Game: {game_number}")
-        
-        # Display tournament style
-        st.write(f"Tournament Style: {st.session_state.tournament_style}")
-        
-        # Display model information based on tournament style
-        if st.session_state.tournament_style == "1on1":
-            st.write(f"Crewmate Model: {GAME_ARGS['agent_config']['CREWMATE_LLM_CHOICES'][0]}")
-            st.write(f"Impostor Model: {GAME_ARGS['agent_config']['IMPOSTOR_LLM_CHOICES'][0]}")
-        else:
-            st.write(f"Models used: {', '.join(GAME_ARGS['agent_config']['IMPOSTOR_LLM_CHOICES'])}")
-        
-        # Display winner reason - handle potential JSON parsing error
-        try:
-            winner_reason = st.session_state.game_results[game_number]["winner_reason"]
-            if isinstance(winner_reason, str):
-                st.write("Winner Reason:")
-                st.write(winner_reason)
-            else:
-                st.json(winner_reason)
-        except Exception as e:
-            st.write("Winner Reason:")
-            st.write(st.session_state.game_results[game_number]["winner_reason"])
-        
-        # Display game updates in a scrollable container
-        with message_container:
-            if st.session_state.game_updates:
-                st.subheader("Game Updates")
-                # Use a text area for updates instead of HTML
-                updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
-                st.text_area("Game Updates", value=updates_text, height=150, key="game_updates_display", label_visibility="collapsed")
-        
-        # Add button to run another game
-        if st.button("Run Another Game"):
-            st.session_state.game_results = None
-            # Clear game updates to start fresh
-            st.session_state.game_updates = []
-            st.rerun()
-            
-        # Comment about extending functionality
-        st.markdown("""
-        ---
-        **Developer Note:** 
-        
-        To show more detailed information from the AmongUs game on this Streamlit app:
-        1. Modify the AmongUs class in `amongagents/envs/game.py` to expose more data
-        2. Consider adding a callback mechanism to update Streamlit in real-time
-        3. Extend the `summary_json` object to include more game details
-        4. You might need to create a custom UI handler that works with Streamlit
-        """)
+    # The game is running in a separate thread, so we just need to display its state
+    st.header("Game is Running")
+    st.write("The game is running and waiting for human input. If it's your turn to act, you'll see an interface below.")
+    
+    # Auto-refresh the page periodically to check for game state updates
+    time.sleep(1)  # Small delay to prevent excessive CPU usage
+    st.rerun()
 
 if __name__ == "__main__":
     main() 
