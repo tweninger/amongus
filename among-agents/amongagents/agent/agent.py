@@ -6,8 +6,6 @@ import re
 from datetime import datetime
 from typing import Any
 import aiohttp
-import streamlit as st
-
 import numpy as np
 import requests
 import asyncio
@@ -144,7 +142,6 @@ class LLMAgent(Agent):
         # Write to file with minimal whitespace but still readable
         with open(self.log_path, "a") as f:
             json.dump(interaction, f, indent=2, separators=(",", ": "))
-            # input()
             f.write("\n")
             f.flush()
         with open(self.compact_log_path, "a") as f:
@@ -154,28 +151,6 @@ class LLMAgent(Agent):
 
         print(".", end="", flush=True)
 
-        if os.getenv("STREAMLIT") == "True":
-            if "game_updates" not in st.session_state:
-                st.session_state.game_updates = []
-            
-            # Format the message without newlines to prevent HTML display issues
-            message = f"Game {self.game_index} - Step {step}, {self.player.name} - {self.player.identity}: {interaction['interaction']['response']['Action']}"
-            st.session_state.game_updates.append(message)
-        
-            # Force a render of the updates container without a full rerun
-            if "update_placeholder" in st.session_state and st.session_state.update_placeholder is not None:
-                # Increment the counter to create a unique key
-                if "update_counter" not in st.session_state:
-                    st.session_state.update_counter = 0
-                st.session_state.update_counter += 1
-                unique_key = f"live_updates_display_{st.session_state.update_counter}"
-                
-                # Update the display with current game updates
-                with st.session_state.update_placeholder.container():
-                    st.subheader("Game Updates")
-                    updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
-                    st.text_area("Game Updates", value=updates_text, height=150, key=unique_key, label_visibility="collapsed")
-    
     async def send_request(self, messages):
         """Send a POST request to OpenRouter API with the provided messages."""
         headers = {"Authorization": f"Bearer {self.api_key}"}
