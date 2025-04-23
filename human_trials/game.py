@@ -51,8 +51,10 @@ GAME_ARGS = {
     "agent_config": {
         "Impostor": "LLM",
         "Crewmate": "LLM",
-        "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
-        "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        # "IMPOSTOR_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        # "CREWMATE_LLM_CHOICES": BIG_LIST_OF_MODELS,
+        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
     },
     "UI": False,
     "Streamlit": False,  # Set to False for command line
@@ -146,4 +148,4 @@ def main():
     print("Game results:", game_results)
 
 if __name__ == "__main__":
-    main() 
+    main()

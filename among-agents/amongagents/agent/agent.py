@@ -265,68 +265,115 @@ class RandomAgent(Agent):
 
 
 class HumanAgent(Agent):
-    def __init__(self, player):
+    def __init__(self, player, tools=None, game_index=0, agent_config=None, list_of_impostors=None):
         super().__init__(player)
-
-    def choose_action(self):
-        print(f"{str(self.player)}")
-
+        self.model = "homosapiens/brain-1.0"
+        self.tools = tools
+        self.game_index = game_index
+        self.summarization = "No thought process has been made."
+        self.processed_memory = "No memory has been processed."
+        self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
+        self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
+        
+        # Initialize global session state if it doesn't exist
+        if os.getenv("FLASK") == "True":
+            # Global session state for actions across page refreshes
+            if "human_actions" not in st.session_state:
+                st.session_state.human_actions = {}
+            if "action_history" not in st.session_state:
+                st.session_state.action_history = {}
+            if "game_started" not in st.session_state:
+                st.session_state.game_started = False
+    
+    async def choose_action(self, timestep):
+        all_info = self.player.all_info_prompt()
         available_actions = self.player.get_available_actions()
-        print(self.player.all_info_prompt())
+        
+        # Log the start of action selection
+        action_prompt = f"Available actions:\n" + "\n".join([f"{i+1}: {action}" for i, action in enumerate(available_actions)])
+        full_prompt = {
+            "All Info": all_info,
+            "Available Actions": action_prompt
+        }
+        # Command line interface
+        print(f"{str(self.player)}")
+        print(all_info)
+        print("Choose an action:")
+        for i, action in enumerate(available_actions):
+            print(f"{i+1}: {action}")
+            
         stop_triggered = False
         valid_input = False
         while (not stop_triggered) and (not valid_input):
-            print("Choose an action:")
             try:
                 action_idx = int(input())
                 if action_idx == 0:
                     stop_triggered = True
                 elif action_idx < 1 or action_idx > len(available_actions):
-                    raise ValueError(
-                        f"Invalid input. Please enter a number between 1 and {len(available_actions)}."
-                    )
+                    raise ValueError(f"Invalid input. Please enter a number between 1 and {len(available_actions)}.")
                 else:
                     valid_input = True
-
             except:
                 print("Invalid input. Please enter a number.")
                 continue
+                
         if stop_triggered:
             raise ValueError("Game stopped by user.")
-        action = available_actions[action_idx - 1]
-        if action.name == "SPEAK":
-            message = self.speak()
-            action.provide_message(message)
-        if action.name == "SPEAK":
-            action.provide_message(message)
-        return action
+            
+        selected_action = available_actions[action_idx - 1]
+        
+        if selected_action.name == "SPEAK":
+            print("Enter your response:")
+            action_message = input()
+            selected_action.provide_message(action_message)
+            self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
+                                    original_response=f"[Action] {selected_action} with message: {action_message}", 
+                                    step=timestep)
+        else:
+            self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
+                                    original_response=f"[Action] {selected_action}", 
+                                    step=timestep)
+    
+        return selected_action
 
     def respond(self, message):
         print(message)
         response = input()
         return response
 
-    def speak(self):
-        print("Enter your response:")
-        message = input()
-        return message
-
     def choose_observation_location(self, map):
-        map = list(map)
-        print("Please select the room you wish to observe:")
-        for i, room in enumerate(map):
-            print(f"{i}: " + room)
+        map_list = list(map)
         while True:
-            index = int(input())
-            if index < 0 or index >= len(map):
-                print(
-                    f"Invalid input. Please enter a number between 0 and {len(map) - 1}."
-                )
-            else:
-                print(map)
-                print("index", index)
-                print("map[index]", map[index])
-                return map[index]
+            try:
+                index = int(input())
+                if index < 0 or index >= len(map_list):
+                    print(f"Invalid input. Please enter a number between 0 and {len(map_list) - 1}.")
+                else:
+                    return map_list[index]
+            except:
+                print("Invalid input. Please enter a number.")
+
+    def log_interaction(self, sysprompt, prompt, original_response, step):
+        """Log human player interactions similar to LLMAgent"""
+        interaction = {
+            'game_index': 'Game ' + str(self.game_index),
+            'step': step,
+            "timestamp": str(datetime.now()),
+            "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
+            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": original_response, "full_response": original_response},
+        }
+
+        # Write to file
+        with open(self.log_path, "a") as f:
+            json.dump(interaction, f, indent=2, separators=(",", ": "))
+            f.write("\n")
+            f.flush()
+        with open(self.compact_log_path, "a") as f:
+            json.dump(interaction, f, separators=(",", ": "))
+            f.write("\n")
+            f.flush()
+
+        print(".", end="", flush=True)
 
 
 class LLMHumanAgent(HumanAgent, LLMAgent):

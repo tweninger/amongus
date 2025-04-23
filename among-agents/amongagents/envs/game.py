@@ -149,6 +149,7 @@ class AmongUs:
             for i, player in enumerate(self.players):
                 if self.include_human and i == random_idx:
                     self.agents.append(HumanAgent(player))
+                    print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
                 else:
                     self.agents.append(agent_dict[self.agent_config[player.identity]](player))
                     print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")

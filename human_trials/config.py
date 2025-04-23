@@ -3,7 +3,7 @@ import datetime
 import subprocess
 
 # Generate unique session ID
-SESSION_ID = '1'
+SESSION_ID = str(uuid.uuid4())[:8]
 
 # Get experiment date and Git commit hash
 DATE = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -29,7 +29,7 @@ CONFIG = {
         },
         "UI": False,
     },
-    "experiment_name": f"streamlit_session_{SESSION_ID}",
+    "experiment_name": f"session_{SESSION_ID}",
     "logs_path": "expt-logs",
     "assets_path": "assets",
 }
