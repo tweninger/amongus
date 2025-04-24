@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Among Us: A Sandbox for Agentic Deception</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #191919; /* Slate Dark */
+            color: #E5E4DF; /* Ivory Dark */
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            background-color: #262625; /* Slate Medium */
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .home-screen {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .game-screen {
+            display: none;
+        }
+
+        h1, h2, h3 {
+            color: #CC785C; /* Book Cloth for titles */
+            margin-bottom: 15px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+             border-bottom: 2px solid #CC785C;
+             padding-bottom: 10px;
+             margin-bottom: 30px;
+        }
+        h2 {
+            font-size: 1.8em;
+            color: #D4A27F; /* Kraft */
+        }
+        h3 {
+             font-size: 1.2em;
+             color: #EBDBBC; /* Manilla */
+             margin-top: 0;
+        }
+
+        button {
+            background-color: #6DA5F2; /* Focus */
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #5a8fd0; /* Slightly darker Focus */
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #40403E; /* Slate Light */
+            cursor: not-allowed;
+        }
+
+        .status-bar {
+            background-color: #40403E; /* Slate Light */
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .status-bar span {
+            margin: 5px 15px;
+            font-weight: bold;
+        }
+        #gameStatus {
+             color: #D4A27F; /* Kraft for status */
+        }
+
+        .game-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+             margin-top: 20px;
+        }
+
+        .section {
+            background-color: #40403E; /* Slate Light */
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .map-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+            background-color: #262625; /* Slate Medium */
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .map-image {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+
+        .player-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .player-card {
+            background-color: #262625; /* Slate Medium */
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            border: 2px solid #666663; /* Cloud Dark */
+            transition: transform 0.2s;
+        }
+        .player-card:hover {
+            transform: translateY(-3px);
+        }
+        .player-card.impostor {
+            border-color: #F14D43; /* Error */
+        }
+        .player-card.crewmate {
+            border-color: #6DA5F2; /* Focus */
+        }
+         .player-card.unknown {
+             border-color: #91918D; /* Cloud Medium */
+         }
+         .player-card.dead {
+             opacity: 0.5;
+             background-color: #191919; /* Slate Dark */
+             border-style: dashed;
+         }
+
+        .game-log {
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #666663; /* Cloud Dark */
+            padding: 10px;
+            background-color: #191919; /* Slate Dark */
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .game-log p {
+            margin: 0 0 5px 0;
+            font-size: 0.9em;
+        }
+
+        /* Game State Styling */
+        .state-info {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .state-info h3 {
+            color: #D4A27F; /* Kraft */
+            margin-bottom: 10px;
+            border-bottom: 1px solid #666663; /* Cloud Dark */
+            padding-bottom: 5px;
+        }
+        .state-info pre {
+            background-color: #262625; /* Slate Medium */
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.9em;
+            margin: 0;
+        }
+        .log-section, .player-section, .human-info-section {
+            margin-bottom: 15px;
+        }
+        .human-info-section {
+            background-color: #262625; /* Slate Medium */
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #D4A27F; /* Kraft */
+        }
+
+        .human-action-area {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #262625; /* Slate Medium */
+            border-radius: 8px;
+            border: 2px dashed #D4A27F; /* Kraft */
+            box-shadow: 0 0 15px rgba(212, 162, 127, 0.3); /* Kraft with transparency */
+            animation: pulse 2s infinite;
+        }
+        .human-action-area.active {
+            border: 2px solid #D4A27F; /* Kraft */
+            box-shadow: 0 0 20px rgba(212, 162, 127, 0.6); /* Kraft with more opacity */
+            animation: pulse 1s infinite; /* Faster pulse */
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 15px rgba(212, 162, 127, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(212, 162, 127, 0.5); }
+            100% { box-shadow: 0 0 15px rgba(212, 162, 127, 0.3); }
+        }
+        .human-player-info {
+            background-color: #40403E; /* Slate Light */
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 3px solid #6DA5F2; /* Focus */
+        }
+        .human-player-info pre {
+            margin: 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .action-options label {
+            display: block;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #40403E; /* Slate Light */
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+         .action-options label:hover {
+              background-color: #666663; /* Cloud Dark */
+         }
+        .action-options input[type="radio"] {
+            margin-right: 10px;
+        }
+        #speakMessage {
+            width: calc(100% - 22px); /* Adjust for padding/border */
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #666663; /* Cloud Dark */
+            background-color: #191919; /* Slate Dark */
+            color: #E5E4DF; /* Ivory Dark */
+            border-radius: 5px;
+            display: none; /* Hidden by default */
+        }
+
+        .loading, .error {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .loading {
+             color: #BFBFBA; /* Cloud Light */
+        }
+        .error {
+            background-color: rgba(241, 77, 67, 0.2); /* Error with transparency */
+            color: #F14D43; /* Error */
+            display: none;
+        }
+        #gameResult {
+             text-align: center;
+             margin-top: 20px;
+             padding: 15px;
+             background-color: #262625; /* Slate Medium */
+            border-radius: 5px;
+             display: none;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .game-layout {
+                grid-template-columns: 1fr;
+            }
+             .status-bar {
+                 flex-direction: column;
+                 align-items: flex-start;
+             }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="home-screen" id="homeScreen">
+            <h1>Among Us: Agentic Deception</h1>
+            <p>Start a new game with a human player.</p>
+             <button id="startGameBtn" onclick="startNewGame()">Start New Game (5 Players)</button>
+             <!-- Add options for different game sizes later if needed -->
+        </div>
+
+        <div class="game-screen" id="gameScreen">
+            <h1>Game <span id="gameId"></span></h1>
+
+            <div class="status-bar">
+                 <span>Game Status: <strong id="gameStatus">Loading...</strong></span>
+                 <span>Current Phase: <strong id="phaseInfo">...</strong></span>
+                 <span>Step: <strong id="stepInfo">0/50</strong></span>
+                 <span>Current Player: <strong id="currentPlayerInfo">...</strong></span>
+                 <span>Your Name: <strong id="humanPlayerName">...</strong></span>
+             </div>
+
+            <div class="game-layout">
+                <div class="section map-section">
+                    <img src="assets/skeld.png" alt="The Skeld Map" class="map-image">
+                </div>
+
+                <div class="section log-section">
+                    <h2>Game State</h2>
+                    <div class="game-log" id="gameLog">
+                        <p>Waiting for game to start...</p>
+                    </div>
+                </div>
+            </div>
+
+             <div class="section human-action-section" id="humanActionArea" style="display: none;">
+                 <h2>Your Turn! Choose an Action:</h2>
+                 <div id="humanPlayerInfo" class="human-player-info"></div>
+                 <div class="action-options" id="actionOptions"></div>
+                 <textarea id="speakMessage" placeholder="Enter your message here..."></textarea>
+                 <button id="submitActionBtn" onclick="submitAction()">Submit Action</button>
+             </div>
+
+            <div class="loading" id="loadingIndicator">Loading game state...</div>
+            <div class="error" id="errorDisplay"></div>
+            <div id="gameResult"></div>
+
+        </div>
+    </div>
+
+    <script>
+        let currentGameId = null;
+        let gameStateInterval = null;
+        let lastGameState = null;  // Store the last valid game state
+        const API_BASE_URL = 'http://localhost:3000/api'; // Make sure this matches your server port
+
+        const homeScreen = document.getElementById('homeScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const gameIdDisplay = document.getElementById('gameId');
+        const gameStatusDisplay = document.getElementById('gameStatus');
+        const phaseInfoDisplay = document.getElementById('phaseInfo');
+        const humanPlayerNameDisplay = document.getElementById('humanPlayerName');
+        const gameLogDiv = document.getElementById('gameLog');
+        const humanActionArea = document.getElementById('humanActionArea');
+        const humanPlayerInfoDiv = document.getElementById('humanPlayerInfo');
+        const actionOptionsDiv = document.getElementById('actionOptions');
+        const speakMessageInput = document.getElementById('speakMessage');
+        const submitActionBtn = document.getElementById('submitActionBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorDisplay = document.getElementById('errorDisplay');
+        const gameResultDiv = document.getElementById('gameResult');
+        const startGameBtn = document.getElementById('startGameBtn');
+        
+        // Flag to track if we're waiting for human input
+        let waitingForHumanInput = false;
+
+        // Add error checking for DOM elements
+        function checkRequiredElements() {
+            const requiredElements = {
+                homeScreen,
+                gameScreen,
+                gameIdDisplay,
+                gameStatusDisplay,
+                phaseInfoDisplay,
+                humanPlayerNameDisplay,
+                gameLogDiv,
+                humanActionArea,
+                humanPlayerInfoDiv,
+                actionOptionsDiv,
+                speakMessageInput,
+                submitActionBtn,
+                loadingIndicator,
+                errorDisplay,
+                gameResultDiv,
+                startGameBtn
+            };
+
+            const missingElements = Object.entries(requiredElements)
+                .filter(([_, element]) => element === null)
+                .map(([name]) => name);
+
+            if (missingElements.length > 0) {
+                console.error('Missing required DOM elements:', missingElements);
+                showError(`Critical Error: Missing required elements: ${missingElements.join(', ')}`);
+                return false;
+            }
+            return true;
+        }
+
+        async function startNewGame() {
+            startGameBtn.disabled = true;
+            startGameBtn.textContent = 'Starting...';
+            showLoading('Creating game instance...');
+            hideError();
+            
+            try {
+                // 1. Create the game instance
+                const startResponse = await fetch(`${API_BASE_URL}/start_game`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        game_config: "FIVE_MEMBER_GAME", // Or make this selectable
+                        include_human: true,
+                        // Add other config options if needed
+                    })
+                });
+
+                if (!startResponse.ok) {
+                    const errorData = await startResponse.json();
+                    throw new Error(`Failed to create game: ${errorData.error || startResponse.statusText}`);
+                }
+
+                const gameData = await startResponse.json();
+                currentGameId = gameData.game_id;
+                console.log("Game created:", gameData);
+                gameIdDisplay.textContent = currentGameId;
+
+                // 2. Start the game running in the background
+                showLoading('Starting game engine...');
+                const runResponse = await fetch(`${API_BASE_URL}/run_game/${currentGameId}`, {
+                    method: 'POST'
+                });
+
+                if (!runResponse.ok) {
+                     const errorData = await runResponse.json();
+                    throw new Error(`Failed to start game execution: ${errorData.error || runResponse.statusText}`);
+                }
+
+                console.log("Game run initiated");
+
+                // 3. Switch UI and start polling for state
+                homeScreen.style.display = 'none';
+                gameScreen.style.display = 'block';
+                startGameStatePolling();
+                hideLoading();
+
+            } catch (error) {
+                console.error("Error starting game:", error);
+                showError(`Error: ${error.message}`);
+                 startGameBtn.disabled = false;
+                 startGameBtn.textContent = 'Start New Game (5 Players)';
+                 hideLoading();
+            }
+        }
+
+        function startGameStatePolling() {
+            if (gameStateInterval) clearInterval(gameStateInterval);
+            // Poll more frequently to ensure updates are seen
+            gameStateInterval = setInterval(updateGameState, 1000); 
+            updateGameState(); // Initial immediate update
+        }
+        
+        function stopGameStatePolling() {
+            if (gameStateInterval) {
+                clearInterval(gameStateInterval);
+                gameStateInterval = null;
+                console.log("Polling stopped while waiting for human input");
+            }
+        }
+        
+        function resumeGameStatePolling() {
+            if (!gameStateInterval) {
+                console.log("Resuming polling after human action");
+                startGameStatePolling();
+            }
+        }
+
+        async function updateGameState() {
+            if (!currentGameId) return;
+            
+            // Skip polling if we're waiting for human input
+            if (waitingForHumanInput) {
+                console.log("Skipping poll while waiting for human input");
+                return;
+            }
+
+            // // Show loading only if not waiting for human
+            // if (humanActionArea.style.display === 'none') {
+            //      showLoading('Fetching game state...');
+            // }
+            hideError(); // Clear previous errors on successful fetch attempt
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/game/${currentGameId}/state`);
+                if (!response.ok) {
+                     const errorData = await response.json();
+                    // Stop polling on critical errors like 404
+                    if (response.status === 404 && gameStateInterval) {
+                         clearInterval(gameStateInterval);
+                         gameStateInterval = null;
+                         showError(`Game ${currentGameId} not found on server. Polling stopped.`);
+                    } else {
+                         throw new Error(`Failed to fetch game state: ${errorData.error || response.statusText}`);
+                    }
+                    hideLoading();
+                    return;
+                }
+
+                const gameState = await response.json();
+                console.log("Received game state:", gameState);
+                
+                // Save the last game state
+                lastGameState = gameState;
+                
+                // Debug information for human turn
+                if (gameState.is_human_turn) {
+                    console.log("Human turn detected in updateGameState");
+                    console.log("Human player name:", gameState.human_player_name);
+                    console.log("Human player info:", gameState.human_player_info);
+                    console.log("Available actions:", gameState.available_actions);
+                    
+                    // Stop polling when it's the human's turn (as requested)
+                    waitingForHumanInput = true;
+                    stopGameStatePolling();
+                }
+                
+                renderGameState(gameState);
+                hideLoading();
+
+                 // Stop polling if game is completed or errored
+                if (['completed', 'error', 'cancelled'].includes(gameState.status)) {
+                    if (gameStateInterval) clearInterval(gameStateInterval);
+                    gameStateInterval = null;
+                    console.log(`Game ${gameState.status}. Polling stopped.`);
+                    displayGameResult(gameState);
+                }
+
+            } catch (error) {
+                console.error("Error updating game state:", error);
+                // Avoid showing error if it was just a 404 handled above
+                if (!error.message.includes('not found')) {
+                    showError(`Update Error: ${error.message}`);
+                }
+                 hideLoading();
+                 // Consider stopping polling on persistent errors
+            }
+        }
+
+        function renderGameState(state) {
+            if (!checkRequiredElements()) {
+                return;
+            }
+
+            gameStatusDisplay.textContent = state.status;
+            phaseInfoDisplay.textContent = state.current_phase || 'N/A';
+            
+            // Display current step and player
+            const stepInfo = document.getElementById('stepInfo');
+            if (stepInfo) {
+                stepInfo.textContent = `Step: ${state.current_step || '0/50'}`;
+            }
+            
+            const currentPlayerInfo = document.getElementById('currentPlayerInfo');
+            if (currentPlayerInfo) {
+                currentPlayerInfo.textContent = `${state.current_player || 'Unknown'}`;
+            }
+
+            // Render Game State (previously Game Log)
+            if (gameLogDiv) {
+                gameLogDiv.innerHTML = '';
+                
+                // Add game state information
+                const stateInfo = document.createElement('div');
+                stateInfo.className = 'state-info';
+                
+                // Add game log entries if available
+                if (state.game_log && state.game_log.length > 0) {
+                    const logSection = document.createElement('div');
+                    logSection.className = 'log-section';
+                    logSection.innerHTML = '<h3>Recent Game Log</h3>';
+                    
+                    state.game_log.forEach(logEntry => {
+                        const p = document.createElement('p');
+                        p.textContent = typeof logEntry === 'string' ? logEntry : JSON.stringify(logEntry);
+                        logSection.appendChild(p);
+                    });
+                    
+                    stateInfo.appendChild(logSection);
+                }
+                
+                // Add player information if available
+                if (state.players && state.players.length > 0) {
+                    const playerSection = document.createElement('div');
+                    playerSection.className = 'player-section';
+                    playerSection.innerHTML = '<h3>Players</h3>';
+                    
+                    state.players.forEach(player => {
+                        const p = document.createElement('p');
+                        p.textContent = typeof player === 'string' ? player : JSON.stringify(player);
+                        playerSection.appendChild(p);
+                    });
+                    
+                    stateInfo.appendChild(playerSection);
+                }
+                
+                // If it's the human's turn, show the human player info
+                if (state.is_human_turn && state.human_player_info) {
+                    const humanInfoSection = document.createElement('div');
+                    humanInfoSection.className = 'human-info-section';
+                    humanInfoSection.innerHTML = '<h3>Your Information</h3>';
+                    
+                    const pre = document.createElement('pre');
+                    pre.textContent = state.human_player_info;
+                    humanInfoSection.appendChild(pre);
+                    
+                    stateInfo.appendChild(humanInfoSection);
+                }
+                
+                // If no information is available, show a message
+                if (stateInfo.children.length === 0) {
+                    stateInfo.innerHTML = '<p>No game state information available yet.</p>';
+                }
+                
+                gameLogDiv.appendChild(stateInfo);
+                gameLogDiv.scrollTop = gameLogDiv.scrollHeight;
+            }
+
+            // Handle Human Turn
+            if (state.is_human_turn) {
+                console.log("Human turn detected. State:", state);
+                if (humanPlayerNameDisplay) {
+                    humanPlayerNameDisplay.textContent = state.human_player_name || 'Human';
+                }
+                if (humanPlayerInfoDiv) {
+                    humanPlayerInfoDiv.innerHTML = `<pre>${state.human_player_info || 'No info available.'}</pre>`;
+                }
+                if (actionOptionsDiv) {
+                    actionOptionsDiv.innerHTML = '';
+                }
+                if (speakMessageInput) {
+                    speakMessageInput.style.display = 'none';
+                    speakMessageInput.value = '';
+                }
+
+                if (state.available_actions && state.available_actions.length > 0) {
+                    console.log("Available actions:", state.available_actions);
+                    state.available_actions.forEach((action, index) => {
+                        const label = document.createElement('label');
+                        const radio = document.createElement('input');
+                        radio.type = 'radio';
+                        radio.name = 'humanAction';
+                        radio.value = index;
+                        radio.id = `action_${index}`;
+
+                        const actionName = action.name;
+                        const requiresMessage = action.requires_message;
+
+                        if (typeof actionName !== 'string' || typeof requiresMessage !== 'boolean') {
+                             console.error("Invalid action structure received from backend:", action);
+                             return;
+                         }
+
+                        radio.dataset.requiresMessage = requiresMessage;
+                        radio.addEventListener('change', handleActionSelection);
+
+                        label.appendChild(radio);
+                        label.appendChild(document.createTextNode(` ${actionName}`));
+                        label.htmlFor = `action_${index}`;
+                        actionOptionsDiv.appendChild(label);
+                    });
+                    if (submitActionBtn) {
+                        submitActionBtn.disabled = true;
+                    }
+                } else {
+                    console.log("No actions available in state:", state);
+                    if (actionOptionsDiv) {
+                        actionOptionsDiv.innerHTML = '<p>No actions available currently.</p>';
+                    }
+                    if (submitActionBtn) {
+                        submitActionBtn.disabled = true;
+                    }
+                }
+                
+                // Force display the human action area
+                if (humanActionArea) {
+                    humanActionArea.style.display = 'block';
+                    // Add a class to make it more visible
+                    humanActionArea.classList.add('active');
+                    
+                    // Scroll to the human action area
+                    setTimeout(() => {
+                        humanActionArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 500);
+                }
+            } else {
+                if (humanActionArea) {
+                    humanActionArea.style.display = 'none';
+                    // Remove the active class
+                    humanActionArea.classList.remove('active');
+                }
+                if (humanPlayerNameDisplay) {
+                    humanPlayerNameDisplay.textContent = state.human_player_name || '...';
+                }
+            }
+        }
+
+        function handleActionSelection(event) {
+            const selectedRadio = event.target;
+            const requiresMessage = selectedRadio.dataset.requiresMessage === 'true';
+            if (requiresMessage) {
+                speakMessageInput.style.display = 'block';
+                submitActionBtn.disabled = !speakMessageInput.value.trim(); // Enable only if message is non-empty
+            } else {
+                 speakMessageInput.style.display = 'none';
+                 submitActionBtn.disabled = false; // Enable immediately for non-speak actions
+            }
+        }
+        
+        // Add listener for speak message input to enable/disable button
+        speakMessageInput.addEventListener('input', () => {
+             const selectedRadio = document.querySelector('input[name="humanAction"]:checked');
+             if (selectedRadio && selectedRadio.dataset.requiresMessage === 'true') {
+                 submitActionBtn.disabled = !speakMessageInput.value.trim();
+             }
+        });
+
+        async function submitAction() {
+            const selectedRadio = document.querySelector('input[name="humanAction"]:checked');
+            if (!selectedRadio) {
+                showError("Please select an action.");
+                return;
+            }
+
+            const actionIndex = parseInt(selectedRadio.value);
+            const requiresMessage = selectedRadio.dataset.requiresMessage === 'true';
+            let message = null;
+
+            if (requiresMessage) {
+                message = speakMessageInput.value.trim();
+                if (!message) {
+                    showError("Please enter a message for the SPEAK action.");
+                    return;
+                }
+            }
+
+            const actionData = {
+                action_index: actionIndex,
+                message: message
+            };
+
+            console.log("Submitting action:", actionData);
+            showLoading('Submitting action...');
+            submitActionBtn.disabled = true; // Disable while submitting
+            hideError();
+
+            try {
+                // Submit the action directly without checking game state again
+                const response = await fetch(`${API_BASE_URL}/game/${currentGameId}/action`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(actionData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || response.statusText);
+                }
+
+                console.log("Action submitted successfully");
+                humanActionArea.style.display = 'none'; // Hide action area after submission
+                
+                // Reset the waiting flag and resume polling
+                waitingForHumanInput = false;
+                resumeGameStatePolling();
+
+            } catch (error) {
+                console.error("Error submitting action:", error);
+                showError(`Submit Error: ${error.message}`);
+                submitActionBtn.disabled = false; // Re-enable on error
+            }
+            hideLoading();
+        }
+
+        function displayGameResult(state) {
+            let resultMessage = `Game Over! Status: ${state.status.toUpperCase()}`;
+            if (state.error_message) {
+                 resultMessage += `<br>Error: ${state.error_message}`;
+            } else if (state.results) {
+                // Format the results nicely (assuming summary_json structure)
+                resultMessage += `<br>Winner: ${state.results.winner || 'Unknown'}`;
+                resultMessage += `<br>Reason: ${state.results.reason || 'N/A'}`;
+                // Add more details from results if needed
+            }
+            gameResultDiv.innerHTML = resultMessage;
+            gameResultDiv.style.display = 'block';
+        }
+
+        function showLoading(message = 'Loading...') {
+            loadingIndicator.textContent = message;
+            loadingIndicator.style.display = 'block';
+        }
+
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+        }
+
+        function showError(message) {
+            errorDisplay.textContent = message;
+            errorDisplay.style.display = 'block';
+        }
+
+        function hideError() {
+            errorDisplay.style.display = 'none';
+        }
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+             // Any setup needed when the page loads
+             console.log("Among Us Web UI Initialized");
+        });
+
+    </script>
+</body>
+</html>

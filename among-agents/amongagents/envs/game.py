@@ -57,6 +57,8 @@ class AmongUs:
         self.UI = UI
         # config
         self.include_human = include_human
+        self.is_human_turn = False
+        self.human_index = None
         self.test = test
         self.personality = personality
         self.agent_config = agent_config
@@ -148,8 +150,16 @@ class AmongUs:
             self.agents = []
             for i, player in enumerate(self.players):
                 if self.include_human and i == random_idx:
-                    self.agents.append(HumanAgent(player))
+                    # Create HumanAgent with game_id set to game_index
+                    human_agent = HumanAgent(player, game_index=self.game_index)
+                    # Set the game_id attribute to match the game_index
+                    human_agent.game_id = self.game_index
+                    self.agents.append(human_agent)
+                    self.human_index = i
                     print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
+                    # Update max_steps for human agent
+                    if hasattr(self.agents[-1], 'update_max_steps'):
+                        self.agents[-1].update_max_steps(self.game_config.get("max_timesteps", 50))
                 else:
                     self.agents.append(agent_dict[self.agent_config[player.identity]](player))
                     print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
@@ -239,12 +249,14 @@ class AmongUs:
         if agent.player.identity == "Impostor" and agent.player.kill_cooldown > 0:
             agent.player.kill_cooldown -= 1
 
+        # Set current player for UI updates
+        self.current_player = agent.player.name
+
         # interview
         if self.interviewer is not None:
             await self.interviewer.auto_question(self, agent)
 
         # choose action
-
         action = await agent.choose_action(self.timestep)
         observation_location = ""
         if action.name == "ViewMonitor":
@@ -274,6 +286,10 @@ class AmongUs:
 
     async def task_phase_step(self):
         for agent in self.agents:
+            if 'homosapiens' in agent.model:
+                self.is_human_turn = True
+            else:
+                self.is_human_turn = False
             await self.agent_step(agent)
             if self.current_phase == "meeting":
                 break
@@ -289,6 +305,10 @@ class AmongUs:
         for round in range(self.game_config["discussion_rounds"]):
             print("Discussion round", round)
             for agent in self.agents:
+                if 'homosapiens' in agent.model:
+                    self.is_human_turn = True
+                else:
+                    self.is_human_turn = False
                 await self.agent_step(agent)
             self.discussion_rounds_left -= 1
         # Voting

@@ -4,12 +4,15 @@ import os
 import random
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Dict, Tuple
 import aiohttp
 import numpy as np
 import requests
 import asyncio
 from amongagents.agent.neutral_prompts import *
+
+# Global dictionary to store futures for human actions, keyed by game_id
+human_action_futures: Dict[int, asyncio.Future] = {}
 
 class Agent:
     def __init__(self, player):
@@ -245,7 +248,11 @@ class LLMAgent(Agent):
         return action
 
     def choose_observation_location(self, map):
-        return random.sample(map, 1)[0]
+        if isinstance(map, (list, tuple)):
+            return random.choice(map)
+        else:
+            # For sets, dicts, or other non-sequence types
+            return random.choice(list(map))
 
 
 class RandomAgent(Agent):
@@ -272,69 +279,195 @@ class HumanAgent(Agent):
         self.game_index = game_index
         self.summarization = "No thought process has been made."
         self.processed_memory = "No memory has been processed."
-        self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
-        self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
-        
-        # Initialize global session state if it doesn't exist
-        if os.getenv("FLASK") == "True":
-            # Global session state for actions across page refreshes
-            if "human_actions" not in st.session_state:
-                st.session_state.human_actions = {}
-            if "action_history" not in st.session_state:
-                st.session_state.action_history = {}
-            if "game_started" not in st.session_state:
-                st.session_state.game_started = False
+        self.log_path = os.getenv("EXPERIMENT_PATH", ".") + "/agent-logs.json"
+        self.compact_log_path = os.getenv("EXPERIMENT_PATH", ".") + "/agent-logs-compact.json"
+        self.current_available_actions: List[Any] = []
+        self.current_step = 0
+        self.max_steps = 50  # Default value, will be updated from game config
+        self.action_future = None  # Store the future as an instance variable
     
-    async def choose_action(self, timestep):
+    def update_max_steps(self, max_steps):
+        """Update the max_steps value from the game config."""
+        self.max_steps = max_steps
+
+    async def choose_action(self, timestep: int):
+        """
+        Chooses an action, either via web interface (if FLASK_ENABLED=True)
+        or command line (if FLASK_ENABLED=False).
+        """
+        use_flask = os.getenv("FLASK_ENABLED", "True") == "True"
         all_info = self.player.all_info_prompt()
-        available_actions = self.player.get_available_actions()
-        
-        # Log the start of action selection
-        action_prompt = f"Available actions:\n" + "\n".join([f"{i+1}: {action}" for i, action in enumerate(available_actions)])
-        full_prompt = {
-            "All Info": all_info,
-            "Available Actions": action_prompt
-        }
-        # Command line interface
-        print(f"{str(self.player)}")
-        print(all_info)
-        print("Choose an action:")
-        for i, action in enumerate(available_actions):
-            print(f"{i+1}: {action}")
+        self.current_available_actions = self.player.get_available_actions()
+        self.current_step = timestep
+
+        if use_flask:
+            # --- Web Interface Logic ---            
+            action_prompt = "Waiting for human action via web interface.\nAvailable actions:\n" + "\n".join([f"{i+1}: {str(action)}" for i, action in enumerate(self.current_available_actions)])
+            full_prompt = {
+                "All Info": all_info,
+                "Available Actions": action_prompt,
+                "Current Step": f"{timestep}/{self.max_steps}",
+                "Current Player": self.player.name
+            }
+
+            loop = asyncio.get_event_loop()
+            self.action_future = loop.create_future()  # Store in instance variable
             
-        stop_triggered = False
-        valid_input = False
-        while (not stop_triggered) and (not valid_input):
+            # Use game_id from the server instead of game_index
+            # The game_id is passed to the HumanAgent when it's created
+            game_id = getattr(self, 'game_id', self.game_index)
+            human_action_futures[game_id] = self.action_future
+            
+            print(f"[Agent] Created future for game {game_id}")
+            print(f"[Agent] Available futures: {list(human_action_futures.keys())}")
+
+            print(f"\n[Game {game_id}] Human player {self.player.name}'s turn. Waiting for action via web interface...")
+            print(f"Available actions: {[str(a) for a in self.current_available_actions]}")
+
             try:
-                action_idx = int(input())
-                if action_idx == 0:
-                    stop_triggered = True
-                elif action_idx < 1 or action_idx > len(available_actions):
-                    raise ValueError(f"Invalid input. Please enter a number between 1 and {len(available_actions)}.")
+                chosen_action_data = await self.action_future
+                action_idx = chosen_action_data.get("action_index")
+                action_message = chosen_action_data.get("message")
+
+                if action_idx is None or action_idx < 0 or action_idx >= len(self.current_available_actions):
+                    print(f"[Game {game_id}] Invalid action index received: {action_idx}. Defaulting to first action.")
+                    selected_action = self.current_available_actions[0]
                 else:
-                    valid_input = True
-            except:
-                print("Invalid input. Please enter a number.")
-                continue
+                    selected_action = self.current_available_actions[action_idx]
+
+                response_log = f"[Action] {str(selected_action)}"
+                # Check if action requires a message (e.g., SPEAK)
+                # Use str() and check for attributes robustly
+                is_speak_action = False
+                if hasattr(selected_action, 'name'): # Check attribute exists
+                    is_speak_action = selected_action.name == "SPEAK"
+                elif "SPEAK" in str(selected_action): # Fallback to string check
+                    is_speak_action = True
                 
-        if stop_triggered:
-            raise ValueError("Game stopped by user.")
-            
-        selected_action = available_actions[action_idx - 1]
-        
-        if selected_action.name == "SPEAK":
-            print("Enter your response:")
-            action_message = input()
-            selected_action.provide_message(action_message)
-            self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
-                                    original_response=f"[Action] {selected_action} with message: {action_message}", 
-                                    step=timestep)
+                if is_speak_action and action_message:
+                    if hasattr(selected_action, 'provide_message'):
+                        selected_action.provide_message(action_message)
+                    elif hasattr(selected_action, 'message'): # Fallback to setting attribute
+                        selected_action.message = action_message
+                    response_log += f" with message: {action_message}"
+
+                self.log_interaction(sysprompt="Human Agent (Web)", prompt=full_prompt,
+                                     original_response=response_log,
+                                     step=timestep)
+                
+                # Clear the future and actions only after successful action selection
+                if game_id in human_action_futures:
+                    print(f"[Agent] Deleting future for game {game_id} after successful action")
+                    del human_action_futures[game_id]
+                self.current_available_actions = []
+                self.action_future = None
+                
+                return selected_action
+
+            except asyncio.CancelledError:
+                print(f"[Game {game_id}] Human action cancelled.")
+                # Clean up on cancellation
+                if game_id in human_action_futures:
+                    print(f"[Agent] Deleting future for game {game_id} after cancellation")
+                    del human_action_futures[game_id]
+                self.current_available_actions = []
+                self.action_future = None
+                raise
         else:
-            self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
-                                    original_response=f"[Action] {selected_action}", 
-                                    step=timestep)
-    
-        return selected_action
+            # --- Command Line Interface Logic ---            
+            action_prompt = "Available actions:\n" + "\n".join([f"{i+1}: {str(action)}" for i, action in enumerate(self.current_available_actions)])
+            full_prompt = {
+                "All Info": all_info,
+                "Available Actions": action_prompt
+            }
+            
+            print(f"\n--- [Game {self.game_index}] Player: {self.player.name} ({self.player.identity if self.player.identity else 'Role Unknown'}) ---")
+            print(all_info)
+            print("\nChoose an action:")
+            for i, action in enumerate(self.current_available_actions):
+                print(f"{i+1}: {str(action)}")
+            print("(Enter 0 to stop game)")
+                
+            stop_triggered = False
+            valid_input = False
+            selected_action = None
+            action_idx_chosen = -1
+
+            while (not stop_triggered) and (not valid_input):
+                try:
+                    user_input = input("> ")
+                    action_idx_chosen = int(user_input)
+                    if action_idx_chosen == 0:
+                        stop_triggered = True
+                    elif action_idx_chosen < 1 or action_idx_chosen > len(self.current_available_actions):
+                        print(f"Invalid input. Please enter a number between 1 and {len(self.current_available_actions)} (or 0 to stop).")
+                    else:
+                        valid_input = True
+                except ValueError:
+                    print("Invalid input. Please enter a number.")
+                    continue
+                    
+            if stop_triggered:
+                print("Stopping game as requested by user.")
+                # How to signal stop? Raise exception? Return specific value?
+                # For now, raise an exception that the game loop might catch.
+                raise KeyboardInterrupt("Game stopped by user via CLI.")
+                
+            selected_action = self.current_available_actions[action_idx_chosen - 1]
+            response_log = f"[Action] {str(selected_action)}"
+            
+            # Check if action requires a message using string check
+            is_speak_action = False
+            if hasattr(selected_action, 'name'):
+                 is_speak_action = selected_action.name == "SPEAK"
+            elif "SPEAK" in str(selected_action):
+                 is_speak_action = True
+
+            if is_speak_action:
+                print("Enter your message:")
+                action_message = input("> ")
+                if hasattr(selected_action, 'provide_message'):
+                     selected_action.provide_message(action_message)
+                elif hasattr(selected_action, 'message'):
+                     selected_action.message = action_message
+                else:
+                     print("Warning: Could not set message for SPEAK action.")
+                response_log += f" with message: {action_message}"
+            
+            self.log_interaction(sysprompt="Human Agent (CLI)", prompt=full_prompt, 
+                                 original_response=response_log, 
+                                 step=timestep)
+        
+            self.current_available_actions = [] # Clear actions after use
+            return selected_action # Return synchronously within async def
+
+    def get_current_state_for_web(self) -> Dict[str, Any]:
+        """
+        Returns the necessary state for the web UI when it's the human's turn.
+        Uses string checks for action properties.
+        """
+        available_actions_web = []
+        for action in self.current_available_actions:
+            action_str = str(action)
+            requires_message = False
+            if hasattr(action, 'name'):
+                 requires_message = action.name == "SPEAK"
+            elif "SPEAK" in action_str:
+                 requires_message = True
+                 
+            available_actions_web.append({
+                "name": action_str,
+                "requires_message": requires_message
+            })
+            
+        return {
+            "is_human_turn": True,
+            "player_name": self.player.name,
+            "player_info": self.player.all_info_prompt(),
+            "available_actions": available_actions_web,
+            "current_step": f"{self.current_step}/{self.max_steps}",
+            "current_player": self.player.name
+        }
 
     def respond(self, message):
         print(message)
@@ -355,6 +488,11 @@ class HumanAgent(Agent):
 
     def log_interaction(self, sysprompt, prompt, original_response, step):
         """Log human player interactions similar to LLMAgent"""
+        # Ensure log path exists
+        log_dir = os.path.dirname(self.log_path)
+        if log_dir and not os.path.exists(log_dir):
+             os.makedirs(log_dir, exist_ok=True)
+             
         interaction = {
             'game_index': 'Game ' + str(self.game_index),
             'step': step,

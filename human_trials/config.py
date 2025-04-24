@@ -11,24 +11,44 @@ COMMIT_HASH = (
     subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
 )
 
+# List of available models for tournament style
+BIG_LIST_OF_MODELS = [
+    "microsoft/phi-4",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet:thinking",
+    "openai/o3-mini-high",
+    "openai/gpt-4o-mini",
+    "deepseek/deepseek-r1-distill-llama-70b",
+    "qwen/qwen-2.5-7b-instruct",
+    "mistralai/mistral-7b-instruct",
+    "deepseek/deepseek-r1",
+    "meta-llama/llama-3.3-70b-instruct",
+    "google/gemini-2.0-flash-001",
+]
+
+# Default game configuration
+DEFAULT_GAME_ARGS = {
+    "game_config": "FIVE_MEMBER_GAME",
+    "include_human": True,  # Set to True for human players
+    "test": False,
+    "personality": False,
+    "agent_config": {
+        "Impostor": "LLM",
+        "Crewmate": "LLM",
+        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+    },
+    "UI": False,
+    "Streamlit": False,  # Set to False for command line
+    "tournament_style": "random",  # Default tournament style
+}
+
 # Configuration dictionary
 CONFIG = {
     "session_id": SESSION_ID,
     "date": DATE,
     "commit_hash": COMMIT_HASH,
-    "game_args": {
-        "game_config": "FIVE_MEMBER_GAME",
-        "include_human": False,
-        "test": False,
-        "personality": False,
-        "agent_config": {
-            "Impostor": "LLM", 
-            "Crewmate": "LLM",    
-            "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-            "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        },
-        "UI": False,
-    },
+    "game_args": DEFAULT_GAME_ARGS,
     "experiment_name": f"session_{SESSION_ID}",
     "logs_path": "expt-logs",
     "assets_path": "assets",
