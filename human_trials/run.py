@@ -50,14 +50,21 @@ class RunGames:
     def setup_experiment_once(self):
         """Setup experiment only once"""
         # Use a file-based lock to ensure this only runs once, even across module reloads
-        lock_file = os.path.join(LOGS_PATH, f"{experiment_name}_setup.lock")
+        global experiment_name
         
-        # Check if experiment directory already exists
+        # If experiment_name is None, call setup_experiment directly
+        if experiment_name is None:
+            print(f"Setting up experiment with auto-generated name")
+            experiment_name = setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], self.game_args)
+            return
+            
+        # Otherwise, check if experiment directory already exists
         experiment_dir = os.path.join(LOGS_PATH, experiment_name)
         if os.path.exists(experiment_dir):
             return
             
         # Check if lock file exists
+        lock_file = os.path.join(LOGS_PATH, f"{experiment_name}_setup.lock")
         if os.path.exists(lock_file):
             print(f"Setup already in progress or completed for {experiment_name}")
             return
@@ -68,7 +75,8 @@ class RunGames:
                 f.write(f"Setup started at {datetime.datetime.now()}")
                 
             print(f"Setting up experiment {experiment_name}")
-            setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], self.game_args)
+            # The setup_experiment function now returns the experiment name
+            experiment_name = setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], self.game_args)
             
             # Remove lock file after successful setup
             if os.path.exists(lock_file):

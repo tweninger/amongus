@@ -64,12 +64,21 @@ GAME_ARGS = {
 def setup_experiment_once():
     """Setup experiment only once"""
     # Check if experiment directory already exists
+    global experiment_name
+    
+    # If experiment_name is None, call setup_experiment directly
+    if experiment_name is None:
+        print(f"Setting up experiment with auto-generated name")
+        experiment_name = setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], GAME_ARGS)
+        return
+    
     experiment_dir = os.path.join(LOGS_PATH, experiment_name)
     if os.path.exists(experiment_dir):
         return
     
     print(f"Setting up experiment {experiment_name}")
-    setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], GAME_ARGS)
+    # The setup_experiment function now returns the experiment name
+    experiment_name = setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], GAME_ARGS)
 
 def get_next_game_index():
     """Get the next game index by reading the experiment log file"""
@@ -77,6 +86,12 @@ def get_next_game_index():
     if "EXPERIMENT_PATH" not in os.environ:
         # If not set, return default index of 1
         return 1
+        
+    # Check if EXPERIMENT_INDEX is set
+    if "EXPERIMENT_INDEX" in os.environ:
+        experiment_index = int(os.environ["EXPERIMENT_INDEX"])
+        print(f"Using experiment index: {experiment_index}")
+        return experiment_index
         
     experiment_file_path = os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt")
     

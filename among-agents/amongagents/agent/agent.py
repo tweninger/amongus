@@ -280,11 +280,12 @@ class HumanAgent(Agent):
         self.summarization = "No thought process has been made."
         self.processed_memory = "No memory has been processed."
         self.log_path = os.getenv("EXPERIMENT_PATH", ".") + "/agent-logs.json"
-        self.compact_log_path = os.getenv("EXPERIMENT_PATH", ".") + "/agent-logs-compact.json"
-        self.current_available_actions: List[Any] = []
+        self.compact_log_path = os.path.join(os.path.dirname(self.log_path), "agent-logs-compact.json")
+        self.current_available_actions = []
         self.current_step = 0
         self.max_steps = 50  # Default value, will be updated from game config
         self.action_future = None  # Store the future as an instance variable
+        self.condensed_memory = ""  # Store the condensed memory (scratchpad) between turns
     
     def update_max_steps(self, max_steps):
         """Update the max_steps value from the game config."""
@@ -328,6 +329,12 @@ class HumanAgent(Agent):
                 chosen_action_data = await self.action_future
                 action_idx = chosen_action_data.get("action_index")
                 action_message = chosen_action_data.get("message")
+                condensed_memory = chosen_action_data.get("condensed_memory", "")
+                thinking_process = chosen_action_data.get("thinking_process", "")
+
+                # Update the condensed memory if provided
+                if condensed_memory:
+                    self.condensed_memory = condensed_memory
 
                 if action_idx is None or action_idx < 0 or action_idx >= len(self.current_available_actions):
                     print(f"[Game {game_id}] Invalid action index received: {action_idx}. Defaulting to first action.")
@@ -335,7 +342,15 @@ class HumanAgent(Agent):
                 else:
                     selected_action = self.current_available_actions[action_idx]
 
-                response_log = f"[Action] {str(selected_action)}"
+                # Format the response log to match LLMAgent format
+                response_log = ""
+                if self.condensed_memory:
+                    response_log += f"[Condensed Memory]\n{self.condensed_memory}\n\n"
+                if thinking_process:
+                    response_log += f"[Thinking Process]\n{thinking_process}\n\n"
+                
+                response_log += f"[Action] {str(selected_action)}"
+                
                 # Check if action requires a message (e.g., SPEAK)
                 # Use str() and check for attributes robustly
                 is_speak_action = False
@@ -349,7 +364,15 @@ class HumanAgent(Agent):
                         selected_action.provide_message(action_message)
                     elif hasattr(selected_action, 'message'): # Fallback to setting attribute
                         selected_action.message = action_message
-                    response_log += f" with message: {action_message}"
+                    response_log += f" {action_message}"
+
+                # Update the prompt to not include "Waiting for human action via web interface"
+                full_prompt = {
+                    "All Info": all_info,
+                    "Available Actions": "\n".join([f"{i+1}: {str(action)}" for i, action in enumerate(self.current_available_actions)]),
+                    "Current Step": f"{timestep}/{self.max_steps}",
+                    "Current Player": self.player.name
+                }
 
                 self.log_interaction(sysprompt="Human Agent (Web)", prompt=full_prompt,
                                      original_response=response_log,
@@ -432,7 +455,7 @@ class HumanAgent(Agent):
                      selected_action.message = action_message
                 else:
                      print("Warning: Could not set message for SPEAK action.")
-                response_log += f" with message: {action_message}"
+                response_log += f" {action_message}"
             
             self.log_interaction(sysprompt="Human Agent (CLI)", prompt=full_prompt, 
                                  original_response=response_log, 
@@ -466,7 +489,8 @@ class HumanAgent(Agent):
             "player_info": self.player.all_info_prompt(),
             "available_actions": available_actions_web,
             "current_step": f"{self.current_step}/{self.max_steps}",
-            "current_player": self.player.name
+            "current_player": self.player.name,
+            "condensed_memory": self.condensed_memory  # Include the condensed memory in the state
         }
 
     def respond(self, message):
@@ -487,29 +511,71 @@ class HumanAgent(Agent):
                 print("Invalid input. Please enter a number.")
 
     def log_interaction(self, sysprompt, prompt, original_response, step):
-        """Log human player interactions similar to LLMAgent"""
-        # Ensure log path exists
-        log_dir = os.path.dirname(self.log_path)
-        if log_dir and not os.path.exists(log_dir):
-             os.makedirs(log_dir, exist_ok=True)
-             
+        """
+        Helper method to store model interactions in properly nested JSON format.
+        Handles deep nesting and properly parses all string-formatted dictionaries.
+        Correctly separates Memory, Thinking, and Action sections.
+        """
+        sections = {}
+
+        # Clean the original response slightly for easier parsing
+        response_text = original_response.strip()
+
+        # Use regex to find sections robustly, ignoring case for tags
+        action_match = re.search(r"\[Action\](.*)", response_text, re.DOTALL | re.IGNORECASE)
+        memory_match = re.search(r"\[Condensed Memory\](.*?)(\[(Thinking Process|Action)\]|$)", response_text, re.DOTALL | re.IGNORECASE)
+        thinking_match = re.search(r"\[Thinking Process\](.*?)(\[(Condensed Memory|Action)\]|$)", response_text, re.DOTALL | re.IGNORECASE)
+
+        # Initialize keys to ensure they exist, defaulting to empty string
+        sections["Condensed Memory"] = ""
+        sections["Thinking Process"] = ""
+
+        # Extract content based on matches, overwriting defaults if found
+        if memory_match:
+            sections["Condensed Memory"] = memory_match.group(1).strip()
+
+        if thinking_match:
+            sections["Thinking Process"] = thinking_match.group(1).strip()
+
+        if action_match:
+            action_text = action_match.group(1).strip()
+            # Remove leading number format like "1. "
+            action_text_cleaned = re.sub(r"^\d+\.\s*", "", action_text).strip()
+
+            # Assign the full cleaned action string directly, regardless of message presence
+            if action_text_cleaned:
+                sections["Action"] = action_text_cleaned
+            # If action_text_cleaned is empty after stripping number, don't add Action section
+
+        # Handle cases where tags might be missing or text exists outside tags
+        # (This logic might need refinement depending on expected variations)
+        # For now, prioritize explicitly tagged sections.
+
+        # Create the interaction object with proper nesting
         interaction = {
             'game_index': 'Game ' + str(self.game_index),
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
-            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": original_response, "full_response": original_response},
+            "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": sections, "full_response": original_response},
         }
 
-        # Write to file
-        with open(self.log_path, "a") as f:
-            json.dump(interaction, f, indent=2, separators=(",", ": "))
-            f.write("\n")
-            f.flush()
-        with open(self.compact_log_path, "a") as f:
-            json.dump(interaction, f, separators=(",", ": "))
-            f.write("\n")
-            f.flush()
+        # Ensure log directories exist
+        os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+        os.makedirs(os.path.dirname(self.compact_log_path), exist_ok=True)
+
+        # Write to file with minimal whitespace but still readable
+        try:
+            with open(self.log_path, "a") as f:
+                json.dump(interaction, f, indent=2, separators=(",", ": "))
+                f.write("\n")
+                f.flush()
+            with open(self.compact_log_path, "a") as f:
+                json.dump(interaction, f, separators=(",", ":"))
+                f.write("\n")
+                f.flush()
+        except Exception as e:
+            print(f"Error writing to log file: {e}") # Add error logging
 
         print(".", end="", flush=True)
 

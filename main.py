@@ -67,7 +67,7 @@ ARGS = {
 }
 
 async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
-    setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
+    experiment_name = setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
         experiment_file.write(f"\nExperiment args: {ARGS}\n")

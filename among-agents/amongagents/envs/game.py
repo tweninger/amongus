@@ -311,10 +311,23 @@ class AmongUs:
                     self.is_human_turn = False
                 await self.agent_step(agent)
             self.discussion_rounds_left -= 1
-        # Voting
+            # Update game state after each round
+            self.check_actions()
+            self.update_map()
+
+        # Voting phase
+        print("Voting phase")
         self.vote_info_one_round = {}
         for agent in self.agents:
+            if 'homosapiens' in agent.model:
+                self.is_human_turn = True
+            else:
+                self.is_human_turn = False
             await self.agent_step(agent)
+            # Update game state after each vote
+            self.check_actions()
+            self.update_map()
+
         # Vote out
         self.voteout()
         self.update_map()

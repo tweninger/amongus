@@ -28,6 +28,36 @@
             padding: 40px 0;
         }
 
+        .name-input-container {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .name-input-container label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #D4A27F; /* Kraft */
+        }
+
+        .name-input-container input {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #666663; /* Cloud Dark */
+            background-color: #262625; /* Slate Medium */
+            color: #E5E4DF; /* Ivory Dark */
+            width: 200px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .name-input-container input:focus {
+            outline: none;
+            border-color: #6DA5F2; /* Focus */
+            box-shadow: 0 0 5px rgba(109, 165, 242, 0.5);
+        }
+
         .game-screen {
             display: none;
         }
@@ -96,7 +126,7 @@
 
         .game-layout {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
             gap: 30px;
              margin-top: 20px;
         }
@@ -109,6 +139,7 @@
 
         .map-section {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 400px;
@@ -117,11 +148,52 @@
             overflow: hidden;
         }
 
+        .map-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: max-height 0.5s ease-in-out;
+            overflow: hidden;
+        }
+
+        .map-container.hidden {
+            max-height: 0;
+        }
+
         .map-image {
             max-width: 100%;
             height: auto;
             object-fit: contain;
             border-radius: 4px;
+        }
+
+        .map-toggle {
+            margin-bottom: 10px;
+            background-color: #40403E;
+            color: #E5E4DF;
+            border: 1px solid #666663;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            font-weight: bold;
+        }
+
+        .map-toggle:hover {
+            background-color: #666663;
+        }
+
+        .map-toggle-icon {
+            margin-left: 5px;
+            transition: transform 0.3s;
+        }
+
+        .map-toggle-icon.hidden {
+            transform: rotate(180deg);
         }
 
         .player-list {
@@ -283,6 +355,39 @@
              display: none;
         }
 
+        /* Memory and Thinking Process fields */
+        .memory-thinking-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #40403E; /* Slate Light */
+            border-radius: 5px;
+            border-left: 3px solid #D4A27F; /* Kraft */
+        }
+        .memory-thinking-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #D4A27F; /* Kraft */
+        }
+        .memory-field, .thinking-field {
+            margin-bottom: 15px;
+        }
+        .memory-field label, .thinking-field label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #EBDBBC; /* Manilla */
+        }
+        .memory-field textarea, .thinking-field textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #666663; /* Cloud Dark */
+            background-color: #191919; /* Slate Dark */
+            color: #E5E4DF; /* Ivory Dark */
+            border-radius: 5px;
+            min-height: 80px;
+            resize: vertical;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 768px) {
             .game-layout {
@@ -301,7 +406,11 @@
         <div class="home-screen" id="homeScreen">
             <h1>Among Us: Agentic Deception</h1>
             <p>Start a new game with a human player.</p>
-             <button id="startGameBtn" onclick="startNewGame()">Start New Game (5 Players)</button>
+            <div class="name-input-container">
+                <label for="playerNameInput">Your Name:</label>
+                <input type="text" id="playerNameInput" value="Victor" placeholder="Enter your name">
+            </div>
+            <button id="startGameBtn" onclick="startNewGame()">Start New Game (5 Players)</button>
              <!-- Add options for different game sizes later if needed -->
         </div>
 
@@ -318,13 +427,12 @@
 
             <div class="game-layout">
                 <div class="section map-section">
-                    <img src="assets/skeld.png" alt="The Skeld Map" class="map-image">
-                </div>
-
-                <div class="section log-section">
-                    <h2>Game State</h2>
-                    <div class="game-log" id="gameLog">
-                        <p>Waiting for game to start...</p>
+                    <button class="map-toggle" id="mapToggle">
+                        <span id="mapToggleText">Hide Map</span>
+                        <span class="map-toggle-icon" id="mapToggleIcon">▼</span>
+                    </button>
+                    <div class="map-container" id="mapContainer">
+                        <img src="assets/skeld.png" alt="The Skeld Map" class="map-image">
                     </div>
                 </div>
             </div>
@@ -334,6 +442,19 @@
                  <div id="humanPlayerInfo" class="human-player-info"></div>
                  <div class="action-options" id="actionOptions"></div>
                  <textarea id="speakMessage" placeholder="Enter your message here..."></textarea>
+                 
+                 <div class="memory-thinking-section">
+                     <h3>Optional: Add Your Thoughts</h3>
+                     <div class="memory-field">
+                         <label for="condensedMemory">Scratchpad:</label>
+                         <textarea id="condensedMemory" placeholder="Keep track of your observations and thoughts..."></textarea>
+                     </div>
+                     <div class="thinking-field">
+                         <label for="thinkingProcess">Thinking Process:</label>
+                         <textarea id="thinkingProcess" placeholder="Describe your reasoning and strategy..."></textarea>
+                     </div>
+                 </div>
+                 
                  <button id="submitActionBtn" onclick="submitAction()">Submit Action</button>
              </div>
 
@@ -356,7 +477,7 @@
         const gameStatusDisplay = document.getElementById('gameStatus');
         const phaseInfoDisplay = document.getElementById('phaseInfo');
         const humanPlayerNameDisplay = document.getElementById('humanPlayerName');
-        const gameLogDiv = document.getElementById('gameLog');
+        const playerNameInput = document.getElementById('playerNameInput');
         const humanActionArea = document.getElementById('humanActionArea');
         const humanPlayerInfoDiv = document.getElementById('humanPlayerInfo');
         const actionOptionsDiv = document.getElementById('actionOptions');
@@ -366,9 +487,15 @@
         const errorDisplay = document.getElementById('errorDisplay');
         const gameResultDiv = document.getElementById('gameResult');
         const startGameBtn = document.getElementById('startGameBtn');
+        const mapToggle = document.getElementById('mapToggle');
+        const mapToggleText = document.getElementById('mapToggleText');
+        const mapToggleIcon = document.getElementById('mapToggleIcon');
+        const mapContainer = document.getElementById('mapContainer');
         
         // Flag to track if we're waiting for human input
         let waitingForHumanInput = false;
+        // Flag to track map visibility
+        let mapVisible = true;
 
         // Add error checking for DOM elements
         function checkRequiredElements() {
@@ -379,7 +506,7 @@
                 gameStatusDisplay,
                 phaseInfoDisplay,
                 humanPlayerNameDisplay,
-                gameLogDiv,
+                playerNameInput,
                 humanActionArea,
                 humanPlayerInfoDiv,
                 actionOptionsDiv,
@@ -388,7 +515,11 @@
                 loadingIndicator,
                 errorDisplay,
                 gameResultDiv,
-                startGameBtn
+                startGameBtn,
+                mapToggle,
+                mapToggleText,
+                mapToggleIcon,
+                mapContainer
             };
 
             const missingElements = Object.entries(requiredElements)
@@ -447,6 +578,12 @@
                 // 3. Switch UI and start polling for state
                 homeScreen.style.display = 'none';
                 gameScreen.style.display = 'block';
+                
+                // Set the player name in the status bar
+                if (humanPlayerNameDisplay) {
+                    humanPlayerNameDisplay.textContent = playerNameInput.value || 'Victor';
+                }
+                
                 startGameStatePolling();
                 hideLoading();
 
@@ -563,7 +700,10 @@
             // Display current step and player
             const stepInfo = document.getElementById('stepInfo');
             if (stepInfo) {
-                stepInfo.textContent = `Step: ${state.current_step || '0/50'}`;
+                // Use timestep from state and max_timesteps from game config
+                const currentStep = state.timestep || 0;
+                const maxSteps = state.max_timesteps || 50; // Fallback to 50 if not provided
+                stepInfo.textContent = `${currentStep}/${maxSteps}`;
             }
             
             const currentPlayerInfo = document.getElementById('currentPlayerInfo');
@@ -571,74 +711,20 @@
                 currentPlayerInfo.textContent = `${state.current_player || 'Unknown'}`;
             }
 
-            // Render Game State (previously Game Log)
-            if (gameLogDiv) {
-                gameLogDiv.innerHTML = '';
-                
-                // Add game state information
-                const stateInfo = document.createElement('div');
-                stateInfo.className = 'state-info';
-                
-                // Add game log entries if available
-                if (state.game_log && state.game_log.length > 0) {
-                    const logSection = document.createElement('div');
-                    logSection.className = 'log-section';
-                    logSection.innerHTML = '<h3>Recent Game Log</h3>';
-                    
-                    state.game_log.forEach(logEntry => {
-                        const p = document.createElement('p');
-                        p.textContent = typeof logEntry === 'string' ? logEntry : JSON.stringify(logEntry);
-                        logSection.appendChild(p);
-                    });
-                    
-                    stateInfo.appendChild(logSection);
-                }
-                
-                // Add player information if available
-                if (state.players && state.players.length > 0) {
-                    const playerSection = document.createElement('div');
-                    playerSection.className = 'player-section';
-                    playerSection.innerHTML = '<h3>Players</h3>';
-                    
-                    state.players.forEach(player => {
-                        const p = document.createElement('p');
-                        p.textContent = typeof player === 'string' ? player : JSON.stringify(player);
-                        playerSection.appendChild(p);
-                    });
-                    
-                    stateInfo.appendChild(playerSection);
-                }
-                
-                // If it's the human's turn, show the human player info
-                if (state.is_human_turn && state.human_player_info) {
-                    const humanInfoSection = document.createElement('div');
-                    humanInfoSection.className = 'human-info-section';
-                    humanInfoSection.innerHTML = '<h3>Your Information</h3>';
-                    
-                    const pre = document.createElement('pre');
-                    pre.textContent = state.human_player_info;
-                    humanInfoSection.appendChild(pre);
-                    
-                    stateInfo.appendChild(humanInfoSection);
-                }
-                
-                // If no information is available, show a message
-                if (stateInfo.children.length === 0) {
-                    stateInfo.innerHTML = '<p>No game state information available yet.</p>';
-                }
-                
-                gameLogDiv.appendChild(stateInfo);
-                gameLogDiv.scrollTop = gameLogDiv.scrollHeight;
+            // Always display the player name from the input field, regardless of what the backend provides
+            if (humanPlayerNameDisplay) {
+                humanPlayerNameDisplay.textContent = playerNameInput.value || 'Victor';
             }
 
+            // Maintain map visibility state during updates
+            updateMapVisibility();
+
             // Handle Human Turn
-            if (state.is_human_turn) {
-                console.log("Human turn detected. State:", state);
-                if (humanPlayerNameDisplay) {
-                    humanPlayerNameDisplay.textContent = state.human_player_name || 'Human';
-                }
+            if (state.is_human_turn || (state.available_actions && state.available_actions.length > 0)) {
+                console.log("Human turn detected or actions available. State:", state);
+                // We don't update the human player name display here anymore
                 if (humanPlayerInfoDiv) {
-                    humanPlayerInfoDiv.innerHTML = `<pre>${state.human_player_info || 'No info available.'}</pre>`;
+                    humanPlayerInfoDiv.innerHTML = `<pre>${state.player_info || 'No info available.'}</pre>`;
                 }
                 if (actionOptionsDiv) {
                     actionOptionsDiv.innerHTML = '';
@@ -646,6 +732,20 @@
                 if (speakMessageInput) {
                     speakMessageInput.style.display = 'none';
                     speakMessageInput.value = '';
+                }
+                
+                // Reset the memory and thinking process fields
+                const condensedMemoryField = document.getElementById('condensedMemory');
+                const thinkingProcessField = document.getElementById('thinkingProcess');
+                
+                // Update the scratchpad with the value from the state if available
+                if (condensedMemoryField && state.condensed_memory !== undefined) {
+                    condensedMemoryField.value = state.condensed_memory;
+                }
+                
+                // Only reset the thinking process field, not the scratchpad
+                if (thinkingProcessField) {
+                    thinkingProcessField.value = '';
                 }
 
                 if (state.available_actions && state.available_actions.length > 0) {
@@ -704,9 +804,6 @@
                     // Remove the active class
                     humanActionArea.classList.remove('active');
                 }
-                if (humanPlayerNameDisplay) {
-                    humanPlayerNameDisplay.textContent = state.human_player_name || '...';
-                }
             }
         }
 
@@ -749,9 +846,15 @@
                 }
             }
 
+            // Get the values from the new fields
+            const condensedMemory = document.getElementById('condensedMemory').value.trim();
+            const thinkingProcess = document.getElementById('thinkingProcess').value.trim();
+
             const actionData = {
                 action_index: actionIndex,
-                message: message
+                message: message,
+                condensed_memory: condensedMemory,
+                thinking_process: thinkingProcess
             };
 
             console.log("Submitting action:", actionData);
@@ -823,7 +926,26 @@
         document.addEventListener('DOMContentLoaded', () => {
              // Any setup needed when the page loads
              console.log("Among Us Web UI Initialized");
+             
+             // Set up map toggle functionality
+             mapToggle.addEventListener('click', () => {
+                 mapVisible = !mapVisible;
+                 updateMapVisibility();
+             });
         });
+        
+        // Function to update map visibility
+        function updateMapVisibility() {
+             if (mapVisible) {
+                 mapContainer.classList.remove('hidden');
+                 mapToggleText.textContent = 'Hide Map';
+                 mapToggleIcon.classList.remove('hidden');
+             } else {
+                 mapContainer.classList.add('hidden');
+                 mapToggleText.textContent = 'Show Map';
+                 mapToggleIcon.classList.add('hidden');
+             }
+        }
 
     </script>
 </body>

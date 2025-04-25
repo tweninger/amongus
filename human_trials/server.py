@@ -61,6 +61,8 @@ class GameStartRequest(BaseModel):
 class HumanActionRequest(BaseModel):
     action_index: int
     message: Optional[str] = None
+    condensed_memory: Optional[str] = ""
+    thinking_process: Optional[str] = ""
 
 def get_game_config_by_name(name: str) -> Optional[Dict]:
     if name == "FIVE_MEMBER_GAME":
@@ -197,7 +199,8 @@ async def get_game_state(game_id: int):
         "current_phase": game.current_phase,
         "is_human_turn": game.is_human_turn,
         "available_actions": [],
-        "status": "running" if game_id in running_games else "waiting"
+        "status": "running" if game_id in running_games else "waiting",
+        "max_timesteps": game.game_config.get("max_timesteps", 50)  # Add max_timesteps from game config
     }
     
     # Add human-specific information if it's their turn
@@ -216,6 +219,23 @@ async def get_game_state(game_id: int):
             # Try to get the player name from the current_player_index
             if hasattr(game, 'players') and 0 <= game.current_player_index < len(game.players):
                 state["current_player"] = game.players[game.current_player_index].name
+        
+        # Check if the current player is the human player
+        if human_player_result is not None:
+            human_agent, human_index = human_player_result
+            current_player_name = state.get("current_player", "")
+            human_player_name = human_agent.player.name
+            
+            # If the current player is the human player, include their available actions
+            if current_player_name == human_player_name:
+                # Get the available actions for the human player
+                human_agent.current_available_actions = human_agent.player.get_available_actions()
+                human_state = human_agent.get_current_state_for_web()
+                
+                # Update the state with the human player's available actions
+                state["available_actions"] = human_state.get("available_actions", [])
+                state["player_info"] = human_state.get("player_info", "")
+                state["condensed_memory"] = human_state.get("condensed_memory", "")
     
     return state
 
@@ -241,7 +261,9 @@ async def submit_human_action(game_id: int, action: HumanActionRequest):
         print(f"[Server] Setting result for game {game_id}")
         action_data = {
             "action_index": action.action_index,
-            "message": action.message
+            "message": action.message,
+            "condensed_memory": action.condensed_memory,
+            "thinking_process": action.thinking_process
         }
         future.set_result(action_data)
         return {"status": "success"}

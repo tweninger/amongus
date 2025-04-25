@@ -49,7 +49,7 @@ CONFIG = {
     "date": DATE,
     "commit_hash": COMMIT_HASH,
     "game_args": DEFAULT_GAME_ARGS,
-    "experiment_name": f"session_{SESSION_ID}",
+    "experiment_name": None,  # Set to None so setup_experiment can determine the next available index
     "logs_path": "expt-logs",
     "assets_path": "assets",
 }
