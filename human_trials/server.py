@@ -239,6 +239,29 @@ async def get_game_state(game_id: int):
     
     return state
 
+@app.get("/api/game/{game_id}/human_info")
+async def get_human_player_info(game_id: int):
+    if game_id not in active_games:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    game = active_games[game_id]["game"]
+    human_player_result = get_human_player(game)
+    
+    if human_player_result is None:
+        raise HTTPException(status_code=404, detail="No human player found in this game")
+    
+    human_agent, human_index = human_player_result
+    
+    # Get the human player information
+    response = {
+        "human_index": human_index,
+        "player_name": human_agent.player.name,
+        "player_color": human_agent.player.color,
+        "player_identity": human_agent.player.identity
+    }
+    
+    return response
+
 @app.post("/api/game/{game_id}/action")
 async def submit_human_action(game_id: int, action: HumanActionRequest):
     if game_id not in active_games:

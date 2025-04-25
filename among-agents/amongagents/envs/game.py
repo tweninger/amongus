@@ -61,6 +61,7 @@ class AmongUs:
         self.human_index = None
         self.test = test
         self.personality = personality
+        self.identities = None
         self.agent_config = agent_config
         self.game_config = game_config
         self.all_phases = ["meeting", "task"]
@@ -98,6 +99,7 @@ class AmongUs:
         identities = ["Crewmate"] * num_crewmates + ["Impostor"] * num_impostors
         colors = np.random.choice(PLAYER_COLORS, num_players, replace=False)
         np.random.shuffle(identities)
+        self.identities = identities
         for i in range(num_players):
             if identities[i] == "Crewmate":
                 if self.personality:
