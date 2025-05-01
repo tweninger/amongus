@@ -20,7 +20,7 @@ class LinearModel(nn.Module):
         return self.linear(x_normalized)
 
 class LinearProbe:
-    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.7, device='cpu', seed=42):
+    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.7, device='cpu', seed=42, verbose=False):
         # Set seeds for reproducibility
         self.seed = seed
         self._set_seeds(seed)
@@ -31,7 +31,7 @@ class LinearProbe:
         self.optimizer = optimizer_cls(self.model.parameters(), lr=lr, weight_decay=1e-3)  # L2 regularization
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=gamma)
         self.train_accs = []
-
+        self.verbose = verbose
     def _set_seeds(self, seed):
         """Set seeds for reproducibility"""
         random.seed(seed)
@@ -117,7 +117,10 @@ class LinearProbe:
             
             self.train_accs.append(train_acc)
             
-            if epochs > 10 and epoch % (epochs // 10) == 0 or epochs <= 10:
-                print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}, Train Acc = {train_acc:.4f}")
+            if self.verbose:
+                if epochs > 10 and epoch % (epochs // 10) == 0 or epochs <= 10:
+                    print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}, Train Acc = {train_acc:.4f}")
         
-        print(f"Final Train Acc: {self.train_accs[-1]:.4f}")
+        if self.verbose:
+            print(f"Final Train Acc: {self.train_accs[-1]:.4f}")
+        return self.train_accs[-1]

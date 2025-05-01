@@ -224,7 +224,7 @@ def evaluate_probe(
     DESCRIPTIONS: List[str] = ["Crew: Phi, Imp: Phi",]
 
     summary_logs_paths: List[str] = [os.path.join(LOGS_PATH, f"{expt_name}_all_skill_scores.json") for expt_name in EXPT_NAMES]
-    from utils import read_jsonl_as_json
+    from probe_utils import read_jsonl_as_json
 
     summary_dfs: List[pd.DataFrame] = []
 

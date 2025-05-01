@@ -12,7 +12,7 @@ import time
 import io
 import contextlib
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit
 
 sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
 sys.path.append(os.path.abspath(".."))
@@ -69,9 +69,8 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Required for session management
 socketio = SocketIO(app)
 
-# Store active games in memory (you can use Redis or a database for production)
+# Store active games in memory
 active_games = {}
-game_sessions = {}
 
 # Context manager to suppress stderr
 @contextlib.contextmanager
@@ -239,269 +238,96 @@ def index():
     
     return render_template('index.html')
 
-@app.route('/start_game', methods=['POST'])
-def start_game():
+@socketio.on('start_game')
+def on_start_game(data):
+    player_name = data.get('playerName')
+    
+    if not player_name:
+        emit('error', {'message': 'Player name is required'})
+        return
+    
+    # Create a new session ID if needed
     session_id = session.get('session_id')
     if not session_id:
-        return jsonify({"error": "No session ID found"}), 400
-    
-    # Check if game already exists for this session
-    if session_id in active_games:
-        return jsonify({"message": "Game already running", "session_id": session_id})
+        session_id = str(uuid.uuid4())
+        session['session_id'] = session_id
     
     # Start a new game
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     game = loop.run_until_complete(run_game_instance(session_id))
     
-    # Get initial game state
-    game_state = get_game_state(game)
-    
-    return jsonify({
-        "message": "Game started",
-        "session_id": session_id,
-        "game_state": game_state
-    })
-
-@app.route('/game_state')
-def get_current_game_state():
-    session_id = session.get('session_id')
-    if not session_id:
-        return jsonify({"error": "No session ID found"}), 400
-    
-    game = active_games.get(session_id)
-    if not game:
-        return jsonify({"error": "No game found for this session"}), 404
-    
-    game_state = get_game_state(game)
-    return jsonify(game_state)
-
-@app.route('/action', methods=['POST'])
-def take_action():
-    session_id = session.get('session_id')
-    if not session_id:
-        return jsonify({"error": "No session ID found"}), 400
-    
-    game = active_games.get(session_id)
-    if not game:
-        return jsonify({"error": "No game found for this session"}), 404
-    
-    # Get action data from request
-    action_data = request.json
-    if not action_data:
-        return jsonify({"error": "No action data provided"}), 400
-    
-    # Process the action
-    # This is a placeholder - you'll need to implement the actual action processing
-    # based on your game logic
-    
-    # Get updated game state
-    game_state = get_game_state(game)
-    
-    return jsonify({
-        "message": "Action processed",
-        "game_state": game_state
-    })
-
-@app.route('/respond', methods=['POST'])
-def respond_to_message():
-    session_id = session.get('session_id')
-    if not session_id:
-        return jsonify({"error": "No session ID found"}), 400
-    
-    game = active_games.get(session_id)
-    if not game:
-        return jsonify({"error": "No game found for this session"}), 404
-    
-    # Get response data from request
-    response_data = request.json
-    if not response_data:
-        return jsonify({"error": "No response data provided"}), 400
-    
-    # Process the response
-    # This is a placeholder - you'll need to implement the actual response processing
-    # based on your game logic
-    
-    # Get updated game state
-    game_state = get_game_state(game)
-    
-    return jsonify({
-        "message": "Response processed",
-        "game_state": game_state
-    })
-
-@app.route('/observe', methods=['POST'])
-def observe_location():
-    session_id = session.get('session_id')
-    if not session_id:
-        return jsonify({"error": "No session ID found"}), 400
-    
-    game = active_games.get(session_id)
-    if not game:
-        return jsonify({"error": "No game found for this session"}), 404
-    
-    # Get observation data from request
-    observation_data = request.json
-    if not observation_data:
-        return jsonify({"error": "No observation data provided"}), 400
-    
-    # Process the observation
-    # This is a placeholder - you'll need to implement the actual observation processing
-    # based on your game logic
-    
-    # Get updated game state
-    game_state = get_game_state(game)
-    
-    return jsonify({
-        "message": "Observation processed",
-        "game_state": game_state
-    })
-
-@socketio.on('join_game')
-def on_join_game(data):
-    player_name = data.get('playerName')
-    room_code = data.get('roomCode')
-    
-    if not player_name or not room_code:
-        emit('error', {'message': 'Player name and room code are required'})
-        return
-    
-    # Create or join a room
-    room = room_code
-    join_room(room)
-    
     # Store player information
     player_id = request.sid
-    if room not in game_sessions:
-        game_sessions[room] = {
-            'players': {},
-            'game': None
-        }
+    game.add_player(player_id, player_name)
     
-    game_sessions[room]['players'][player_id] = {
-        'name': player_name,
-        'role': None,
-        'alive': True,
-        'position': {'x': 400, 'y': 300}  # Default position
-    }
+    # Send initial game state
+    game_state = get_game_state(game)
+    emit('game_state', game_state)
     
-    # If this is the first player, start a new game
-    if len(game_sessions[room]['players']) == 1:
-        # Start a new game
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        game = loop.run_until_complete(run_game_instance(room))
-        game_sessions[room]['game'] = game
-        
-        # Send initial game state
-        game_state = get_game_state(game)
-        emit('game_state', game_state, room=room)
-    else:
-        # Send current game state to the new player
-        game = game_sessions[room]['game']
-        if game:
-            game_state = get_game_state(game)
-            emit('game_state', game_state)
+    # Send game log update
+    emit('game_log', {
+        'message': f"Game started with player {player_name}",
+        'timestamp': time.time()
+    })
     
-    # Notify all players about the new player
-    emit('player_joined', {
-        'id': player_id,
-        'name': player_name
-    }, room=room)
+    # Start a background thread to send game updates
+    def send_game_updates():
+        while True:
+            if session_id in active_games:
+                game = active_games[session_id]
+                game_state = get_game_state(game)
+                
+                # Send game state update
+                socketio.emit('game_state', game_state, room=request.sid)
+                
+                # Send activity log updates
+                if game.activity_log:
+                    latest_activity = game.activity_log[-1]
+                    socketio.emit('game_log', {
+                        'message': latest_activity,
+                        'timestamp': time.time()
+                    }, room=request.sid)
+                
+                # Check if game is over
+                if game.check_game_over() > 0:
+                    winner = None
+                    game_over = game.check_game_over()
+                    winner_map = {
+                        1: "Impostors win! (Crewmates being outnumbered or tied to impostors)",
+                        2: "Crewmates win! (Impostors eliminated)",
+                        3: "Crewmates win! (All task completed)",
+                        4: "Impostors win! (Time limit reached)"
+                    }
+                    winner = winner_map.get(game_over, "Unknown")
+                    
+                    socketio.emit('game_log', {
+                        'message': f"Game Over! {winner}",
+                        'timestamp': time.time()
+                    }, room=request.sid)
+                    
+                    # Remove the game from active games
+                    del active_games[session_id]
+                    break
+            
+            time.sleep(1)  # Update every second
+    
+    threading.Thread(target=send_game_updates, daemon=True).start()
 
 @socketio.on('disconnect')
 def on_disconnect():
     player_id = request.sid
     
-    # Find the room this player was in
-    for room, session in game_sessions.items():
-        if player_id in session['players']:
-            player_name = session['players'][player_id]['name']
-            del session['players'][player_id]
+    # Find the game this player was in
+    for session_id, game in active_games.items():
+        if session_id == session.get('session_id'):
+            # Remove the player from the game
+            game.remove_player(player_id)
             
-            # Notify other players
-            emit('player_left', {
-                'id': player_id,
-                'name': player_name
-            }, room=room)
+            # If no players left, clean up the game
+            if not game.players:
+                del active_games[session_id]
             
-            # If no players left, clean up the session
-            if not session['players']:
-                del game_sessions[room]
-            
-            break
-
-@socketio.on('submit_action')
-def on_submit_action(data):
-    player_id = request.sid
-    action_name = data.get('action')
-    message = data.get('message', '')
-    
-    # Find the room this player is in
-    for room, session in game_sessions.items():
-        if player_id in session['players']:
-            game = session['game']
-            if not game:
-                emit('error', {'message': 'Game not found'})
-                return
-            
-            # Process the action based on the game logic
-            # This is a simplified version - you'll need to implement the actual action processing
-            if action_name == 'SPEAK':
-                # Handle speaking action
-                print(f"Player {session['players'][player_id]['name']} says: {message}")
-            elif action_name == 'MOVE':
-                # Handle movement action
-                print(f"Player {session['players'][player_id]['name']} moves")
-            elif action_name == 'COMPLETE_TASK':
-                # Handle task completion
-                print(f"Player {session['players'][player_id]['name']} completes a task")
-            elif action_name == 'REPORT_BODY':
-                # Handle body report
-                print(f"Player {session['players'][player_id]['name']} reports a body")
-            elif action_name == 'KILL':
-                # Handle kill action (impostor only)
-                print(f"Player {session['players'][player_id]['name']} kills someone")
-            
-            # Get updated game state
-            game_state = get_game_state(game)
-            emit('game_state', game_state, room=room)
-            
-            # Send available actions to the player
-            available_actions = [
-                {'name': 'MOVE'},
-                {'name': 'COMPLETE_TASK'},
-                {'name': 'REPORT_BODY'},
-                {'name': 'SPEAK'}
-            ]
-            
-            # Add impostor actions if applicable
-            if session['players'][player_id].get('role') == 'Impostor':
-                available_actions.append({'name': 'KILL'})
-            
-            emit('available_actions', available_actions)
-            break
-
-@socketio.on('cast_vote')
-def on_cast_vote(data):
-    player_id = request.sid
-    target_id = data.get('targetId')
-    
-    # Find the room this player is in
-    for room, session in game_sessions.items():
-        if player_id in session['players']:
-            game = session['game']
-            if not game:
-                emit('error', {'message': 'Game not found'})
-                return
-            
-            # Process the vote
-            # This is a simplified version - you'll need to implement the actual vote processing
-            print(f"Player {session['players'][player_id]['name']} votes for {target_id}")
-            
-            # Get updated game state
-            game_state = get_game_state(game)
-            emit('game_state', game_state, room=room)
             break
 
 if __name__ == "__main__":

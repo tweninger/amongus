@@ -36,17 +36,26 @@ COMMIT_HASH = (
 )
 
 BIG_LIST_OF_MODELS: List[str] = [
-    "microsoft/phi-4",
     "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3-opus",
     "anthropic/claude-3.7-sonnet:thinking",
-    "openai/o3-mini-high",
-    "openai/gpt-4o-mini",
-    "deepseek/deepseek-r1-distill-llama-70b",
-    "qwen/qwen-2.5-7b-instruct",
-    "mistralai/mistral-7b-instruct",
+    "anthropic/claude-3.7-sonnet",
+    "openai/o3",
+    "openai/o4-mini-high"
+    "openai/gpt-4o",
     "deepseek/deepseek-r1",
-    "meta-llama/llama-3.3-70b-instruct",
+    "deepseek/deepseek-chat-v3-0324",
+    "deepseek/deepseek-r1-distill-llama-70b",
+    "google/gemini-2.5-pro-preview-03-25",
     "google/gemini-2.0-flash-001",
+    "google/gemma-3-4b-it",
+    "qwen/qwen3-235b-a22b",
+    "qwen/qwen-2.5-7b-instruct",
+    "meta-llama/llama-4-maverick",
+    "meta-llama/llama-3.3-70b-instruct",
+    "mistralai/mistral-small-3.1-24b-instruct",
+    "x-ai/grok-3-beta",
+    "microsoft/phi-4",
 ]
 
 ARGS = {

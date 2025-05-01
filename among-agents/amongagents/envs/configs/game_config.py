@@ -19,7 +19,7 @@ FIVE_MEMBER_GAME = {
     "discussion_rounds": 3,
     "max_num_buttons": 2,
     "kill_cooldown": 3,
-    "max_timesteps": 50,
+    "max_timesteps": 20,
 }
 
 SEVEN_MEMBER_GAME = {

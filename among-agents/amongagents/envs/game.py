@@ -1,5 +1,6 @@
 import random
 import asyncio
+import time
 
 import numpy as np
 import json
@@ -24,6 +25,9 @@ from amongagents.envs.player import PLAYER_COLORS, Crewmate, Impostor
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.tools import GetBestPath
 
+# Set Flask environment variable to True by default
+if "FLASK" not in os.environ:
+    os.environ["FLASK"] = "True"
 
 class AmongUs:
     def __init__(
@@ -48,21 +52,34 @@ class AmongUs:
             Interviewer object to be used for the game to ask questions.
         UI: MapUI
             UI object to be used for the game to display the map.
-        experiment_path: str
-            Path to save the logs of the game.
+        game_index: int
+            Index of the game for logging purposes.
         """
-        self.map = Map()
-        self.message_system = MessageSystem(game_config=game_config)
-        self.interviewer = interviewer
-        self.UI = UI
-        # config
+        self.game_config = game_config
         self.include_human = include_human
         self.test = test
         self.personality = personality
         self.agent_config = agent_config
-        self.game_config = game_config
-        self.all_phases = ["meeting", "task"]
+        self.interviewer = interviewer
+        self.UI = UI
         self.game_index = game_index
+        self.map = Map()
+        self.players = []
+        self.agents = {}
+        self.task_assignment = TaskAssignment(self.map.ship_map, self.game_config)
+        self.current_phase = "TASK"
+        self.timestep = 0
+        self.activity_log = []
+        self.important_activity_log = []
+        self.camera_record = {}
+        self.votes = {}
+        self.vote_info_one_round = {}
+        self.discussion_rounds_left = 0
+        self.message_system = MessageSystem(game_config)
+        self.game_over = False
+        self.winner = None
+        self.last_update = time.time()
+        self.all_phases = ["meeting", "task"]
         self.summary_json = {f"Game {game_index}": {"config": game_config}}
         self.list_of_impostors = []
 

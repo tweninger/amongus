@@ -27,7 +27,7 @@ datasets: List[str] = [
     "RepEngDataset",
 ]
 
-config = config_llama3
+config = config_phi4
 model, tokenizer, device = None, None, 'cpu'
 amongus_expt_name: str = "2025-02-01_phi_phi_100_games_v3"
 

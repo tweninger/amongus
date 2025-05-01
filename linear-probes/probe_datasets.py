@@ -4,8 +4,9 @@ from typing import List, Tuple, Dict, Any
 import pickle
 import pandas as pd
 import os
+import random
 import sys
-from utils import free_unused_memory
+from probe_utils import free_unused_memory
 import yaml
 
 def phi4_format(system, user, assistant):
@@ -90,7 +91,7 @@ class ActivationDataset(Dataset):
             return pickle.load(f)
 
     def get_train(self, chunk_idx: int = 0, batch_size: int = 32, shuffle: bool = True,
-                    num_workers: int = 0, pin_memory: bool = True, num_tokens: int = None) -> DataLoader:
+                    num_workers: int = 0, pin_memory: bool = True, num_tokens: int = None,  keep_frac: float = 1.0) -> DataLoader:
         """
         Get train DataLoader for a specific chunk, taking specified number of tokens from each prompt
         
@@ -109,6 +110,8 @@ class ActivationDataset(Dataset):
         # Take specified number of tokens from each prompt
         flat_data = []
         for acts, label in train_data:
+            if random.random() > keep_frac:
+                continue
             acts_to_use = acts[-num_tokens:] if num_tokens else acts
             for act in acts_to_use:
                 flat_data.append((act, label))

@@ -6,13 +6,16 @@ import re
 from datetime import datetime
 from typing import Any
 import aiohttp
-import streamlit as st
 import time
 
 import numpy as np
 import requests
 import asyncio
 from amongagents.agent.neutral_prompts import *
+
+# Set Flask environment variable to True by default
+if "FLASK" not in os.environ:
+    os.environ["FLASK"] = "True"
 
 class Agent:
     def __init__(self, player):
@@ -154,28 +157,6 @@ class LLMAgent(Agent):
             f.flush()
 
         print(".", end="", flush=True)
-
-        if os.getenv("STREAMLIT") == "True":
-            if "game_updates" not in st.session_state:
-                st.session_state.game_updates = []
-            
-            # Format the message without newlines to prevent HTML display issues
-            message = f"Game {self.game_index} - Step {step}, {self.player.name} done."
-            st.session_state.game_updates.append(message)
-        
-            # Force a render of the updates container without a full rerun
-            if "update_placeholder" in st.session_state and st.session_state.update_placeholder is not None:
-                # Increment the counter to create a unique key
-                if "update_counter" not in st.session_state:
-                    st.session_state.update_counter = 0
-                st.session_state.update_counter += 1
-                unique_key = f"live_updates_display_{st.session_state.update_counter}"
-                
-                # Update the display with current game updates
-                with st.session_state.update_placeholder.container():
-                    st.subheader("Game Updates")
-                    updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
-                    st.text_area("Game Updates", value=updates_text, height=150, key=unique_key, label_visibility="collapsed")
     
     async def send_request(self, messages):
         """Send a POST request to OpenRouter API with the provided messages."""
@@ -196,19 +177,19 @@ class LLMAgent(Agent):
                 try:
                     async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
                         if response is None:
-                            print("API request failed: response is None.")
+                            print(f"API request failed: response is None for {self.model}.")
                             continue
                         if response.status == 200:
                             data = await response.json()
                             if "choices" not in data:
-                                print("API request failed: 'choices' key not in response.")
+                                print(f"API request failed: 'choices' key not in response for {self.model}.")
                                 continue
                             if not data["choices"]:
-                                print("API request failed: 'choices' key is empty in response.")
+                                print(f"API request failed: 'choices' key is empty in response for {self.model}.")
                                 continue
                             return data["choices"][0]["message"]["content"]
                 except Exception as e:
-                    print(f"API request failed. Retrying... ({attempt + 1}/5)")
+                    print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
                     continue
             return 'SPEAK: ...'
 
@@ -300,14 +281,6 @@ class HumanAgent(Agent):
         self.processed_memory = "No memory has been processed."
         self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
         self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
-        
-        # Initialize global session state if it doesn't exist
-        if os.getenv("STREAMLIT") == "True":
-            # Global session state for actions across page refreshes
-            if "human_actions" not in st.session_state:
-                st.session_state.human_actions = {}
-            if "action_history" not in st.session_state:
-                st.session_state.action_history = {}
     
     async def choose_action(self, timestep):
         all_info = self.player.all_info_prompt()
@@ -319,258 +292,66 @@ class HumanAgent(Agent):
             "All Info": all_info,
             "Available Actions": action_prompt
         }
+        # Command line interface
+        print(f"{str(self.player)}")
+        print(all_info)
+        print("Choose an action:")
+        for i, action in enumerate(available_actions):
+            print(f"{i+1}: {action}")
+            
+        stop_triggered = False
+        valid_input = False
+        while (not stop_triggered) and (not valid_input):
+            try:
+                action_idx = int(input())
+                if action_idx == 0:
+                    stop_triggered = True
+                elif action_idx < 1 or action_idx > len(available_actions):
+                    raise ValueError(f"Invalid input. Please enter a number between 1 and {len(available_actions)}.")
+                else:
+                    valid_input = True
+            except:
+                print("Invalid input. Please enter a number.")
+                continue
+                
+        if stop_triggered:
+            raise ValueError("Game stopped by user.")
+            
+        selected_action = available_actions[action_idx - 1]
         
-        if os.getenv("STREAMLIT") == "True":
-            # Use a unique key for this player and timestep
-            action_key = f"action_{self.player.name}_{timestep}"
-            history_key = f"history_{self.player.name}"
-            
-            # Check if we already have an action for this timestep in the session state
-            if action_key in st.session_state.human_actions:
-                # Retrieve the stored action
-                action_data = st.session_state.human_actions[action_key]
-                selected_action = action_data["action"]
-                message = action_data.get("message", "")
-                
-                # Apply the message if this is a SPEAK action
-                if selected_action.name == "SPEAK" and message:
-                    selected_action.provide_message(message)
-                
-                # Log the action
-                self.log_interaction(
-                    sysprompt="Human Agent", 
-                    prompt=full_prompt,
-                    original_response=f"[Action] {selected_action}" + (f" with message: {message}" if selected_action.name == "SPEAK" and message else ""), 
-                    step=timestep
-                )
-                
-                # Save to action history
-                if history_key not in st.session_state.action_history:
-                    st.session_state.action_history[history_key] = []
-                st.session_state.action_history[history_key].append({
-                    "timestep": timestep,
-                    "action": str(selected_action),
-                    "message": message if selected_action.name == "SPEAK" and message else ""
-                })
-                
-                # Clean up this action so it doesn't get reused
-                del st.session_state.human_actions[action_key]
-                
-                return selected_action
-            
-            # Setup sidebar with persistent player information
-            with st.sidebar:
-                st.header(f"Game {self.game_index}")
-                st.subheader(f"Step {timestep}")
-                st.write(f"Player: {self.player.name}")
-                st.write(f"Role: {self.player.identity}")
-                st.write(f"Location: {self.player.location}")
-                
-                # Show action history in sidebar
-                if history_key in st.session_state.action_history and st.session_state.action_history[history_key]:
-                    st.subheader("Your Previous Actions")
-                    for entry in st.session_state.action_history[history_key]:
-                        action_str = f"Step {entry['timestep']}: {entry['action']}"
-                        if entry.get('message'):
-                            action_str += f" - '{entry['message']}'"
-                        st.write(action_str)
-            
-            # Display game information
-            st.header("Game Information")
-            st.text_area("Current Game State", value=all_info, height=300, key=f"game_info_{self.player.name}_{timestep}")
-            
-            # Create a form for action selection to avoid immediate reruns
-            with st.form(key=f"action_form_{self.player.name}_{timestep}"):
-                st.header("Choose an Action")
-                # Action selection via radio buttons
-                action_options = list(range(len(available_actions)))
-                selected_idx = st.radio(
-                    "Select an action:", 
-                    options=action_options,
-                    format_func=lambda i: f"{i+1}: {available_actions[i]}",
-                    key=f"action_radio_{self.player.name}_{timestep}"
-                )
-                
-                # Message input for SPEAK action
-                message = ""
-                if available_actions[selected_idx].name == "SPEAK":
-                    message = st.text_area(
-                        "Enter your message:",
-                        key=f"message_{self.player.name}_{timestep}"
-                    )
-                
-                # Submit button
-                submitted = st.form_submit_button("Submit Action")
-                if submitted:
-                    # Get the selected action
-                    selected_action = available_actions[selected_idx]
-                    
-                    # Store in session state for persistence across refreshes
-                    st.session_state.human_actions[action_key] = {
-                        "action": selected_action,
-                        "message": message
-                    }
-                    
-                    # If it's a SPEAK action, add the message
-                    if selected_action.name == "SPEAK" and message:
-                        selected_action.provide_message(message)
-                    
-                    # Log the interaction
-                    self.log_interaction(
-                        sysprompt="Human Agent", 
-                        prompt=full_prompt,
-                        original_response=f"[Action] {selected_action}" + (f" with message: {message}" if selected_action.name == "SPEAK" and message else ""), 
-                        step=timestep
-                    )
-                    
-                    # Save to action history for display
-                    if history_key not in st.session_state.action_history:
-                        st.session_state.action_history[history_key] = []
-                    st.session_state.action_history[history_key].append({
-                        "timestep": timestep,
-                        "action": str(selected_action),
-                        "message": message if selected_action.name == "SPEAK" and message else ""
-                    })
-                    
-                    return selected_action
-            
-            # If we're here, we need to wait for the action to be selected
-            # We'll do this with a polling loop
-            while action_key not in st.session_state.human_actions:
-                await asyncio.sleep(0.1)
-            
-            # Once the action is submitted (in another Streamlit run), we'll get here
-            action_data = st.session_state.human_actions[action_key]
-            selected_action = action_data["action"]
-            message = action_data.get("message", "")
-            
-            # Apply the message if this is a SPEAK action
-            if selected_action.name == "SPEAK" and message:
-                selected_action.provide_message(message)
-            
-            # Clean up this action so it doesn't get reused
-            del st.session_state.human_actions[action_key]
-            
-            return selected_action
+        if selected_action.name == "SPEAK":
+            print("Enter your response:")
+            action_message = input()
+            selected_action.provide_message(action_message)
+            self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
+                                    original_response=f"[Action] {selected_action} with message: {action_message}", 
+                                    step=timestep)
         else:
-            # Command line interface
-            print(f"{str(self.player)}")
-            print(all_info)
-            print("Choose an action:")
-            for i, action in enumerate(available_actions):
-                print(f"{i+1}: {action}")
-                
-            stop_triggered = False
-            valid_input = False
-            while (not stop_triggered) and (not valid_input):
-                try:
-                    action_idx = int(input())
-                    if action_idx == 0:
-                        stop_triggered = True
-                    elif action_idx < 1 or action_idx > len(available_actions):
-                        raise ValueError(f"Invalid input. Please enter a number between 1 and {len(available_actions)}.")
-                    else:
-                        valid_input = True
-                except:
-                    print("Invalid input. Please enter a number.")
-                    continue
-                    
-            if stop_triggered:
-                raise ValueError("Game stopped by user.")
-                
-            selected_action = available_actions[action_idx - 1]
-            
-            if selected_action.name == "SPEAK":
-                print("Enter your response:")
-                action_message = input()
-                selected_action.provide_message(action_message)
-                self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
-                                     original_response=f"[Action] {selected_action} with message: {action_message}", 
-                                     step=timestep)
-            else:
-                self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
-                                     original_response=f"[Action] {selected_action}", 
-                                     step=timestep)
-        
-            return selected_action
+            self.log_interaction(sysprompt="Human Agent", prompt=full_prompt, 
+                                    original_response=f"[Action] {selected_action}", 
+                                    step=timestep)
+    
+        return selected_action
 
     def respond(self, message):
-        if os.getenv("STREAMLIT") == "True":
-            player_key = f"player_{self.player.name}"
-            player_state = st.session_state[player_key]
-            
-            # If response already submitted, return it
-            if player_state["response_submitted"]:
-                response = player_state["response_text"]
-                # Reset state for next interaction
-                player_state["response_submitted"] = False
-                player_state["response_text"] = ""
-                return response
-            
-            # Show message
-            st.header("Respond to Message")
-            st.write(message)
-            
-            # Response input
-            response_key = f"response_{self.player.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            player_state["response_text"] = st.text_area("Your response:", key=response_key)
-            
-            # Submit button
-            if st.button("Submit Response", key=f"submit_response_{self.player.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"):
-                player_state["response_submitted"] = True
-                st.success("Response submitted!")
-            
-            # Wait for response
-            time.sleep(0.1)
-            return self.respond(message)
-        else:
-            print(message)
-            response = input()
-            return response
+        print(message)
+        response = input()
+        return response
 
     def choose_observation_location(self, map):
         map_list = list(map)
-        
-        if os.getenv("STREAMLIT") == "True":
-            player_key = f"player_{self.player.name}"
-            player_state = st.session_state[player_key]
-            
-            # If observation already submitted, return it
-            if player_state["observation_submitted"]:
-                room_choice = player_state["observation_choice"]
-                # Reset state for next interaction
-                player_state["observation_submitted"] = False
-                player_state["observation_choice"] = None
-                return room_choice
-            
-            st.header("Choose Observation Location")
-            st.write("Please select the room you wish to observe:")
-            
-            # Room selection
-            room_key = f"room_choice_{self.player.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            player_state["observation_choice"] = st.radio("Select a room:", map_list, key=room_key)
-            
-            # Submit button
-            if st.button("Confirm Observation", key=f"confirm_obs_{self.player.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"):
-                player_state["observation_submitted"] = True
-                st.success(f"Observation location confirmed: {player_state['observation_choice']}")
-            
-            # Wait for observation
-            time.sleep(0.1)
-            return self.choose_observation_location(map)
-        else:
-            print("Please select the room you wish to observe:")
-            for i, room in enumerate(map_list):
-                print(f"{i}: {room}")
-            while True:
-                try:
-                    index = int(input())
-                    if index < 0 or index >= len(map_list):
-                        print(f"Invalid input. Please enter a number between 0 and {len(map_list) - 1}.")
-                    else:
-                        return map_list[index]
-                except:
-                    print("Invalid input. Please enter a number.")
+        print("Please select the room you wish to observe:")
+        for i, room in enumerate(map_list):
+            print(f"{i}: {room}")
+        while True:
+            try:
+                index = int(input())
+                if index < 0 or index >= len(map_list):
+                    print(f"Invalid input. Please enter a number between 0 and {len(map_list) - 1}.")
+                else:
+                    return map_list[index]
+            except:
+                print("Invalid input. Please enter a number.")
 
     def log_interaction(self, sysprompt, prompt, original_response, step):
         """Log human player interactions similar to LLMAgent"""
@@ -593,25 +374,6 @@ class HumanAgent(Agent):
             f.flush()
 
         print(".", end="", flush=True)
-
-        if os.getenv("STREAMLIT") == "True":
-            if "game_updates" not in st.session_state:
-                st.session_state.game_updates = []
-            
-            message = f"Game {self.game_index} - Step {step}, {self.player.name} done."
-            st.session_state.game_updates.append(message)
-        
-            if "update_placeholder" in st.session_state and st.session_state.update_placeholder is not None:
-                if "update_counter" not in st.session_state:
-                    st.session_state.update_counter = 0
-                st.session_state.update_counter += 1
-                unique_key = f"live_updates_display_{st.session_state.update_counter}"
-                
-                with st.session_state.update_placeholder.container():
-                    st.subheader("Game Updates")
-                    updates_text = "\n".join([f"{msg}" for msg in st.session_state.game_updates])
-                    st.text_area("Game Updates", value=updates_text, height=150, key=unique_key, label_visibility="collapsed")
-
 
 class LLMHumanAgent(HumanAgent, LLMAgent):
     def __init__(self, player, tools=None, game_index=0, agent_config=None, list_of_impostors=None):
