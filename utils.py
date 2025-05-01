@@ -7,18 +7,18 @@ import os
 
 
 def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS):
-    """Set up experiment directory and files."""
+    """Set up experiment directory and files with an index-based system."""
     
     os.makedirs(LOGS_PATH, exist_ok=True)
 
-    if not experiment_name:
-        experiment_number = 0
-        while os.path.exists(os.path.join(LOGS_PATH, f"{DATE}_exp_{experiment_number}")):
-            experiment_number += 1
-        experiment_name = f"{DATE}_exp_{experiment_number}"
-    else:
-        experiment_name = f"{DATE}_{experiment_name}"
-
+    # Find the next available index for the current date
+    next_index = 0
+    while os.path.exists(os.path.join(LOGS_PATH, f"{DATE}_exp_{next_index}")):
+        next_index += 1
+    
+    # Create the experiment name with the next index
+    experiment_name = f"{DATE}_exp_{next_index}"
+    
     experiment_path = os.path.join(LOGS_PATH, experiment_name)
     os.makedirs(experiment_path, exist_ok=True)
     
@@ -34,8 +34,13 @@ def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS
         experiment_file.write(f"Commit: {COMMIT_HASH}\n")
         experiment_file.write(f"Experiment args: {DEFAULT_ARGS}\n")
         experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
+        experiment_file.write(f"Experiment index: {next_index}\n")
 
     os.environ["EXPERIMENT_PATH"] = experiment_path
+    os.environ["STREAMLIT"] = str(DEFAULT_ARGS["Streamlit"])
+    os.environ["EXPERIMENT_INDEX"] = str(next_index)
+    
+    return experiment_name
 
 def load_game_summary(filepath: str) -> pd.DataFrame:
     # Read each line of the JSONL file

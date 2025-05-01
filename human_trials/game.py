@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# usage: python game.py
 
 import os
 import sys
@@ -65,6 +64,7 @@ GAME_ARGS = {
         "CREWMATE_LLM_CHOICES": TESTING_MODELS,
     },
     "UI": False,
+    "Streamlit": False,  # Set to False for command line
     "tournament_style": "random",  # Default tournament style
 }
 
@@ -100,6 +100,12 @@ def get_next_game_index():
     if "EXPERIMENT_PATH" not in os.environ:
         # If not set, return default index of 1
         return 1
+        
+    # Check if EXPERIMENT_INDEX is set
+    if "EXPERIMENT_INDEX" in os.environ:
+        experiment_index = int(os.environ["EXPERIMENT_INDEX"])
+        print(f"Using experiment index: {experiment_index}")
+        return experiment_index
         
     experiment_file_path = os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt")
     
@@ -223,4 +229,4 @@ def main():
     print("Use the Flask app to interact with the game.")
 
 if __name__ == "__main__":
-    main() 
+    main()
