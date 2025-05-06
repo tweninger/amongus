@@ -91,7 +91,8 @@ class ActivationDataset(Dataset):
             return pickle.load(f)
 
     def get_train(self, chunk_idx: int = 0, batch_size: int = 32, shuffle: bool = True,
-                    num_workers: int = 0, pin_memory: bool = True, num_tokens: int = None,  keep_frac: float = 1.0) -> DataLoader:
+                    num_workers: int = 0, pin_memory: bool = True, num_tokens: int = None,  
+                    keep_frac: float = 1.0, get_val: bool = False) -> DataLoader:
         """
         Get train DataLoader for a specific chunk, taking specified number of tokens from each prompt
         
@@ -102,9 +103,11 @@ class ActivationDataset(Dataset):
             num_workers: Number of workers for DataLoader
             pin_memory: Whether to pin memory for DataLoader
             num_tokens: Number of tokens to take from end of each prompt. If None, take all tokens.
+            keep_frac: Fraction of data to keep (for subsampling)
+            get_val: If True, also return a validation DataLoader. If False, only return train DataLoader.
         """
         chunk_data = self.load_chunk(chunk_idx)
-        train_size = int(len(chunk_data) * (1 - self.test_split))
+        train_size = min(int(len(chunk_data) * (1 - self.test_split)), len(chunk_data) - 1)
         train_data = chunk_data[:train_size]
         
         # Take specified number of tokens from each prompt
@@ -124,7 +127,40 @@ class ActivationDataset(Dataset):
             pin_memory=pin_memory
         )
         
-        return train_loader
+        if not get_val:
+            return train_loader
+            
+        # Create validation set from remaining data
+        val_size = min(max(len(flat_data) // 2, 1), len(chunk_data) - train_size)
+        if val_size == 0:
+            return train_loader, None
+            
+        val_data = chunk_data[train_size:train_size + val_size]
+        print(f"Validation size: {val_size}")
+        val_flat_data = []
+        
+        # Keep trying until we get at least one sample
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            val_flat_data = []
+            for acts, label in val_data:
+                acts_to_use = acts[-num_tokens:] if num_tokens else acts
+                for act in acts_to_use:
+                    val_flat_data.append((act, label))
+            if val_flat_data:  # If we got at least one sample, break
+                break
+            if attempt == max_attempts - 1:  # If we've tried max_attempts times and still have no samples
+                return train_loader, None
+                
+        val_loader = DataLoader(
+            val_flat_data,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=pin_memory
+        )
+        
+        return train_loader, val_loader
 
     def get_test_acts(self, chunk_idx: int = 0, batch_size: int = 32, shuffle: bool = False,
                     num_workers: int = 0, pin_memory: bool = True) -> DataLoader:

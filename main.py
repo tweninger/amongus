@@ -41,7 +41,7 @@ BIG_LIST_OF_MODELS: List[str] = [
     "anthropic/claude-3.7-sonnet:thinking",
     "anthropic/claude-3.7-sonnet",
     "openai/o3",
-    "openai/o4-mini-high"
+    "openai/o4-mini-high",
     "openai/gpt-4o",
     "deepseek/deepseek-r1",
     "deepseek/deepseek-chat-v3-0324",

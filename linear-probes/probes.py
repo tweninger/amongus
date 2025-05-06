@@ -20,7 +20,7 @@ class LinearModel(nn.Module):
         return self.linear(x_normalized)
 
 class LinearProbe:
-    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.7, device='cpu', seed=42, verbose=False):
+    def __init__(self, input_dim, criterion=None, optimizer_cls=optim.Adam, lr=0.001, step_size=100, gamma=0.7, device='cpu', seed=42, verbose=False, weight_decay=1e-3):
         # Set seeds for reproducibility
         self.seed = seed
         self._set_seeds(seed)
@@ -28,7 +28,7 @@ class LinearProbe:
         self.device = device
         self.model = LinearModel(input_dim).to(self.device)
         self.criterion = criterion if criterion else nn.BCEWithLogitsLoss()
-        self.optimizer = optimizer_cls(self.model.parameters(), lr=lr, weight_decay=1e-3)  # L2 regularization
+        self.optimizer = optimizer_cls(self.model.parameters(), lr=lr, weight_decay=weight_decay)  # L2 regularization
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=gamma)
         self.train_accs = []
         self.verbose = verbose
@@ -124,3 +124,16 @@ class LinearProbe:
         if self.verbose:
             print(f"Final Train Acc: {self.train_accs[-1]:.4f}")
         return self.train_accs[-1]
+
+    def accuracy(self, val_loader: DataLoader):
+        self.model.eval()
+        total_correct, total_samples = 0, 0
+        
+        with t.no_grad():
+            for X_batch, y_batch in val_loader:
+                X_batch = X_batch.to(self.device, dtype=t.float32)
+                y_pred = self.model(X_batch).squeeze()
+                total_correct += ((y_pred > 0) == y_batch).sum().item()
+                total_samples += y_batch.size(0)
+        
+        return total_correct / total_samples
