@@ -10,6 +10,7 @@ import time
 import numpy as np
 import requests
 import asyncio
+import http.client
 from amongagents.agent.neutral_prompts import *
 
 # Set Flask environment variable to True by default
@@ -48,7 +49,7 @@ class LLMAgent(Agent):
                     personality=ImpostorPersonalities[player.personality]
                 )
             system_prompt += IMPOSTOR_EXAMPLE
-            system_prompt += f"List of impostors: {list_of_impostors}"
+            system_prompt += f"List of impostors: {list_of_impostors}"##### MAKE CONFIGURABLE #####
             model = random.choice(agent_config["IMPOSTOR_LLM_CHOICES"])
 
         self.system_prompt = system_prompt
@@ -103,6 +104,8 @@ class LLMAgent(Agent):
                 action = action_parts[1].strip()
                 return {"thought": thought, "action": action}
             return text
+
+        new_response = None
 
         # Parse the prompt
         if isinstance(prompt, str):
@@ -160,39 +163,84 @@ class LLMAgent(Agent):
         print(".", end="", flush=True)
 
     async def send_request(self, messages):
-        """Send a POST request to OpenRouter API with the provided messages."""
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": self.temperature,
-            "top_p": 1,
-            "frequency_penalty": 0,
-            "presence_penalty": 0,
-            "repetition_penalty": 1,
-            "top_k": 0,
-        }
-        
-        async with aiohttp.ClientSession() as session:
+        if self.model == "llama3.2:latest":
+            # JSON payload
+            payload = json.dumps({
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "top_p": 1,
+                "frequency_penalty": 0,
+                "presence_penalty": 0,
+                "repetition_penalty": 1,
+                "top_k": 0,
+                "stream": False
+            })
+
             for attempt in range(10):
                 try:
-                    async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
-                        if response is None:
-                            print(f"API request failed: response is None for {self.model}.")
-                            continue
-                        if response.status == 200:
-                            data = await response.json()
-                            if "choices" not in data:
-                                print(f"API request failed: 'choices' key not in response for {self.model}.")
-                                continue
-                            if not data["choices"]:
-                                print(f"API request failed: 'choices' key is empty in response for {self.model}.")
-                                continue
-                            return data["choices"][0]["message"]["content"]
+                    # Connect to local server (adjust port if different)
+                    conn = http.client.HTTPConnection("wl-gpu1.cse.nd.edu", 11434)
+                    headers = {
+                        "Content-Type": "application/json"
+                    }
+
+                    # Send request
+                    conn.request("POST", "/api/chat", body=payload, headers=headers)
+                    response = conn.getresponse()
+
+                    # Read and display result
+                    if response.status == 200:
+                        data = json.loads(response.read())
+                        #print(data)
+                        #if "choices" not in data:
+                        #    print(f"API request failed: 'choices' key not in response for {self.model}.")
+                        #    #print(data)
+                        #    continue
+                        #if not data["choices"]:
+                        #    print(f"API request failed: 'choices' key is empty in response for {self.model}.")
+                        #    continue
+                        return data#[0]["message"]["content"]#data["choices"][0]["message"]["content"]
+                    else:
+                        print(f"Request failed with status code {response.status}")
                 except Exception as e:
                     print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
                     continue
-            return 'SPEAK: ...'
+        else:
+            """Send a POST request to OpenRouter API with the provided messages."""
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            payload = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "top_p": 1,
+                "frequency_penalty": 0,
+                "presence_penalty": 0,
+                "repetition_penalty": 1,
+                "top_k": 0,
+            }
+        
+            async with aiohttp.ClientSession() as session:
+                for attempt in range(10):
+                    try:
+                        async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
+                            if response is None:
+                                print(f"API request failed: response is None for {self.model}.")
+                                continue
+                            if response.status == 200:
+                                data = await response.json()
+                                print("HELLO?")
+                                if "choices" not in data:
+                                    print(f"API request failed: 'choices' key not in response for {self.model}.")
+                                    continue
+                                if not data["choices"]:
+                                    print(f"API request failed: 'choices' key is empty in response for {self.model}.")
+                                    continue
+                                return data["choices"][0]["message"]["content"]
+                    except Exception as e:
+                        print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
+                        continue
+                return 'SPEAK: ...'
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -227,11 +275,13 @@ class LLMAgent(Agent):
         }
         
         response = await self.send_request(messages)
+        print("response: ", response)
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
         pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
-        match = re.search(pattern, response)
+        searchMessage = response['message']
+        match = re.search(pattern, searchMessage['content'])
         if match:
             memory = match.group(1).strip()
             summarization = match.group(3).strip()

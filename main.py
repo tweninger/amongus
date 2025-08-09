@@ -15,11 +15,12 @@ import datetime
 import subprocess
 
 from amongagents.envs.configs.agent_config import ALL_LLM
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, FIVE_MEMBER_GAME
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
+from amongagents.envs.configs.game_config import THREE_MEMBER_GAME, FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from dotenv import load_dotenv
+from amongagents.envs.configs.experiment_config import number_of_runs, crewmate_LLM_choice, imposter_LLM_choice, number_of_agents
 
 from utils import setup_experiment
 
@@ -56,10 +57,11 @@ BIG_LIST_OF_MODELS: List[str] = [
     "mistralai/mistral-small-3.1-24b-instruct",
     "x-ai/grok-3-beta",
     "microsoft/phi-4",
+    "llama3.2:latest",
 ]
 
 ARGS = {
-    "game_config": SEVEN_MEMBER_GAME,
+    "game_config": number_of_agents,
     "include_human": False,
     "test": False,
     "personality": False,
@@ -72,7 +74,7 @@ ARGS = {
     "UI": False,
 }
 
-async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
+async def multiple_games(experiment_name=None, num_games=4, rate_limit=50):
     experiment_name = setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, ARGS)
     ui = MapUI(BLANK_MAP_IMAGE, map_coords, debug=False) if ARGS["UI"] else None
     with open(os.path.join(os.environ["EXPERIMENT_PATH"], "experiment-details.txt"), "a") as experiment_file:
@@ -107,10 +109,10 @@ async def multiple_games(experiment_name=None, num_games=1, rate_limit=50):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run an AmongUs experiment.")
     parser.add_argument("--name", type=str, default=None, help="Optional name for the experiment.")
-    parser.add_argument("--num_games", type=int, default=2, help="Number of games to run.")
+    parser.add_argument("--num_games", type=int, default=number_of_runs, help="Number of games to run.")
     parser.add_argument("--display_ui", type=bool, default=False, help="Display UI.")
-    parser.add_argument("--crewmate_llm", type=str, default=None, help="Crewmate LLM model.")
-    parser.add_argument("--impostor_llm", type=str, default=None, help="Impostor LLM model.")
+    parser.add_argument("--crewmate_llm", type=str, default=crewmate_LLM_choice, help="Crewmate LLM model.")
+    parser.add_argument("--impostor_llm", type=str, default=imposter_LLM_choice, help="Impostor LLM model.")
     parser.add_argument("--streamlit", type=bool, default=False, help="Streamlit.")
     parser.add_argument("--tournament_style", type=str, default="random", help="random or 1on1.")
     args = parser.parse_args()

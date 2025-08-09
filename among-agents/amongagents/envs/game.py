@@ -19,11 +19,12 @@ from amongagents.envs.configs.agent_config import (
     CREWMATE_LLM,
     IMPOSTOR_LLM,
 )
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.configs.game_config import *
 from amongagents.envs.map import Map, Spaceship
 from amongagents.envs.player import PLAYER_COLORS, Crewmate, Impostor
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.tools import GetBestPath
+from amongagents.envs.configs.experiment_config import *
 
 # Set Flask environment variable to True by default
 if "FLASK" not in os.environ:
@@ -32,7 +33,7 @@ if "FLASK" not in os.environ:
 class AmongUs:
     def __init__(
         self,
-        game_config=SEVEN_MEMBER_GAME,
+        game_config=number_of_agents,
         include_human=False,
         test=False,
         personality=False,
@@ -169,10 +170,6 @@ class AmongUs:
             self.agents = []
             for i, player in enumerate(self.players):
                 if self.include_human and i == random_idx:
-<<<<<<< HEAD
-                    self.agents.append(HumanAgent(player))
-                    print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
-=======
                     # Create HumanAgent with game_id set to game_index
                     human_agent = HumanAgent(player, game_index=self.game_index)
                     # Set the game_id attribute to match the game_index
@@ -183,7 +180,6 @@ class AmongUs:
                     # Update max_steps for human agent
                     if hasattr(self.agents[-1], 'update_max_steps'):
                         self.agents[-1].update_max_steps(self.game_config.get("max_timesteps", 50))
->>>>>>> 0174da6c2c3d3921bdacd805e6a4b721e1205517
                 else:
                     self.agents.append(agent_dict[self.agent_config[player.identity]](player))
                     print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
