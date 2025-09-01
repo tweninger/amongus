@@ -250,6 +250,42 @@ class LLMAgent(Agent):
             {"role": "user", "content": prompt},
         ]
         return self.send_request(messages)
+    
+
+    def parse_flexible_sections(self, text):
+        sections = {"condensed memory": "", "thinking process": "", "action": ""}
+        current_section = None
+        buffer = []
+
+        def flush_buffer():
+            nonlocal current_section, buffer
+            if current_section:
+                sections[current_section] = "\n".join(buffer).strip()
+                buffer = []
+
+        # Flexible section header pattern
+        header_pattern = re.compile(
+            r'^\s*\[?\s*(condensed memory|thinking process|action)\s*\]?\s*(.*)$',
+            re.IGNORECASE
+        )
+
+        lines = text.strip().splitlines()
+
+        for line in lines:
+            match = header_pattern.match(line)
+            if match:
+                flush_buffer()
+                current_section = match.group(1).lower()
+                inline_content = match.group(2).strip()
+                buffer = [inline_content] if inline_content else []
+            else:
+                if current_section:
+                    buffer.append(line)
+
+        flush_buffer()
+        #print("SECTIONS: ", sections)
+        return sections
+
 
     async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
@@ -275,23 +311,78 @@ class LLMAgent(Agent):
         }
         
         response = await self.send_request(messages)
-        print("response: ", response)
+        #print("response: ", response)
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
-        pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
-        searchMessage = response['message']
-        match = re.search(pattern, searchMessage['content'])
-        if match:
-            memory = match.group(1).strip()
-            summarization = match.group(3).strip()
-            output_action = match.group(5).strip()
-            self.summarization = summarization
-            self.processed_memory = memory
-        else:
-            output_action = response.strip()
+        raw_message = response['message']
+
+        parsed_message = self.parse_flexible_sections(raw_message['content'])
+
+        memory = parsed_message['condensed memory']
+        summarization = parsed_message['thinking process']
+        output_action = parsed_message['action']
+
+        # pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
+        # searchMessage = response['message']
+        # match = re.search(pattern, searchMessage['content'])
+        # if match:
+        #     memory = match.group(1).strip()
+        #     summarization = match.group(3).strip()
+        #     output_action = match.group(5).strip()
+        #     self.summarization = summarization
+        #     self.processed_memory = memory
+        # else:
+        #     pattern = r"^Condensed Memory((.|\n)*)Thinking Process((.|\n)*)Action((.|\n)*)$"
+        #     match = re.search(pattern, searchMessage['content'])
+        #     if match:
+        #         memory = match.group(1).strip()
+        #         summarization = match.group(3).strip()
+        #         output_action = match.group(5).strip()
+        #         self.summarization = summarization
+        #         self.processed_memory = memory
+        #     else:
+        #         pattern = r"""
+        #             \[?\s*Condensed\s+Memory\s*\]?    # Match 'Condensed Memory' with optional brackets and spaces
+        #             (.*?)                             # Capture everything up to...
+        #             \[?\s*Thinking\s+Process\s*\]?    # Match 'Thinking Process' with optional brackets and spaces
+        #             (.*?)                             # Capture everything up to...
+        #             \[?\s*Action\s*\]?                # Match 'Action' with optional brackets and spaces
+        #             (.*)                              # Capture everything after 'Action'
+        #             """
+                
+        #         match = re.search(pattern, searchMessage['content'])
+        #     if match:
+        #         #memory = match.group(1).strip()
+        #         #summarization = match.group(3).strip()
+        #         output_action = match.group(5).strip()
+        #         self.summarization = summarization
+        #         self.processed_memory = memory
+        #     else:
+        #         pattern = r"^Action((.|\n)*)$"
+        #         match = re.search(pattern, searchMessage['content'])
+        #         if match:
+        #             #memory = match.group(1).strip()
+        #             #summarization = match.group(3).strip()
+        #             output_action = match.group(5).strip()
+        #             self.summarization = summarization
+        #             self.processed_memory = memory
+        #         else:
+        #             pattern = r"^SPEAK|KILL|VENT|MOVE((.|\n)*)$"
+        #             match = re.search(pattern, searchMessage['content'])
+        #             if match:
+        #                 #memory = match.group(1).strip()
+        #                 #summarization = match.group(3).strip()
+        #                 output_action = match.group(5).strip()
+        #                 self.summarization = summarization
+        #                 self.processed_memory = memory
+        #             else:
+        #                 print("HELP", searchMessage['content'])
+        #                 output_action = response.strip()
+        #                 print("WAIT? ", output_action)
 
         for action in available_actions:
+            #print("TRAVERSE:", action)
             if repr(action) in output_action:
                 return action
             elif "SPEAK: " in repr(action) and "SPEAK: " in output_action:

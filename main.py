@@ -6,9 +6,11 @@ import sys
 import asyncio
 import random
 
+import importlib.util
+
 from typing import Optional, List
 
-sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
+base_path = sys.path.append(os.path.join(os.path.abspath("."), "among-agents"))
 
 import argparse
 import datetime
@@ -18,7 +20,6 @@ from amongagents.envs.configs.agent_config import ALL_LLM
 from amongagents.envs.configs.map_config import map_coords
 from amongagents.envs.game import AmongUs
 from amongagents.UI.MapUI import MapUI
-from amongagents.envs.configs.game_config import THREE_MEMBER_GAME, FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from dotenv import load_dotenv
 from amongagents.envs.configs.experiment_config import number_of_runs, crewmate_LLM_choice, imposter_LLM_choice, number_of_agents
 

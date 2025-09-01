@@ -278,6 +278,7 @@ class AmongUs:
 
         # choose action
         action = await agent.choose_action(self.timestep)
+        #print(action)
         observation_location = ""
         if action.name == "ViewMonitor":
             observation_location = agent.choose_observation_location(
@@ -301,6 +302,7 @@ class AmongUs:
         elif self.current_phase == "meeting":
             await self.meeting_phase()
         self.timestep += 1
+        #print(self.timestep)
         print(f"|", end="", flush=True)
         # import pdb; pdb.set_trace() # waiting after each timestep
 
@@ -323,7 +325,7 @@ class AmongUs:
 
         # Discussion
         for round in range(self.game_config["discussion_rounds"]):
-            print("Discussion round", round)
+            #print("Discussion round", round)
             for agent in self.agents:
                 if 'homosapiens' in agent.model:
                     self.is_human_turn = True
@@ -336,7 +338,7 @@ class AmongUs:
             self.update_map()
 
         # Voting phase
-        print("Voting phase")
+        #print("Voting phase")
         self.vote_info_one_round = {}
         for agent in self.agents:
             if 'homosapiens' in agent.model:
