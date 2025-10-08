@@ -12,7 +12,7 @@ The aim is to simulate the popular multiplayer game "Among Us" using AI agents a
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/7vik/AmongUs.git
+   git clone 
    cd AmongUs
    ```
 
