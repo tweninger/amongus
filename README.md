@@ -12,7 +12,7 @@ The aim is to simulate the popular multiplayer game "Among Us" using AI agents a
 
 1. Clone the repository:
    ```bash
-   git clone 
+   git clone XXXX
    cd AmongUs
    ```
 
@@ -35,8 +35,7 @@ To run the sandbox and log games of various LLMs playing against each other, run
 main.py
 ```
 You will need to add a `.env` file with an [OpenRouter](https://openrouter.ai/) API key.
-
-Alternatively, you can download 400 full-game logs (for `Phi-4-15b` and `Llama-3.3-70b-instruct`) and 810 game summaries from the [HuggingFace](https://huggingface.co/datasets/7vik/AmongUs) dataset to reproduce the results in the paper (and evaluate your own techniques!).
+Or, you can run using only a local llamam - configure in among-agents/amongagents/envs/configs/experiment_config.py
 
 ## Deception ELO
 
@@ -67,7 +66,6 @@ bash evaluations/run_evals.sh
 ```
 You will need to add a `.env` file with an OpenAI API key.
 
-Alternatively, you can download the ground truth labels from the [HuggingFace](https://huggingface.co/datasets/7vik/AmongUs).
 
 (TODO)
 
@@ -125,17 +123,5 @@ You will need to add a `.env` file with a Goodfire API key.
 ├── tests                    # Unit tests for project functionality
 └── utils.py                 # Utility functions
 ```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
-
-## License
-
-This project is licensed under CC0 1.0 Universal - see [LICENSE](LICENSE).
-
-## Acknowledgments
-
-- Our game logic uses a bunch of code from [AmongAgents](https://github.com/cyzus/among-agents).
 
 
