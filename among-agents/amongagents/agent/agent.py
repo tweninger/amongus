@@ -56,6 +56,7 @@ class LLMAgent(Agent):
         self.model = model
         self.temperature = 0.7
         self.api_key = os.getenv("OPENROUTER_API_KEY")
+        #self.api_url = "http://localhost:11434/v1/chat/completions"
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.summarization = "No thought process has been made."
         self.processed_memory = "No memory has been processed."
@@ -180,7 +181,8 @@ class LLMAgent(Agent):
             for attempt in range(10):
                 try:
                     # Connect to local server (adjust port if different)
-                    conn = http.client.HTTPConnection("wl-gpu1.cse.nd.edu", 11434)
+                    #conn = http.client.HTTPConnection("wl-gpu1.cse.nd.edu", 11434)
+                    conn = http.client.HTTPConnection("127.0.0.1", 11434)
                     headers = {
                         "Content-Type": "application/json"
                     }

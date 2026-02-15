@@ -1,31 +1,45 @@
-#!/usr/bin/env python3
-
 import os
 import sys
-import asyncio
-import json
-from typing import Dict, Optional, Any, List
-import uuid
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import uvicorn
+import random # just for proof of concept
+import networkx as nx
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
-sys.path.append(os.path.abspath(".."))
+research_path = "/root/AmongUs/among-agents"
+if research_path not in sys.path:
+    sys.path.append(research_path)
+    
+from amongagents.envs.configs.map_config import room_data, connections, vent_connections
+# Construct the map of Skeld for play
+class Map:
+    def __init__(self):
+        self.ship_map = nx.Graph()
+        
+        for room_name, details in room_data.items():
+            self.ship_map.add_node(room_name, **details)
 
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, THREE_MEMBER_GAME
-from amongagents.envs.game import AmongUs
-from amongagents.agent.agent import HumanAgent, human_action_futures
-from dotenv import load_dotenv
+        for room1, room2 in connections:
+            self.ship_map.add_edge(room1, room2, connection_type="corridor")
 
-from utils import setup_experiment
-from config import CONFIG, DEFAULT_GAME_ARGS
-from run import RunGames
+        for room1, room2 in vent_connections:
+            self.ship_map.add_edge(room1, room2, connection_type="vent")
 
-app = FastAPI(title="Among Us Game Server")
+    # Given room, get connected rooms by corridor
+    def get_adjacent_rooms(self, room_name):
+        if room_name not in self.ship_map:
+            return []
+        return [
+            adj for adj, attr in self.ship_map[room_name].items()
+            # Can be accessed by all
+            if attr["connection_type"] == "corridor"
+        ]
+skeld = Map()
+app = FastAPI()
 
+# Security and setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,275 +48,104 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-load_dotenv()
+# File Paths
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_path = os.path.join(current_dir, "static")
+# /static -> static_path folder
+app.mount("/static", StaticFiles(directory=static_path), name="static")
 
-# Create a singleton instance of RunGames
-run_games = None
+# Init default game state 
+game_state = {
+    "player_name": "Unknown",
+    "status": "Lobby",
+    "current_room": "Cafeteria",
+    "timestep": 0
+}
 
-def get_run_games():
-    global run_games
-    if run_games is None:
-        run_games = RunGames()
-    return run_games
-
-# Global variables
-active_games = {}
-running_games = set()
-
-game_tasks: Dict[int, asyncio.Task] = {}
-
-class GameStartRequest(BaseModel):
-    game_config: str = "FIVE_MEMBER_GAME"
-    include_human: bool = True
-    tournament_style: str = "random"
-    impostor_model: Optional[str] = None
-    crewmate_model: Optional[str] = None
-
-class HumanActionRequest(BaseModel):
-    action_index: int
-    message: Optional[str] = None
-    condensed_memory: Optional[str] = ""
-    thinking_process: Optional[str] = ""
-
-def get_game_config_by_name(name: str) -> Optional[Dict]:
-    if name == "FIVE_MEMBER_GAME":
-        return FIVE_MEMBER_GAME
-    elif name == "SEVEN_MEMBER_GAME":
-        return SEVEN_MEMBER_GAME
-    elif name == "THREE_MEMBER_GAME":
-        return THREE_MEMBER_GAME
-    return None
-
-def get_human_player(game: AmongUs) -> Optional[tuple[HumanAgent, int]]:
-    if not hasattr(game, 'players'):
-        return None
-    for i, agent in enumerate(game.agents):
-        if isinstance(agent, HumanAgent):
-            return agent, i
-    return None
-
-async def run_game_background(game_id: int):
-    if game_id not in active_games:
-        print(f"[Server] Error: Game {game_id} not found for background run.")
-        return
-
-    game_info = active_games[game_id]
-    game = game_info["game"]
-    
-    try:
-        print(f"[Server] Starting background task for game {game_id}.")
-        running_games.add(game_id)  # Add to running games set
-        await game.run_game()
-        game_info["status"] = "completed"
-        print(f"[Server] Game {game_id} completed successfully.")
-        game_info["results"] = game.summary_json if hasattr(game, "summary_json") else {}
-    except asyncio.CancelledError:
-        game_info["status"] = "cancelled"
-        print(f"[Server] Game {game_id} task was cancelled.")
-    except Exception as e:
-        game_info["status"] = "error"
-        game_info["error_message"] = str(e)
-        print(f"[Server] Error running game {game_id}: {e}")
-    finally:
-        running_games.discard(game_id)  # Remove from running games set
-        if game_id in game_tasks:
-            del game_tasks[game_id]
-        print(f"[Server] Background task for game {game_id} finished.")
-
+# Index
 @app.get("/")
-async def serve_index():
-    return FileResponse("game.html")
+async def serve_game():
+    return FileResponse("templates/game.html")
 
-@app.post("/api/start_game")
-async def start_game(request: GameStartRequest):
-    try:
-        custom_args = DEFAULT_GAME_ARGS.copy()
-        custom_args["agent_config"] = custom_args["agent_config"].copy()
+# Receive player name from frontend, updates global game state, and returns initialized state to session.
+@app.post("/api/join")
+async def join_game(request: Request):
+    data = await request.json()
+    player_name = data.get("name", "Player 1")
 
-        game_config = get_game_config_by_name(request.game_config)
-        if not game_config:
-            raise HTTPException(status_code=400, detail=f"Invalid game_config name: {request.game_config}")
-        
-        custom_args["game_config"] = game_config
-        custom_args["include_human"] = request.include_human
-        custom_args["tournament_style"] = request.tournament_style
-        
-        if request.impostor_model:
-            custom_args["agent_config"]["IMPOSTOR_LLM_CHOICES"] = [request.impostor_model]
-        if request.crewmate_model:
-            custom_args["agent_config"]["CREWMATE_LLM_CHOICES"] = [request.crewmate_model]
+    # Init game state 
+    game_state["player_name"] = player_name 
+    game_state["status"] = "Ready"
+    print(f"{player_name} has entered the lobby")
 
-        game_id = get_run_games().get_next_game_id()
-        game = get_run_games().create_game(game_id=game_id, custom_args=custom_args)
-        
-        active_games[game_id] = {
-            "game": game,
-            "config": custom_args,
-            "status": "created",
-            "error_message": None,
-            "results": None
-        }
-        
-        response_config = {
-            "game_config": request.game_config,
-            "include_human": custom_args["include_human"],
-            "tournament_style": custom_args["tournament_style"],
-            "impostor_model": custom_args["agent_config"]["IMPOSTOR_LLM_CHOICES"][0] if custom_args["agent_config"]["IMPOSTOR_LLM_CHOICES"] else "Default",
-            "crewmate_model": custom_args["agent_config"]["CREWMATE_LLM_CHOICES"][0] if custom_args["agent_config"]["CREWMATE_LLM_CHOICES"] else "Default"
-        }
+    return game_state
 
-        print(f"[Server] Game {game_id} created successfully.")
-
-        return {"game_id": game_id, "status": "created", "config": response_config}
-    
-    except Exception as e:
-        print(f"[Server] Error in start_game: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/run_game/{game_id}")
-async def run_game_endpoint(game_id: int, background_tasks: BackgroundTasks):
-    if game_id not in active_games:
-        raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
-    
-    game_info = active_games[game_id]
-    if game_info["status"] not in ["created", "error"]:
-        raise HTTPException(status_code=400, detail=f"Game {game_id} is already {game_info['status']}")
-    
-    if game_id in game_tasks and not game_tasks[game_id].done():
-        raise HTTPException(status_code=400, detail=f"Game {game_id} background task is already running.")
-
-    game_info["status"] = "running"
-    game_info["error_message"] = None
-    
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    game_tasks[game_id] = loop.create_task(run_game_background(game_id))
-    
-    print(f"[Server] Queued background task for game {game_id}.")
-    return {"game_id": game_id, "status": "running"}
-
-@app.get("/api/game/{game_id}/state")
-async def get_game_state(game_id: int):
-    if game_id not in active_games:
-        raise HTTPException(status_code=404, detail="Game not found")
-    
-    game = active_games[game_id]["game"]
-    human_player_result = get_human_player(game)
-    
-    # Initialize state object
-    state = {
-        "timestep": game.timestep,
-        "current_phase": game.current_phase,
-        "is_human_turn": game.is_human_turn,
-        "available_actions": [],
-        "status": "running" if game_id in running_games else "waiting",
-        "max_timesteps": game.game_config.get("max_timesteps", 50)  # Add max_timesteps from game config
+# Proof of concept for getting status
+# Returns something for now
+@app.get("/api/status")
+async def get_status():
+    events = [
+        "Blue is moving to Navigations",
+        "Red is doing tasks in Electrical",
+        "Yellow is standing in the Cafeteria",
+        "Green just entered the Security room"
+    ]
+    return {
+        "status": game_state["status"],
+        "event": random.choice(events)
     }
-    
-    # Add human-specific information if it's their turn
-    if game.is_human_turn and human_player_result is not None:
-        human_agent, human_index = human_player_result
-        human_state = human_agent.get_current_state_for_web()
-        state.update(human_state)
-    else:
-        # If it's not the human's turn, ensure is_human_turn is False
-        state["is_human_turn"] = False
-        
-        # Set the current player name if available
-        if hasattr(game, 'current_player') and game.current_player is not None:
-            state["current_player"] = game.current_player
-        elif hasattr(game, 'current_player_index') and game.current_player_index is not None:
-            # Try to get the player name from the current_player_index
-            if hasattr(game, 'players') and 0 <= game.current_player_index < len(game.players):
-                state["current_player"] = game.players[game.current_player_index].name
-        
-        # Check if the current player is the human player
-        if human_player_result is not None:
-            human_agent, human_index = human_player_result
-            current_player_name = state.get("current_player", "")
-            human_player_name = human_agent.player.name
-            
-            # If the current player is the human player, include their available actions
-            if current_player_name == human_player_name:
-                # Get the available actions for the human player
-                human_agent.current_available_actions = human_agent.player.get_available_actions()
-                human_state = human_agent.get_current_state_for_web()
-                
-                # Update the state with the human player's available actions
-                state["available_actions"] = human_state.get("available_actions", [])
-                state["player_info"] = human_state.get("player_info", "")
-                state["condensed_memory"] = human_state.get("condensed_memory", "")
-    
-    return state
 
-@app.get("/api/game/{game_id}/human_info")
-async def get_human_player_info(game_id: int):
-    if game_id not in active_games:
-        raise HTTPException(status_code=404, detail="Game not found")
-    
-    game = active_games[game_id]["game"]
-    human_player_result = get_human_player(game)
-    
-    if human_player_result is None:
-        raise HTTPException(status_code=404, detail="No human player found in this game")
-    
-    human_agent, human_index = human_player_result
-    
-    # Get the human player information
-    response = {
-        "human_index": human_index,
-        "player_name": human_agent.player.name,
-        "player_color": human_agent.player.color,
-        "player_identity": human_agent.player.identity
+# Get current room, connected rooms, and current tasks available
+@app.get("/api/room-context")
+async def get_room_context():
+    # Get current room of player
+    current_room = game_state["current_room"]
+
+    # Get possible moves
+    possible_moves = skeld.get_adjacent_rooms(current_room)
+
+    current_tasks = room_data[current_room]["tasks"]
+
+    return {
+        "current_room": current_room,
+        "adjacent": possible_moves,
+        "tasks": current_tasks,
+        "timestep": game_state["timestep"]
     }
-    
-    return response
 
-@app.post("/api/game/{game_id}/action")
-async def submit_human_action(game_id: int, action: HumanActionRequest):
-    if game_id not in active_games:
-        raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
+# Handles moving
+@app.post("/api/move")
+async def move_player(request: Request):
+    data = await request.json()
+    new_room = data.get("destination")
     
-    print(f"[Server] Received action submission for game {game_id}")
-    print(f"[Server] Action index: {action.action_index}, Message: {action.message}")
-    print(f"[Server] Available futures: {list(human_action_futures.keys())}")
+    # Update the master state
+    game_state["current_room"] = new_room
+    game_state["timestep"] += 1 # Moving takes a timestep
+
     
-    if game_id not in human_action_futures:
-        print(f"[Server] Error: No future found for game {game_id}")
-        return HTTPException(status_code=400, detail=f"Not currently waiting for human action in game {game_id}")
-        
-    future = human_action_futures[game_id]
-    if future.done():
-        print(f"[Server] Error: Future for game {game_id} is already done")
-        return HTTPException(status_code=400, detail=f"Not currently waiting for human action in game {game_id}")
-        
-    try:
-        print(f"[Server] Setting result for game {game_id}")
-        action_data = {
-            "action_index": action.action_index,
-            "message": action.message,
-            "condensed_memory": action.condensed_memory,
-            "thinking_process": action.thinking_process
-        }
-        future.set_result(action_data)
-        return {"status": "success"}
-    except Exception as e:
-        print(f"[Server] Error setting result for game {game_id}: {str(e)}")
-        try:
-            loop = asyncio.get_running_loop()
-            loop.call_soon_threadsafe(future.cancel)
-        except Exception as cancel_e:
-            print(f"[Server] Error cancelling future for game {game_id}: {cancel_e}")
-        raise HTTPException(status_code=500, detail=f"Failed to submit action: {e}")
+    # Return the new list of where they can go next
+    return {
+        "status": "success",
+        "current_room": new_room,
+        "adjacent": skeld.get_adjacent_rooms(new_room),
+        "timestep": game_state["timestep"]
+    }
+
+# Handles performing a task
+@app.post("/api/do-task")
+async def do_task(request: Request):
+    data = await request.json()
+    task_name = data.get("task")
+
+    game_state["timestep"] += 1 # Performing a task takes a timestep
+
+    message = f"{game_state['player_name']} completed {task_name}"
+    return {
+        "status": "success",
+        "message": message,
+        "timestep": game_state["timestep"]
+    }
 
 if __name__ == "__main__":
-    import logging
-    log = logging.getLogger('uvicorn')
-    log.setLevel(logging.ERROR)
-    
-    print("Starting Among Us FastAPI Server...")
-    uvicorn.run("server:app", host='0.0.0.0', port=3000, reload=True, log_level="error", access_log=False)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
