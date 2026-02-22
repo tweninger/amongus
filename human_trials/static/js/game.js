@@ -1,3 +1,21 @@
+// For map rendering
+const roomCoordinates = {
+    "cafeteria": { top: 30, left: 50 },
+    "weapons": { top: 25, left: 75 },
+    "navigation": { top: 45, left: 88 },
+    "o2": { top: 42, left: 68 },
+    "shields": { top: 75, left: 75 },
+    "communication": { top: 85, left: 65 },
+    "communications": { top: 85, left: 65 },
+    "admin": { top: 60, left: 65 },
+    "storage": { top: 75, left: 50 },
+    "electrical": { top: 60, left: 35 },
+    "lower engine": { top: 75, left: 20 },
+    "reactor": { top: 50, left: 10 },
+    "security": { top: 50, left: 28 },
+    "upper engine": { top: 25, left: 20 },
+    "medbay": { top: 35, left: 35 }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const startBtn = document.getElementById('start-btn');
@@ -88,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gameLog.scrollTop = gameLog.scrollHeight;
 
             refreshRoomContext();
+            updateMapUI();
         } 
         catch (error) {
             console.error("Status check failed", error);
@@ -179,4 +198,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Fetch map state and overlay charcter png onto skeld map
+    async function updateMapUI() {
+        try {
+            const response = await fetch('/api/map-state');
+            const data = await response.json();
+            
+            if (data.error) return; 
+
+            const playerLayer = document.getElementById('player-layer');
+
+            // Reset the board
+            playerLayer.innerHTML = '';
+
+            data.players.forEach(player => {
+                // Adjusted for casing
+                const safeLocation = player.location.toLowerCase().trim();
+                const coords = roomCoordinates[safeLocation];
+                
+                // Slightly displace pngs randomly everytime so we can see overlap
+                if (coords) {
+                    const jitterX = (Math.random() * 4) - 3;
+                    const jitterY = (Math.random() * 4) - 3;
+
+                    const img = document.createElement('img');
+                    img.src = `/static/assets/player_${player.color}.png`;
+                    
+                    img.style.position = 'absolute';
+                    img.style.top = `${coords.top + jitterY}%`;
+                    img.style.left = `${coords.left + jitterX}%`;
+                    img.style.transform = 'translate(-50%, -50%)';
+                    img.style.width = '35px';
+                    img.style.zIndex = '10';
+                    
+                    // Text hover
+                    img.title = `${player.name} (${player.location})`;
+
+                    playerLayer.appendChild(img);
+                }
+                else {
+                    console.warn(`Failed to get map coordinates: ${player.location}`);
+                }
+            });
+        }
+        catch (error) {
+            console.error("Failed to update map:", error);
+        }
+    }
 });
