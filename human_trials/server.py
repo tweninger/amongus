@@ -1,8 +1,9 @@
 import os
 import sys
 import uvicorn
-import random # just for proof of concept
 import networkx as nx
+import re
+import json
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,8 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 research_path = "/root/AmongUs/among-agents"
 if research_path not in sys.path:
     sys.path.append(research_path)
-    
+
+from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
+from amongagents.envs.configs.game_config import THREE_MEMBER_GAME
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Construct the map of Skeld for play
 class Map:
     def __init__(self):
@@ -55,96 +62,125 @@ static_path = os.path.join(current_dir, "static")
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Init default game state 
-game_state = {
-    "player_name": "Unknown",
-    "status": "Lobby",
-    "current_room": "Cafeteria",
-    "timestep": 0
-}
+game_instance = None
 
 # Index
 @app.get("/")
 async def serve_game():
     return FileResponse("templates/game.html")
 
-# Receive player name from frontend, updates global game state, and returns initialized state to session.
+# Receive player name from frontend, initiate global game instance, and return state to session
 @app.post("/api/join")
 async def join_game(request: Request):
+    global game_instance
     data = await request.json()
-    player_name = data.get("name", "Player 1")
+    player_name = data.get("name", "Researcher")
 
-    # Init game state 
-    game_state["player_name"] = player_name 
-    game_state["status"] = "Ready"
-    print(f"{player_name} has entered the lobby")
+    # Correct path setup
+    log_dir = os.path.join(os.getcwd(), "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    os.environ["EXPERIMENT_PATH"] = log_dir
 
-    return game_state
+    game_instance = AmongUs(
+        game_config=THREE_MEMBER_GAME,
+        agent_config={
+            "Impostor": "LLM", 
+            "Crewmate": "LLM",
+            "IMPOSTOR_LLM_CHOICES": ["google/gemini-2.0-flash-001"], 
+            "CREWMATE_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
+        }
+    )
+    game_instance.initialize_game()
+    game_instance.agents[0].name = player_name
 
-# Proof of concept for getting status
-# Returns something for now
+    return {
+        "player_name": player_name,
+        "current_room": game_instance.agents[0].player.location,
+        "timestep": game_instance.timestep
+    }
+
 @app.get("/api/status")
 async def get_status():
-    events = [
-        "Blue is moving to Navigations",
-        "Red is doing tasks in Electrical",
-        "Yellow is standing in the Cafeteria",
-        "Green just entered the Security room"
-    ]
-    return {
-        "status": game_state["status"],
-        "event": random.choice(events)
-    }
+    global game_instance
+    if not game_instance:
+        return {"event": "Game not initialized"}
+
+    try:
+        await game_instance.game_step() 
+        
+
+        if game_instance.activity_log:
+            last_log = str(game_instance.activity_log[-1]) 
+        else:
+            last_log = "Turn complete"
+
+        return {
+            "status": "Active",
+            "event": last_log,
+            "timestep": game_instance.timestep
+        }
+    except Exception as e:
+        print(f"STATUS ERROR: {e}")
+        return {"status": "Error", "event": str(e)}
 
 # Get current room, connected rooms, and current tasks available
 @app.get("/api/room-context")
 async def get_room_context():
-    # Get current room of player
-    current_room = game_state["current_room"]
+    global game_instance
+    if not game_instance:
+        return {"error": "Game not initialized"}
 
-    # Get possible moves
+    current_room = game_instance.agents[0].player.location
+
+    # Get possible moves from the map logic
     possible_moves = skeld.get_adjacent_rooms(current_room)
 
-    current_tasks = room_data[current_room]["tasks"]
+    # Get tasks for this room
+    current_tasks = room_data.get(current_room, {}).get("tasks", [])
 
     return {
         "current_room": current_room,
         "adjacent": possible_moves,
         "tasks": current_tasks,
-        "timestep": game_state["timestep"]
+        "timestep": game_instance.timestep
     }
 
 # Handles moving
 @app.post("/api/move")
 async def move_player(request: Request):
+    global game_instance
     data = await request.json()
     new_room = data.get("destination")
     
-    # Update the master state
-    game_state["current_room"] = new_room
-    game_state["timestep"] += 1 # Moving takes a timestep
+    if game_instance:
+        game_instance.agents[0].player.location = new_room
+        game_instance.timestep += 1
+        game_instance.activity_log.append(f"{game_instance.agents[0].name} moved to {new_room}")
 
-    
-    # Return the new list of where they can go next
     return {
         "status": "success",
         "current_room": new_room,
-        "adjacent": skeld.get_adjacent_rooms(new_room),
-        "timestep": game_state["timestep"]
+        "timestep": game_instance.timestep
     }
 
 # Handles performing a task
 @app.post("/api/do-task")
 async def do_task(request: Request):
+    global game_instance
     data = await request.json()
     task_name = data.get("task")
 
-    game_state["timestep"] += 1 # Performing a task takes a timestep
+    # Increment timestep
+    game_instance.timestep += 1
 
-    message = f"{game_state['player_name']} completed {task_name}"
+    human_name = game_instance.agents[0].name
+    message = f"{human_name} completed {task_name}"
+    # Record logs so AI can see it.
+    game_instance.activity_log.append(f"Step {game_instance.timestep}: {message}")
     return {
         "status": "success",
         "message": message,
-        "timestep": game_state["timestep"]
+        "timestep": game_instance.timestep
     }
 
 if __name__ == "__main__":
