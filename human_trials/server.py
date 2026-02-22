@@ -2,8 +2,6 @@ import os
 import sys
 import uvicorn
 import networkx as nx
-import re
-import json
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -122,6 +120,37 @@ async def get_status():
     except Exception as e:
         print(f"STATUS ERROR: {e}")
         return {"status": "Error", "event": str(e)}
+
+
+@app.get("/api/map-state")
+async def get_map_state():
+    global game_instance
+    if not game_instance:
+        return {"error": "Game not initialized"}
+
+    player_locations = []
+
+    # Get human player if exists
+    all_players = []
+    if hasattr(game_instance, 'human_player'):
+        all_players.append(game_instance.human_player)
+
+    # Add AI players
+    for agent in game_instance.agents:
+        all_players.append(agent.player)
+
+    # Build locations list
+    for player in all_players:
+        # Ex: "Player 2: red" -> "red"
+        color = player.name.split()[-1].lower() 
+        
+        player_locations.append({
+            "name": player.name,
+            "color": color,
+            "location": player.location
+        })
+
+    return {"players": player_locations}
 
 # Get current room, connected rooms, and current tasks available
 @app.get("/api/room-context")
