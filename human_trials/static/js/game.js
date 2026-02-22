@@ -77,21 +77,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Handles the "Check Simulation Status Button"
-    pingBtn.addEventListener('click', async () =>{
-        try{
+     pingBtn.addEventListener('click', async () => {
+        pingBtn.innerText = "AIs are thinking..."; // Visual feedback
+        try {
             const response = await fetch('/api/status');
             const data = await response.json();
-            const gameLog = document.getElementById('game-log');
-            if (gameLog){
-                const time = new Date().toLocaleDateString();
-                gameLog.innerHTML += `<p>[${time}] -- ${data.event}</p>`
-                gameLog.scrollTop = gameLog.scrollHeight;
-            }
+            
+            // add to log some event
+            gameLog.innerHTML += `<p class="text-warning">> ${data.event}</p>`;
+            gameLog.scrollTop = gameLog.scrollHeight;
+
+            refreshRoomContext();
+        } 
+        catch (error) {
+            console.error("Status check failed", error);
         }
-        catch(error){
-            console.error("Could not get status:", error);
+        finally {
+            pingBtn.innerText = "Check Simulation Status";
         }
-    })
+    });
 
    // Fetch and update room context (movement options and tasks available)
    async function refreshRoomContext() {
@@ -138,13 +142,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (response.ok) {
             // Refresh the buttons for the new room
-            const data = await response.json();
             refreshRoomContext();
+
+            const data = await response.json();
             
             // Update the log so the researcher can see the move
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] Moved to ${destination}</p>`;
             log.scrollTop = log.scrollHeight;
+
+            await refreshRoomContext();
         }
     }
 
@@ -167,6 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('step-counter').innerText = data.timestep;
             
             log.scrollTop = log.scrollHeight;
+
+            await refreshRoomContext();
         }
     }
 
