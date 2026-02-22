@@ -231,7 +231,7 @@ class LLMAgent(Agent):
                                 continue
                             if response.status == 200:
                                 data = await response.json()
-                                print("HELLO?")
+                                # print("HELLO?")
                                 if "choices" not in data:
                                     print(f"API request failed: 'choices' key not in response for {self.model}.")
                                     continue
@@ -316,7 +316,6 @@ class LLMAgent(Agent):
         }
         
         response = await self.send_request(messages)
-        #print("response: ", response)
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
@@ -326,6 +325,14 @@ class LLMAgent(Agent):
         else:
             raw_message_text = str(response)
 
+        ai_role = getattr(self.player, 'identity', 'Unknown')
+        if not isinstance(ai_role, str):
+            ai_role = getattr(self, 'identity', 'Unknown')
+
+        print("\n" + "="*50)
+        print(f"AI THOUGHTS: {self.player.name} ({ai_role})")
+        print(raw_message_text)
+        print("="*50 + "\n")
         parsed_message = self.parse_flexible_sections(raw_message_text)
 
         # Update agent state
