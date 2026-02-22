@@ -239,10 +239,13 @@ class LLMAgent(Agent):
                                     print(f"API request failed: 'choices' key is empty in response for {self.model}.")
                                     continue
                                 return data["choices"][0]["message"]["content"]
+                            else:
+                                error_details = await response.text()
+                                print(f"LLM API Failure ({response.status}): {error_details}")
+                                continue
                     except Exception as e:
-                        print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
                         continue
-                return 'SPEAK: ...'
+                return {"content": "SPEAK: The AI connection failed after 10 attempts."}
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -317,13 +320,19 @@ class LLMAgent(Agent):
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
-        raw_message = response['message']
+        # Standardize response to a str
+        if isinstance(response, dict):
+            raw_message_text = response.get('content', str(response))
+        else:
+            raw_message_text = str(response)
 
-        parsed_message = self.parse_flexible_sections(raw_message['content'])
+        parsed_message = self.parse_flexible_sections(raw_message_text)
 
-        memory = parsed_message['condensed memory']
-        summarization = parsed_message['thinking process']
-        output_action = parsed_message['action']
+        # Update agent state
+        # Use get with fallbacks to avoid key errors
+        self.processed_memory = parsed_message.get('condensed memory', 'No memory.')
+        self.summarization = parsed_message.get('thinking process', 'No thought.')
+        output_action = parsed_message.get('action', 'SPEAK: ...')
 
         # pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
         # searchMessage = response['message']
