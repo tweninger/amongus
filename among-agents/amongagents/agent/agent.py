@@ -330,7 +330,7 @@ class LLMAgent(Agent):
             ai_role = getattr(self, 'identity', 'Unknown')
 
         print("\n" + "="*50)
-        print(f"AI THOUGHTS: {self.player.name} ({ai_role})")
+        print(f"AI THOUGHTS - {self.player.name} ({ai_role})")
         print(raw_message_text)
         print("="*50 + "\n")
         parsed_message = self.parse_flexible_sections(raw_message_text)
