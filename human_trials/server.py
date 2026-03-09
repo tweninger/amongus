@@ -7,7 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-research_path = "/root/AmongUs/among-agents"
+current_dir = os.path.dirname(os.path.abspath(__file__))
+research_path = os.path.abspath(os.path.join(current_dir, "..", "among-agents"))
+
 if research_path not in sys.path:
     sys.path.append(research_path)
 
