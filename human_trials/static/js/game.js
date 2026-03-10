@@ -1,4 +1,7 @@
-// For map rendering
+// game.js
+
+// Map string name of room to the X/Y coordinates of skeld.png
+// Used to overlay character imgs
 const roomCoordinates = {
     "cafeteria": { top: 30, left: 50 },
     "weapons": { top: 25, left: 75 },
@@ -20,40 +23,26 @@ const roomCoordinates = {
 document.addEventListener('DOMContentLoaded', () => {
     const startBtn = document.getElementById('start-btn');
     const playerNameInput = document.getElementById('player-name');
+    const playerCountDisplay = document.getElementById('player-count-display');
     const lobbyScreen = document.getElementById('lobby-screen');
     const gameScreen = document.getElementById('game-screen');
     const gameLog = document.getElementById('game-log');
     const userDisplay = document.getElementById('user-display');
     const phaseDisplay = document.getElementById('current-phase');
     const pingBtn = document.getElementById('ping-btn')
-    const aiCount = document.getElementById('ai-count-display');
-    const humanToggle = document.getElementById('human-toggle')
 
-    // Constructs game size selector buttons
-
-    // Put all #count-selectors in a list
+    // Grab 3, 5, and 7 player buttons
     const sizeButtons = document.querySelectorAll('#count-selector .btn');
     
-
+    // Update the text on webpage when a new size is clicked
     const updatePlayerCountDisplay = () => {
-        // Current num players clicked
-        const activeBtn = document.querySelector('#count-selector .btn.active')
-
-        const totalCount = parseInt(activeBtn.innerText);
-
-        if (humanToggle.checked){
-            const aiPlayerCount = totalCount - 1;
-            aiCount.innerText = `Current Setup: 1 Human, ${aiPlayerCount} AI Players`;
-        }
-        else{
-            aiCount.innerText = `Current Setup: ${totalCount} AI Players`;
-        }
+        const activeBtn = document.querySelector('#count-selector .btn.active');
+        const totalPlayerCount = parseInt(activeBtn.innerText);
+        playerCountDisplay.innerText = `Current Setup ${totalPlayerCount} Players`;
+        
     };
 
-    // Listens for toggle or player count selector
-    humanToggle.addEventListener('change', updatePlayerCountDisplay);
-
-    // Update when a size button is clicked
+    // Update highlighted size (player count) button when clicked
     sizeButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             sizeButtons.forEach(b => b.classList.remove('active'));
@@ -66,26 +55,55 @@ document.addEventListener('DOMContentLoaded', () => {
     startBtn.addEventListener('click', async () => {
         const name = playerNameInput.value.trim();
         if (!name) return alert("Please enter a name.");
+
+        // Get config setup (ex: THREE_MEMBER_GAME) from the active button
+        const activeSize = document.querySelector('#count-selector .btn.active').dataset.value;
         
         try {
+
+            // Send HUMAN name and chosen game size to server.py
             const response = await fetch('/api/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name })
+                body: JSON.stringify({ name: name, size: activeSize})
             });
 
             if (response.ok) {
                 const data = await response.json();
                 
-                // Update text on screen
+                // Update HUD
                 if (userDisplay) userDisplay.innerText = data.player_name;
-                if (phaseDisplay) phaseDisplay.innerText = "Lobby Ready";
+                if (phaseDisplay) phaseDisplay.innerText = "Active";
 
-                // Switch screens
-                if (lobbyScreen) lobbyScreen.classList.add('d-none');
-                if (gameScreen) gameScreen.classList.remove('d-none');
+                // Set up role reveal
+                const roleDisplay = document.getElementById('role-display');
+                roleDisplay.innerText = data.role;
 
-                refreshRoomContext();
+                if (data.role.toLowerCase() === 'impostor'){
+                    roleDisplay.className = "display-3 fw-bold text-uppercase mb-5 text-danger"; // red
+                }
+                else{
+                    roleDisplay.className = "display-3 fw-bold text-uppercase mb-5 text-info"; // blue
+                }
+
+                // Inject colors and PNG sprite to webpage
+                document.getElementById('color-name-display').innerText = data.color;
+                document.getElementById('color-name-display').style.color = data.color; 
+                document.getElementById('color-img-display').src = `/static/assets/player_${data.color}.png`;
+
+                // Display role modal
+                const roleModal = new bootstrap.Modal(document.getElementById('role-reveal-modal'))
+                roleModal.show();
+
+
+                // Handles start button and switch screens
+                document.getElementById('enter-map-btn').onclick = () => {
+                    if (lobbyScreen) lobbyScreen.classList.add('d-none');
+                    if (gameScreen) gameScreen.classList.remove('d-none');
+                    refreshRoomContext();
+                    updateMapUI();
+                }
+
 
                 if (gameLog) gameLog.innerHTML += `<p class="text-success">> Player ${data.player_name} authenticated.</p>`;
             }
@@ -96,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handles the "Check Simulation Status Button"
      pingBtn.addEventListener('click', async () => {
-        pingBtn.innerText = "AIs are thinking..."; // Visual feedback
+        pingBtn.innerText = "AIs are thinking..."; // Visual feedback, TO CHANGE LATER
         try {
             const response = await fetch('/api/status');
             const data = await response.json();
@@ -118,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
    // Fetch and update room context (movement options and tasks available)
    async function refreshRoomContext() {
-        // Fetch the room context
         const response = await fetch('/api/room-context');
         const data = await response.json();
 
@@ -165,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             
-            // Update the log so the researcher can see the move
+            // Update the log
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] Moved to ${destination}</p>`;
             log.scrollTop = log.scrollHeight;
@@ -218,8 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Slightly displace pngs randomly everytime so we can see overlap
                 if (coords) {
-                    const jitterX = (Math.random() * 4) - 3;
-                    const jitterY = (Math.random() * 4) - 3;
+                    const jitterX = (Math.random() * 10) - 5;
+                    const jitterY = (Math.random() * 10) - 5;
 
                     const img = document.createElement('img');
                     img.src = `/static/assets/player_${player.color}.png`;
