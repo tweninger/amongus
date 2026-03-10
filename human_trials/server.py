@@ -1,3 +1,4 @@
+# server.py
 import os
 import sys
 import uvicorn
@@ -15,7 +16,7 @@ if research_path not in sys.path:
 
 from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
-from amongagents.envs.configs.game_config import THREE_MEMBER_GAME
+from amongagents.envs.configs.game_config import THREE_MEMBER_GAME, FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -75,14 +76,24 @@ async def join_game(request: Request):
     global game_instance
     data = await request.json()
     player_name = data.get("name", "Researcher")
+    game_size = data.get("size", "THREE_MEMBER_GAME")
+
+    config_map = {
+        "THREE_MEMBER_GAME": THREE_MEMBER_GAME,
+        "FIVE_MEMBER_GAME": FIVE_MEMBER_GAME,
+        "SEVEN_MEMBER_GAME": SEVEN_MEMBER_GAME
+    }
+
+    selected_config = config_map.get(game_size, THREE_MEMBER_GAME)
 
     # Correct path setup
     log_dir = os.path.join(os.getcwd(), "logs")
     os.makedirs(log_dir, exist_ok=True)
     os.environ["EXPERIMENT_PATH"] = log_dir
 
+
     game_instance = AmongUs(
-        game_config=THREE_MEMBER_GAME,
+        game_config=selected_config,
         agent_config={
             "Impostor": "LLM", 
             "Crewmate": "LLM",
@@ -91,11 +102,20 @@ async def join_game(request: Request):
         }
     )
     game_instance.initialize_game()
-    game_instance.agents[0].name = player_name
+
+    # Convert Agent 0 to the human
+    human_agent = game_instance.agents[0]
+    human_color = human_agent.player.name.split()[-1].lower()
+
+    # Update the player object's name
+    human_agent.name = f"{player_name} {human_color}"
+    human_role = human_agent.player.__class__.__name__
 
     return {
         "player_name": player_name,
-        "current_room": game_instance.agents[0].player.location,
+        "role": human_role,
+        "color": human_color,
+        "current_room": human_agent.player.location,
         "timestep": game_instance.timestep
     }
 
