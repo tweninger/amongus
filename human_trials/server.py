@@ -75,7 +75,6 @@ async def serve_game():
 async def join_game(request: Request):
     global game_instance
     data = await request.json()
-    player_name = data.get("name", "Researcher")
     game_size = data.get("size", "THREE_MEMBER_GAME")
 
     config_map = {
@@ -90,7 +89,6 @@ async def join_game(request: Request):
     log_dir = os.path.join(os.getcwd(), "logs")
     os.makedirs(log_dir, exist_ok=True)
     os.environ["EXPERIMENT_PATH"] = log_dir
-
 
     game_instance = AmongUs(
         game_config=selected_config,
@@ -108,18 +106,14 @@ async def join_game(request: Request):
     human_color = human_agent.player.name.split()[-1].lower()
 
     # Update the player object's name
-    human_agent.player.name = f"{player_name} {human_color}"
+    human_agent.player.name = human_color.capitalize()
     human_role = human_agent.player.__class__.__name__
 
     # Build roster for staging phase checklist
     roster = []
     for i, agent in enumerate(game_instance.agents):
-        if i == 0:
-            agent_name = human_agent.player.name
-            agent_color = human_color
-        else:
-            agent_name = agent.player.name
-            agent_color = agent.player.name.split()[-1].lower()
+        agent_color = agent.player.name.split()[-1].lower()
+        agent_name = agent_color.capitalize()
 
         roster.append({
             "id": i,
@@ -131,7 +125,6 @@ async def join_game(request: Request):
     game_instance.game_phase = "staging"
 
     return {
-        "player_name": player_name,
         "role": human_role,
         "color": human_color,
         "current_room": human_agent.player.location,
@@ -194,11 +187,10 @@ async def get_map_state():
 
     # Build locations list
     for player in all_players:
-        # Ex: "Player 2: red" -> "red"
         color = player.name.split()[-1].lower() 
         
         player_locations.append({
-            "name": player.name,
+            "name": color.capitalize(),
             "color": color,
             "location": player.location
         })

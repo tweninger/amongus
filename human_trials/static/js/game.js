@@ -22,7 +22,6 @@ const roomCoordinates = {
 
 document.addEventListener('DOMContentLoaded', () => {
     const startBtn = document.getElementById('start-btn');
-    const playerNameInput = document.getElementById('player-name');
     const playerCountDisplay = document.getElementById('player-count-display');
 
     const stagingPanel = document.getElementById('staging-panel');
@@ -62,26 +61,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start Button Logic
     startBtn.addEventListener('click', async () => {
-        const name = playerNameInput.value.trim();
-        if (!name) return alert("Please enter a name.");
-
         // Get config setup (ex: THREE_MEMBER_GAME) from the active button
         const activeSize = document.querySelector('#count-selector .btn.active').dataset.value;
         
         try {
 
-            // Send HUMAN name and chosen game size to server.py
+            // Send chosen game size to server.py
             const response = await fetch('/api/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, size: activeSize})
+                body: JSON.stringify({ size: activeSize})
             });
 
             if (response.ok) {
                 const data = await response.json();
                 
                 // Update HUD
-                if (userDisplay) userDisplay.innerText = data.player_name;
+                if (userDisplay) userDisplay.innerText = data.color.charAt(0).toUpperCase() + data.color.slice(1);
                 if (phaseDisplay) phaseDisplay.innerText = "Staging";
 
                 // Set up role reveal
@@ -115,7 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Create name label and set its color
                     const nameSpan = document.createElement('span');
-                    nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name}</span>`;
+                    
+                    if (player.is_human){
+                        nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name} (me) </span>`;
+                    }
+                    else{
+                        nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name}</span>`;
+                    }
 
                     // Set status badge (waiting -> ready)
                     const statusBadge = document.createElement('span');
@@ -175,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     refreshRoomContext();
                     updateMapUI();
                 }
-                if (gameLog) gameLog.innerHTML += `<p class="text-success">> Player ${data.player_name} authenticated.</p>`;
+                if (gameLog) gameLog.innerHTML += `<p class="text-success">> Player ${data.color} authenticated.</p>`;
             }
         } catch (error) {
             console.error("Failed to start:", error);
