@@ -24,6 +24,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const startBtn = document.getElementById('start-btn');
     const playerNameInput = document.getElementById('player-name');
     const playerCountDisplay = document.getElementById('player-count-display');
+
+    const stagingPanel = document.getElementById('staging-panel');
+    const actionPanel = document.getElementById('action-panel');
+    const readyChecklist = document.getElementById('ready-checklist');
+    const readyUpBtn = document.getElementById('ready-up-btn');
+    let isHumanReady = false;
+    let readyPlayers = 0;
+    let totalPlayers = 0;
+
     const lobbyScreen = document.getElementById('lobby-screen');
     const gameScreen = document.getElementById('game-screen');
     const gameLog = document.getElementById('game-log');
@@ -73,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Update HUD
                 if (userDisplay) userDisplay.innerText = data.player_name;
-                if (phaseDisplay) phaseDisplay.innerText = "Active";
+                if (phaseDisplay) phaseDisplay.innerText = "Staging";
 
                 // Set up role reveal
                 const roleDisplay = document.getElementById('role-display');
@@ -95,6 +104,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 const roleModal = new bootstrap.Modal(document.getElementById('role-reveal-modal'))
                 roleModal.show();
 
+                totalPlayers = data.roster.length;
+                readyChecklist.innerHTML = ''; // Clear old lists
+
+                // Build checklist UI
+                data.roster.forEach(player => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
+                    li.id = `player-status-${player.id}`;
+
+                    // Create name label and set its color
+                    const nameSpan = document.createElement('span');
+                    nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name}</span>`;
+
+                    // Set status badge (waiting -> ready)
+                    const statusBadge = document.createElement('span');
+                    statusBadge.className = 'badge bg-secondary'; // greyed-out look
+                    statusBadge.innerText = 'Waiting...'; // starts out waiting
+                    statusBadge.id = `badge-${player.id}`;
+
+                    // Render li
+                    li.appendChild(nameSpan);
+                    li.appendChild(statusBadge);
+                    readyChecklist.appendChild(li);
+
+                    // Create artificial delay for AI players
+                    if (!player.is_human) {
+                        // Random delay between 3s and 10s
+                        const randomDelay = Math.floor(Math.random() * 7000) + 3000;
+
+                        setTimeout(() => {
+                            const badge = document.getElementById(`badge-${player.id}`);
+                            if (badge) {
+                                badge.className = 'badge bg-success';
+                                badge.innerText = 'Ready';
+                                readyPlayers++;
+                                checkAllReady(); // Check if this was the last person needed
+                            }
+                        }, randomDelay);
+                    }
+                });
+
+                // Human ready up logic
+                readyUpBtn.onclick = () => {
+
+                    // prevent accidental double clicking
+                    if (isHumanReady){
+                        return;
+                    }
+
+                    isHumanReady = true;
+
+                    // Find human (agent id 0) and mark as ready
+                    const humanBadge = document.getElementById('badge-0');
+                    humanBadge.className = 'badge bg-success';
+                    humanBadge.innerText = 'Ready';
+
+                    readyUpBtn.className = 'btn btn-success btn-lg w-100 disabled';
+                    readyUpBtn.innerText = 'Waiting...';
+
+                    readyPlayers++;
+                    checkAllReady();
+                };
+
 
                 // Handles start button and switch screens
                 document.getElementById('enter-map-btn').onclick = () => {
@@ -103,8 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     refreshRoomContext();
                     updateMapUI();
                 }
-
-
                 if (gameLog) gameLog.innerHTML += `<p class="text-success">> Player ${data.player_name} authenticated.</p>`;
             }
         } catch (error) {
@@ -260,6 +330,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         catch (error) {
             console.error("Failed to update map:", error);
+        }
+    }
+
+    // Checks if everyone is ready, and if so, starts the actual game
+    async function checkAllReady() {
+        if (readyPlayers === totalPlayers && isHumanReady) {
+
+            // Tell backend to switch to "active"
+            const response = await fetch('/api/ready', { method: 'POST' });
+
+            if (response.ok) {
+                // UI Transition
+                stagingPanel.classList.add('d-none'); // Hide checklist
+                actionPanel.classList.remove('d-none'); // Reveal Tasks and Movement
+                document.getElementById('current-phase').innerText = "Active";
+                document.getElementById('current-phase').className = "text-success fw-bold";
+
+                const log = document.getElementById('game-log');
+                log.innerHTML += `<p class="text-warning">> All players ready. Game has started.</p>`;
+                log.scrollTop = log.scrollHeight;
+
+                refreshRoomContext(); // Load initial tasks and moves
+            }
         }
     }
 });
