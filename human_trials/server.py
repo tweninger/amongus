@@ -108,16 +108,47 @@ async def join_game(request: Request):
     human_color = human_agent.player.name.split()[-1].lower()
 
     # Update the player object's name
-    human_agent.name = f"{player_name} {human_color}"
+    human_agent.player.name = f"{player_name} {human_color}"
     human_role = human_agent.player.__class__.__name__
+
+    # Build roster for staging phase checklist
+    roster = []
+    for i, agent in enumerate(game_instance.agents):
+        if i == 0:
+            agent_name = human_agent.player.name
+            agent_color = human_color
+        else:
+            agent_name = agent.player.name
+            agent_color = agent.player.name.split()[-1].lower()
+
+        roster.append({
+            "id": i,
+            "name": agent_name,
+            "color": agent_color,
+            "is_human": i == 0
+        })
+
+    game_instance.game_phase = "staging"
 
     return {
         "player_name": player_name,
         "role": human_role,
         "color": human_color,
         "current_room": human_agent.player.location,
-        "timestep": game_instance.timestep
+        "timestep": game_instance.timestep,
+        "roster": roster
     }
+
+@app.post("/api/ready")
+async def start_game_loop():
+    global game_instance
+    if not game_instance:
+        return {"event": "Game not initialized"} 
+    game_instance.game_phase = "active"
+    game_instance.activity_log.append("All players are ready. Starting game.")
+
+    return {"status": "success", "phase": game_instance.game_phase}
+
 
 @app.get("/api/status")
 async def get_status():
@@ -206,8 +237,7 @@ async def move_player(request: Request):
     if game_instance:
         game_instance.agents[0].player.location = new_room
         game_instance.timestep += 1
-        game_instance.activity_log.append(f"{game_instance.agents[0].name} moved to {new_room}")
-
+        game_instance.activity_log.append(f"{game_instance.agents[0].player.name} moved to {new_room}")
     return {
         "status": "success",
         "current_room": new_room,
@@ -224,8 +254,9 @@ async def do_task(request: Request):
     # Increment timestep
     game_instance.timestep += 1
 
-    human_name = game_instance.agents[0].name
+    human_name = game_instance.agents[0].player.name
     message = f"{human_name} completed {task_name}"
+
     # Record logs so AI can see it.
     game_instance.activity_log.append(f"Step {game_instance.timestep}: {message}")
     return {
