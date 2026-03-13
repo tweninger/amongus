@@ -238,6 +238,31 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.onclick = () => performMove(room);
             moveContainer.appendChild(btn);
         });
+
+
+        // Render Current Players in your Room
+        const playersInRoomList = document.getElementById('players-in-room-list');
+        if (playersInRoomList){
+            playersInRoomList.innerHTML= ''; // clear old list
+            if (data.players_in_room.length === 0){
+                playersInRoomList.innerHTML = '<li class="list-group-item bg-dark text-muted small"> You are alone here. </li>';
+            }
+            else{
+                data.players_in_room.forEach(player => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item bg-dark border-secondary d-flex align-items-center';
+                    if (player.is_alive){
+                        li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">`;
+                    }
+                    else{
+                    // dead
+                    li.classList.add('text-muted');
+                        li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name} (Dead)" style="width: 35px; height: 35px; opacity: 0.5; transform: rotate(90deg);"> <span class="ms-2 small">(Dead)</span>`;
+                    }
+                    playersInRoomList.appendChild(li);
+                });
+            }
+        }
     }
 
     // Handles movement
