@@ -55,7 +55,7 @@
                 </div>
 
                 <div class="col-md-4">
-                    <div id="status-panel" class="card">
+                    <div id="status-panel" class="card mb-3">
                         <div class="card-body">
                             <h5>Game Status</h5>
                             <hr>
@@ -76,19 +76,29 @@
                 </div>
 
                 <div id="action-panel" class="d-none">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h6 class="text-uppercase small fw-bold text-muted">Room Tasks</h6>
-                                <ul id="task-list" class="list-group list-group-flush"></ul>
-                            </div>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="text-uppercase small fw-bold">Other Players in Room</h6>
+                            <ul id="players-in-room-list" class="list-group list-group-flush">
+                                <li class="list-group-item bg-dark text-muted small">Loading...</li>
+                            </ul>
                         </div>
+                    </div>
 
-                        <div class="card">
-                            <div class="card-body">
-                                <h6>Move To:</h6>
-                                <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
-                            </div>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="text-uppercase small fw-bold text-muted">Room Tasks</h6>
+                            <ul id="task-list" class="list-group list-group-flush"></ul>
                         </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>Move To:</h6>
+                            <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+                    </div>
+
                     </div>
                 </div>
             </div>
