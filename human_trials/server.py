@@ -197,7 +197,7 @@ async def get_map_state():
 
     return {"players": player_locations}
 
-# Get current room, connected rooms, and current tasks available
+# Get current room, connected rooms, current tasks available, and players sharing your room (+ DOA status)
 @app.get("/api/room-context")
 async def get_room_context():
     global game_instance
@@ -212,11 +212,30 @@ async def get_room_context():
     # Get tasks for this room
     current_tasks = room_data.get(current_room, {}).get("tasks", [])
 
+    players_in_room = []
+
+    for i, agent in enumerate(game_instance.agents):
+        # skip yourself (agent 0)
+        if i == 0:
+            continue
+
+        if agent.player.location == current_room:
+            color = agent.player.name.split()[-1].lower()
+ 
+            # Check if the agent is alive or dead
+            is_alive = getattr(agent.player, 'is_alive', True)
+            players_in_room.append({
+                "name": color.capitalize(),
+                "color": color,
+                "is_alive": is_alive
+            })
+
     return {
         "current_room": current_room,
         "adjacent": possible_moves,
         "tasks": current_tasks,
-        "timestep": game_instance.timestep
+        "timestep": game_instance.timestep,
+        "players_in_room": players_in_room
     }
 
 # Handles moving
