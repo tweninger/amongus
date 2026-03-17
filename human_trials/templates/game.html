@@ -20,13 +20,12 @@
                     <div class="option-group mb-4">
                         <label class="d-block mb-2">Total Participants:</label>
                         <div class="btn-group w-100" id="count-selector">
-                            <button class="btn btn-outline-primary active" data-value="THREE_MEMBER_GAME">3 Members</button>
                             <button class="btn btn-outline-primary" data-value="FIVE_MEMBER_GAME">5 Members</button>
                             <button class="btn btn-outline-primary" data-value="SEVEN_MEMBER_GAME">7 Members</button>
                         </div>
                     </div>
                     <div class="option-group mb-4 text-center">
-                        <p id="player-count-display" class="fw-bold text-info mt-2"> Current Setup: 3 Players</p>
+                        <p id="player-count-display" class="fw-bold text-info mt-2"> Current Setup: 5 Players</p>
                     </div>
                     <button id="start-btn" class="btn btn-primary btn-lg w-100">Enter Lobby</button>
                 </div>
@@ -65,6 +64,17 @@
                             <p>Turn: <span id="current-turn">-</span></p>
                             <button id="ping-btn" class="btn btn-secondary w-100 mt-3"> Check Simulation Status</button>
                         </div>
+
+                        <div id="my-tasks-panel" class="card mt-3 border-success">
+                            <div class="card-body">
+                                <h5 class="text-success"> My Tasks</h5>
+                                <hr class="border-success">
+                                <ul id="personal-tasks" class="list-group list-group-flush small">
+                                    <li class="list-group-item text-muted bg-transparent"> Loading your tasks...</li>
+                                </ul>
+                            </div>
+                        </div>
+
                     </div>
 
                 <div id="staging-panel" class="card mb-3">
