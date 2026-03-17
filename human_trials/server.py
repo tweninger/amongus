@@ -3,6 +3,7 @@ import os
 import sys
 import uvicorn
 import networkx as nx
+import random
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -75,15 +76,14 @@ async def serve_game():
 async def join_game(request: Request):
     global game_instance
     data = await request.json()
-    game_size = data.get("size", "THREE_MEMBER_GAME")
+    game_size = data.get("size", "FIVE_MEMBER_GAME")
 
     config_map = {
-        "THREE_MEMBER_GAME": THREE_MEMBER_GAME,
         "FIVE_MEMBER_GAME": FIVE_MEMBER_GAME,
         "SEVEN_MEMBER_GAME": SEVEN_MEMBER_GAME
     }
 
-    selected_config = config_map.get(game_size, THREE_MEMBER_GAME)
+    selected_config = config_map.get(game_size, FIVE_MEMBER_GAME)
 
     # Correct path setup
     log_dir = os.path.join(os.getcwd(), "logs")
@@ -101,6 +101,31 @@ async def join_game(request: Request):
     )
     game_instance.initialize_game()
 
+    # Task Generation for Everyone
+    task_pools = {
+        "common": ["Fix Wiring", "Swipe Card"],
+        "long": ["Empty Garbage", "Clear Asteroids", "Empty Chute", "Align Engine Output", "Fuel Engines", "Start Reactor", "Inspect Sample"],
+        "short": ["Download Data", "Accept Diverted Power", "Chart Course", "Stabilize Steering", "Clean O2 Filter", "Prime Shields", "Upload Data", "Calibrate Distributor", "Divert Power", "Unlock Manifolds", "Submit Scan"]
+    }
+
+    # 1 common tasks shared by the whole lobby
+    shared_common_task = random.choice(task_pools["common"])
+
+    for agent in game_instance.agents:
+        # 1 common, 1 long, 3 short
+        if selected_config == "FIVE_MEMBER_GAME":
+            agent_tasks = [shared_common_task]
+            agent_tasks.append(random.choice(task_pools["long"]))
+            agent_tasks.extend(random.sample(task_pools["short"], 3))
+
+        # 7+ players
+        # 1, 1, 4
+        else:
+           agent_tasks = [shared_common_task]
+           agent_tasks.append(random.choice(task_pools["long"]))
+           agent_tasks.extend(random.sample(task_pools["short"], 4))
+
+        agent.player.tasks = agent_tasks
     # Convert Agent 0 to the human
     human_agent = game_instance.agents[0]
     human_color = human_agent.player.name.split()[-1].lower()
@@ -203,8 +228,12 @@ async def get_room_context():
     global game_instance
     if not game_instance:
         return {"error": "Game not initialized"}
+    
+    human_player = game_instance.agents[0].player
+    current_room = human_player.location
 
-    current_room = game_instance.agents[0].player.location
+    # Get human's assigned tasks
+    personal_tasks = getattr(human_player, 'tasks', [])
 
     # Get possible moves from the map logic
     possible_moves = skeld.get_adjacent_rooms(current_room)
@@ -234,6 +263,7 @@ async def get_room_context():
         "current_room": current_room,
         "adjacent": possible_moves,
         "tasks": current_tasks,
+        "personal_tasks": personal_tasks,
         "timestep": game_instance.timestep,
         "players_in_room": players_in_room
     }
@@ -261,6 +291,12 @@ async def do_task(request: Request):
     global game_instance
     data = await request.json()
     task_name = data.get("task")
+
+    # Remove task from human player task list
+    human_player = game_instance.agents[0].player
+    if hasattr(human_player, 'tasks'):
+        if task_name in human_player.tasks:
+            human_player.tasks.remove(task_name)
 
     # Increment timestep
     game_instance.timestep += 1
