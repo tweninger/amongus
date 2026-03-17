@@ -217,14 +217,42 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update the Clock
         document.getElementById('step-counter').innerText = data.timestep;
 
+        // Render player's personal tasks
+        const humanTasksList = document.getElementById('personal-tasks');
+        if (humanTasksList){
+            humanTasksList.innerHTML = '';
+            if (data.personal_tasks.length === 0){
+                humanTasksList.innerHTML= '<li class="list-group-item text-dark bg-transparent">No tasks left!</li>';
+            }
+            else{
+                data.personal_tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item py-1 text-dark fw-bold';
+                    li.innerText = task;
+                    humanTasksList.appendChild(li);
+                })
+            }
+        }
+
         // Update and render tasks - "What can I do here now?"
         const taskContainer = document.getElementById('task-list');    
         taskContainer.innerHTML = '';
         data.tasks.forEach(taskName => {
             const btn = document.createElement('button');
-            btn.className = 'btn btn-outline-success btn-sm text-start m-1';
+            btn.className = 'btn btn-sm text-start m-1';
             btn.innerText = taskName;
-            btn.onclick = () => completeTask(taskName);
+
+            // Check if room task is on the human player's personal list
+            if (data.personal_tasks.includes(taskName)){
+                // Human-assigned task. Make green and clickeable
+                btn.classList.add('btn-outline-success');
+                btn.onclick = () => completeTask(taskName);
+            }
+            else{
+                // Make greyed out and unclickeable
+                btn.classList.add('btn-outline-secondary', 'disabled');
+                btn.style.opacity = '0.5';
+            }
             taskContainer.appendChild(btn);
         });
 
