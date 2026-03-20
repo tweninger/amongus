@@ -125,7 +125,7 @@ async def join_game(request: Request):
            agent_tasks.append(random.choice(task_pools["long"]))
            agent_tasks.extend(random.sample(task_pools["short"], 4))
 
-        agent.player.tasks = agent_tasks
+        agent.player.ui_tasks = agent_tasks
     # Convert Agent 0 to the human
     human_agent = game_instance.agents[0]
     human_color = human_agent.player.name.split()[-1].lower()
@@ -228,12 +228,25 @@ async def get_room_context():
     global game_instance
     if not game_instance:
         return {"error": "Game not initialized"}
-    
+ 
     human_player = game_instance.agents[0].player
     current_room = human_player.location
 
     # Get human's assigned tasks
-    personal_tasks = getattr(human_player, 'tasks', [])
+    personal_tasks = getattr(human_player, 'ui_tasks', [])
+
+    # Map your personal tasks to locations
+    task_locations = {}
+    for task in personal_tasks:
+        found_rooms = []
+        for room_name, details in room_data.items():
+            if task in details.get("tasks", []):
+                found_rooms.append(room_name)
+ 
+        if found_rooms:
+            task_locations[task] = " or ".join(found_rooms)
+        else:
+            task_locations[task] = "Unknown"
 
     # Get possible moves from the map logic
     possible_moves = skeld.get_adjacent_rooms(current_room)
@@ -264,25 +277,51 @@ async def get_room_context():
         "adjacent": possible_moves,
         "tasks": current_tasks,
         "personal_tasks": personal_tasks,
+        "task_locations": task_locations,
         "timestep": game_instance.timestep,
         "players_in_room": players_in_room
     }
 
-# Handles moving
+# Handles moving, trigers AI turns, and generates movement observations
 @app.post("/api/move")
 async def move_player(request: Request):
     global game_instance
     data = await request.json()
     new_room = data.get("destination")
+
+    human_player = game_instance.agents[0]
+    current_room = human_player.player.location
+
+    # Who is in my room right now?
+    others = {}
+    for agent in game_instance.agents[1:]:
+        if getattr(agent.player, 'is_alive', True):
+            if agent.player.location == current_room:
+                others[agent.player.name] = agent
     
-    if game_instance:
-        game_instance.agents[0].player.location = new_room
-        game_instance.timestep += 1
-        game_instance.activity_log.append(f"{game_instance.agents[0].player.name} moved to {new_room}")
+    # Human executes movement
+    human_player.player.location = new_room
+    movement_msg = f"{human_player.player.name} moved to {new_room}"
+    game_instance.activity_log.append(f"Step {game_instance.timestep}: {movement_msg}")
+
+    # Await AI agents run
+    await game_instance.game_step()
+
+    human_player.player.location = new_room
+
+    # Generate movement observations (X was seen leaving towards Y)
+    observations = []
+    for name, agent in others.items():
+        if agent.player.location != current_room:
+            observation_msg = f"Observation: {name.split()[-1].capitalize()} was seen leaving towards {agent.player.location}."
+            observations.append(observation_msg)
+            game_instance.activity_log.append(f"Step {game_instance.timestep}: {observation_msg}")
+
     return {
         "status": "success",
         "current_room": new_room,
-        "timestep": game_instance.timestep
+        "timestep": game_instance.timestep,
+        "observations": observations
     }
 
 # Handles performing a task
@@ -292,24 +331,42 @@ async def do_task(request: Request):
     data = await request.json()
     task_name = data.get("task")
 
-    # Remove task from human player task list
-    human_player = game_instance.agents[0].player
-    if hasattr(human_player, 'tasks'):
-        if task_name in human_player.tasks:
-            human_player.tasks.remove(task_name)
+    human_player = game_instance.agents[0]
+    current_room = human_player.player.location
 
-    # Increment timestep
-    game_instance.timestep += 1
+    # Who is in my room right now?
+    others = {}
+    for agent in game_instance.agents[1:]:
+        if getattr(agent.player, 'is_alive', True):
+            if agent.player.location == current_room:
+                others[agent.player.name] = agent
 
-    human_name = game_instance.agents[0].player.name
-    message = f"{human_name} completed {task_name}"
+    # Human executes action
+    if hasattr(human_player.player, 'ui_tasks'):
+        if task_name in human_player.player.ui_tasks:
+            human_player.player.ui_tasks.remove(task_name)
 
-    # Record logs so AI can see it.
-    game_instance.activity_log.append(f"Step {game_instance.timestep}: {message}")
+    action_msg = f"{human_player.player.name} completed {task_name}"
+    game_instance.activity_log.append(f"Step {game_instance.timestep}: {action_msg}")
+
+    # Await AI agents run
+    await game_instance.game_step()
+
+    human_player.player.location = current_room
+
+    # Generate movement observations (X was seen leaving towards Y)
+    observations = []
+    for name, agent in others.items():
+        if agent.player.location != current_room:
+            observation_msg = f"Observation: {name.split()[-1].capitalize()} was seen leaving towards {agent.player.location}."
+            observations.append(observation_msg)
+            game_instance.activity_log.append(f"Step {game_instance.timestep}: {observation_msg}")
+
     return {
         "status": "success",
-        "message": message,
-        "timestep": game_instance.timestep
+        "message": action_msg,
+        "timestep": game_instance.timestep,
+        "observations": observations
     }
 
 if __name__ == "__main__":
