@@ -37,9 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameLog = document.getElementById('game-log');
     const userDisplay = document.getElementById('user-display');
     const phaseDisplay = document.getElementById('current-phase');
-    const pingBtn = document.getElementById('ping-btn')
 
-    // Grab 3, 5, and 7 player buttons
+    // Grab 5, and 7 player buttons
     const sizeButtons = document.querySelectorAll('#count-selector .btn');
     
     // Update the text on webpage when a new size is clicked
@@ -61,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start Button Logic
     startBtn.addEventListener('click', async () => {
-        // Get config setup (ex: THREE_MEMBER_GAME) from the active button
+        // Get config setup (ex: FIVE_MEMBER_GAME) from the active button
         const activeSize = document.querySelector('#count-selector .btn.active').dataset.value;
         
         try {
@@ -184,28 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Handles the "Check Simulation Status Button"
-     pingBtn.addEventListener('click', async () => {
-        pingBtn.innerText = "AIs are thinking..."; // Visual feedback, TO CHANGE LATER
-        try {
-            const response = await fetch('/api/status');
-            const data = await response.json();
-            
-            // add to log some event
-            gameLog.innerHTML += `<p class="text-warning">> ${data.event}</p>`;
-            gameLog.scrollTop = gameLog.scrollHeight;
-
-            refreshRoomContext();
-            updateMapUI();
-        } 
-        catch (error) {
-            console.error("Status check failed", error);
-        }
-        finally {
-            pingBtn.innerText = "Check Simulation Status";
-        }
-    });
-
    // Fetch and update room context (movement options and tasks available)
    async function refreshRoomContext() {
         const response = await fetch('/api/room-context');
@@ -228,7 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.personal_tasks.forEach(task => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item py-1 text-dark fw-bold';
-                    li.innerText = task;
+                    const location = data.task_locations[task] || "Unknown";
+                    li.innerText = `${task} - ${location}`;
                     humanTasksList.appendChild(li);
                 })
             }
@@ -302,17 +280,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (response.ok) {
-            // Refresh the buttons for the new room
-            refreshRoomContext();
-
             const data = await response.json();
             
             // Update the log
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] Moved to ${destination}</p>`;
+
+            if (data.observations && data.observations.length > 0){
+                data.observations.forEach(observation => {
+                    log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] ${observation}</p>`;
+
+                })
+            }
             log.scrollTop = log.scrollHeight;
 
             await refreshRoomContext();
+            updateMapUI();
         }
     }
 
@@ -331,12 +314,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-success">> [Step ${data.timestep}] ${data.message}</p>`;
             
+            if (data.observations && data.observations.length > 0){
+                data.observations.forEach(observation => {
+                    log.innerHTML += `<p class="text-warning">> [Step ${data.timestep}] ${observation}</p>`;
+                })
+            }
             // Update the counter on screen
             document.getElementById('step-counter').innerText = data.timestep;
-            
             log.scrollTop = log.scrollHeight;
 
             await refreshRoomContext();
+            updateMapUI(); // Redraw map after tasks
         }
     }
 
