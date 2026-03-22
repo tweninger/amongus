@@ -3,7 +3,7 @@ import os
 import sys
 import uvicorn
 import networkx as nx
-import random
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -17,7 +17,8 @@ if research_path not in sys.path:
 
 from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
-from amongagents.envs.configs.game_config import THREE_MEMBER_GAME, FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -46,6 +47,22 @@ class Map:
             if attr["connection_type"] == "corridor"
         ]
 skeld = Map()
+
+class WebPlayerAgent:
+    def __init__(self, player):
+        self.player = player
+        self.model = "homosapiens/web"
+        self.queued_action = None
+
+    async def choose_action(self, timestep):
+        # Give queued action to engine
+        action = self.queued_action
+        self.queued_action = None
+        return action
+
+    def choose_observation_location(self, map):
+        return self.player.location
+
 app = FastAPI()
 
 # Security and setup
@@ -101,32 +118,8 @@ async def join_game(request: Request):
     )
     game_instance.initialize_game()
 
-    # Task Generation for Everyone
-    task_pools = {
-        "common": ["Fix Wiring", "Swipe Card"],
-        "long": ["Empty Garbage", "Clear Asteroids", "Empty Chute", "Align Engine Output", "Fuel Engines", "Start Reactor", "Inspect Sample"],
-        "short": ["Download Data", "Accept Diverted Power", "Chart Course", "Stabilize Steering", "Clean O2 Filter", "Prime Shields", "Upload Data", "Calibrate Distributor", "Divert Power", "Unlock Manifolds", "Submit Scan"]
-    }
-
-    # 1 common tasks shared by the whole lobby
-    shared_common_task = random.choice(task_pools["common"])
-
-    for agent in game_instance.agents:
-        # 1 common, 1 long, 3 short
-        if selected_config == "FIVE_MEMBER_GAME":
-            agent_tasks = [shared_common_task]
-            agent_tasks.append(random.choice(task_pools["long"]))
-            agent_tasks.extend(random.sample(task_pools["short"], 3))
-
-        # 7+ players
-        # 1, 1, 4
-        else:
-           agent_tasks = [shared_common_task]
-           agent_tasks.append(random.choice(task_pools["long"]))
-           agent_tasks.extend(random.sample(task_pools["short"], 4))
-
-        agent.player.ui_tasks = agent_tasks
     # Convert Agent 0 to the human
+    game_instance.agents[0] = WebPlayerAgent(game_instance.players[0])
     human_agent = game_instance.agents[0]
     human_color = human_agent.player.name.split()[-1].lower()
 
@@ -175,9 +168,6 @@ async def get_status():
         return {"event": "Game not initialized"}
 
     try:
-        await game_instance.game_step() 
-        
-
         if game_instance.activity_log:
             last_log = str(game_instance.activity_log[-1]) 
         else:
@@ -232,8 +222,11 @@ async def get_room_context():
     human_player = game_instance.agents[0].player
     current_room = human_player.location
 
-    # Get human's assigned tasks
-    personal_tasks = getattr(human_player, 'ui_tasks', [])
+    # Get human's assigned tasks from the engine
+    personal_tasks = []
+    for task in human_player.tasks:
+        if not task.check_completion(): # Only send incomplete tasks to UI
+            personal_tasks.append(task.name)
 
     # Map your personal tasks to locations
     task_locations = {}
@@ -292,28 +285,20 @@ async def move_player(request: Request):
     human_player = game_instance.agents[0]
     current_room = human_player.player.location
 
-    # Who is in my room right now?
-    others = {}
-    for agent in game_instance.agents[1:]:
-        if getattr(agent.player, 'is_alive', True):
-            if agent.player.location == current_room:
-                others[agent.player.name] = agent
-    
+    players_here = [player for player in game_instance.map.get_players_in_room(current_room) if player != human_player.player]
+
     # Human executes movement
-    human_player.player.location = new_room
-    movement_msg = f"{human_player.player.name} moved to {new_room}"
-    game_instance.activity_log.append(f"Step {game_instance.timestep}: {movement_msg}")
+    action = MoveTo(current_location=current_room, new_location=new_room)
+    human_player.queued_action = action
 
     # Await AI agents run
     await game_instance.game_step()
 
-    human_player.player.location = new_room
-
     # Generate movement observations (X was seen leaving towards Y)
     observations = []
-    for name, agent in others.items():
-        if agent.player.location != current_room:
-            observation_msg = f"Observation: {name.split()[-1].capitalize()} was seen leaving towards {agent.player.location}."
+    for player in players_here:
+        if player.location != current_room:
+            observation_msg = f"Observation: {player.name.split()[-1].capitalize()} was seen leaving towards {player.location}."
             observations.append(observation_msg)
             game_instance.activity_log.append(f"Step {game_instance.timestep}: {observation_msg}")
 
@@ -334,31 +319,26 @@ async def do_task(request: Request):
     human_player = game_instance.agents[0]
     current_room = human_player.player.location
 
-    # Who is in my room right now?
-    others = {}
-    for agent in game_instance.agents[1:]:
-        if getattr(agent.player, 'is_alive', True):
-            if agent.player.location == current_room:
-                others[agent.player.name] = agent
-
-    # Human executes action
-    if hasattr(human_player.player, 'ui_tasks'):
-        if task_name in human_player.player.ui_tasks:
-            human_player.player.ui_tasks.remove(task_name)
+    players_here = [player for player in game_instance.map.get_players_in_room(current_room) if player != human_player.player]
+    task_to_complete = None
+    for task in human_player.player.tasks:
+        if task.name == task_name and not task.check_completion():
+            task_to_complete = task
+            break
+    if task_to_complete:
+        action = CompleteTask(current_location=current_room, task=task_to_complete)
+        human_player.queued_action = action
 
     action_msg = f"{human_player.player.name} completed {task_name}"
-    game_instance.activity_log.append(f"Step {game_instance.timestep}: {action_msg}")
 
     # Await AI agents run
     await game_instance.game_step()
 
-    human_player.player.location = current_room
-
     # Generate movement observations (X was seen leaving towards Y)
     observations = []
-    for name, agent in others.items():
-        if agent.player.location != current_room:
-            observation_msg = f"Observation: {name.split()[-1].capitalize()} was seen leaving towards {agent.player.location}."
+    for player in players_here:
+        if player.location != current_room:
+            observation_msg = f"Observation: {player.name.split()[-1].capitalize()} was seen leaving towards {player.location}."
             observations.append(observation_msg)
             game_instance.activity_log.append(f"Step {game_instance.timestep}: {observation_msg}")
 
