@@ -194,6 +194,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update the Clock
         document.getElementById('step-counter').innerText = data.timestep;
 
+        const phaseDisplay = document.getElementById('current-phase');
+        if (data.phase.toLowerCase() === "meeting"){
+            phaseDisplay.innerText = "Meeting";
+            phaseDisplay.className = "text-danger fw-bold";
+        }
+        else{
+            phaseDisplay.innerText = "Active";
+            phaseDisplay.className = "text-success fw-bold";
+        }
+
         // Render player's personal tasks
         const humanTasksList = document.getElementById('personal-tasks');
         if (humanTasksList){
@@ -245,9 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
             moveContainer.appendChild(btn);
         });
 
-
-        // Render Current Players in your Room
+        // Render players in current room and handle report button
         const playersInRoomList = document.getElementById('players-in-room-list');
+        const reportBtn = document.getElementById('report-btn');
+        let freshBodyFound = false;
+
         if (playersInRoomList){
             playersInRoomList.innerHTML= ''; // clear old list
             if (data.players_in_room.length === 0){
@@ -261,13 +273,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">`;
                     }
                     else{
-                    // dead
-                    li.classList.add('text-muted');
+                        if (!player.reported_death){
+                            freshBodyFound = true;
+                        }
+                        // dead
+                        li.classList.add('text-muted');
                         li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name} (Dead)" style="width: 35px; height: 35px; opacity: 0.5; transform: rotate(90deg);"> <span class="ms-2 small">(Dead)</span>`;
                     }
                     playersInRoomList.appendChild(li);
                 });
             }
+        }
+
+        // Enable and disable report button
+
+        if (reportBtn){
+            if (freshBodyFound){
+                reportBtn.classList.remove('disabled');
+                reportBtn.style.opacity = '1';
+                reportBtn.onclick = () => triggerReport();
+            }
+            else{
+                reportBtn.classList.add('disabled');
+                reportBtn.style.opacity = '0.5';
+                reportBtn.onclick = null;
+            }
+
+
+
         }
     }
 
@@ -328,51 +361,94 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Fetch map state and overlay charcter png onto skeld map
     async function updateMapUI() {
         try {
             const response = await fetch('/api/map-state');
             const data = await response.json();
+            const roomContextResponse = await fetch('/api/room-context');
+            const contextData = await roomContextResponse.json();
             
-            if (data.error) return; 
+            if (data.error){
+                return;
+            }
 
-            const playerLayer = document.getElementById('player-layer');
+            const roomView = document.getElementById('room-view');
+            const roomPlayerLayer = document.getElementById('room-player-layer');
+            const skeldLayer = document.getElementById('skeld-player-layer');
+            const locationHeader = document.getElementById('location-header');
 
-            // Reset the board
-            playerLayer.innerHTML = '';
+            // Update the UI Headers
+            if (locationHeader){
+                locationHeader.innerText = contextData.current_room;
+            }
 
+            // Update the Room Background
+            // normalize to map file naming
+            const formattedRoom = contextData.current_room.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('_');
+            const bgPath = `/static/assets/The_Skeld_${formattedRoom}.webp`;
+
+            if (roomView){
+                roomView.style.backgroundImage = `url('${bgPath}')`;
+                roomView.style.backgroundSize = 'cover';
+                roomView.style.backgroundPosition = 'center';
+            }
+ 
+            // Clear current players to redraw
+            if (skeldLayer){
+                skeldLayer.innerHTML = '';
+            }
+
+            if (roomPlayerLayer){
+                roomPlayerLayer.innerHTML = '';
+            }
+            const currentRoomStr = contextData.current_room.toLowerCase();
+
+            // Place each player on map
             data.players.forEach(player => {
-                // Adjusted for casing
-                const safeLocation = player.location.toLowerCase().trim();
-                const coords = roomCoordinates[safeLocation];
-                
-                // Slightly displace pngs randomly everytime so we can see overlap
-                if (coords) {
-                    const jitterX = (Math.random() * 10) - 5;
-                    const jitterY = (Math.random() * 10) - 5;
+                const playerLoc = player.location.toLowerCase();
 
+                // Remove this later. For master view / testing only.
+                if (skeldLayer){
+                    const coords = roomCoordinates[playerLoc];
+                    if (coords){
+                        const miniImg = document.createElement('img');
+                        miniImg.src = `/static/assets/player_${player.color}.png`;
+                        miniImg.style.position = 'absolute';
+
+                        const miniJitterX = (Math.random() * 4) - 2;
+                        const miniJitterY = (Math.random() * 4) - 2;
+                        miniImg.style.top = `${coords.top + miniJitterY}%`;
+                        miniImg.style.left = `${coords.left + miniJitterX}%`;
+                        miniImg.style.width = '40px';
+                        miniImg.style.transform = 'translate(-50%, -50%)';
+                        miniImg.style.zIndex = '10'
+                        skeldLayer.appendChild(miniImg);
+                    }
+                }
+
+                if (playerLoc === currentRoomStr && roomPlayerLayer){
                     const img = document.createElement('img');
                     img.src = `/static/assets/player_${player.color}.png`;
-                    
-                    img.style.position = 'absolute';
-                    img.style.top = `${coords.top + jitterY}%`;
-                    img.style.left = `${coords.left + jitterX}%`;
-                    img.style.transform = 'translate(-50%, -50%)';
-                    img.style.width = '35px';
-                    img.style.zIndex = '10';
-                    
-                    // Text hover
-                    img.title = `${player.name} (${player.location})`;
+                    img.className = 'player-sprite';
 
-                    playerLayer.appendChild(img);
-                }
-                else {
-                    console.warn(`Failed to get map coordinates: ${player.location}`);
+                    const horizontalPos = 20 + (Math.random() * 60);
+                    const verticalPos = 40 + (Math.random() * 40);
+
+                    img.style.position = 'absolute';
+                    img.style.top = `${verticalPos}%`;
+                    img.style.left = `${horizontalPos}%`;
+                    img.style.width = '80px';
+                    img.style.transform = 'translate(-50%, -50%)';
+                    img.style.transition = 'all 0.5s ease';
+
+                    img.title = player.name;
+
+                    roomPlayerLayer.appendChild(img);
                 }
             });
         }
         catch (error) {
-            console.error("Failed to update map:", error);
+            console.error("Failed to update Room UI:", error);
         }
     }
 
@@ -398,4 +474,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    async function triggerReport() {
+    const response = await fetch('/api/report', { method: 'POST' });
+    if (response.ok) {
+        const data = await response.json();
+        const log = document.getElementById('game-log');
+        log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
+
+        // Immediate sync that teleports ppl to cafeteria
+        if (typeof updateMapUI === "function"){
+            updateMapUI();
+        }
+    }
+}
 });
