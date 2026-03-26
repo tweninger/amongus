@@ -109,7 +109,9 @@ class TaskAssignment:
                 all_tasks = common_tasks
             else:
                 all_tasks = np.concatenate([common_tasks, short_tasks, long_tasks])
-                self.assigned_tasks.extend(all_tasks)
+
+                if player.identity != "Impostor":
+                    self.assigned_tasks.extend(all_tasks)
             player.assign_tasks(all_tasks)
 
     def check_task_completion(self):
