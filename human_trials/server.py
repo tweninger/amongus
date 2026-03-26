@@ -255,18 +255,23 @@ async def get_room_context():
             continue
 
         if agent.player.location == current_room:
-            color = agent.player.name.split()[-1].lower()
- 
-            # Check if the agent is alive or dead
+
+            # Check engine's built-in status flags
             is_alive = getattr(agent.player, 'is_alive', True)
+            reported_death = getattr(agent.player, 'reported_death', False)
+            color = agent.player.name.split()[-1].lower()
+
+            # Check if the agent is alive or dead
             players_in_room.append({
                 "name": color.capitalize(),
                 "color": color,
-                "is_alive": is_alive
+                "is_alive": is_alive,
+                "reported_death": getattr(agent.player, 'reported_death', False)
             })
 
     return {
         "current_room": current_room,
+        "phase": game_instance.current_phase,
         "adjacent": possible_moves,
         "tasks": current_tasks,
         "personal_tasks": personal_tasks,
@@ -348,6 +353,45 @@ async def do_task(request: Request):
         "timestep": game_instance.timestep,
         "observations": observations
     }
+
+@app.post("/api/report")
+async def report_body(request: Request):
+    global game_instance
+    if not game_instance:
+        return {"error": "Game not initialized"}
+
+    human_agent = game_instance.agents[0]
+    current_room = human_agent.player.location
+
+    # Check who is dead in the room
+    dead_name = "Unknown"
+    players_here = game_instance.map.get_players_in_room(current_room, include_new_deaths=True)
+    for player in players_here:
+        if not player.is_alive and not player.reported_death:
+            dead_name = player.name.split(":")[0]
+            break
+    action = CallMeeting(current_location = current_room)
+    human_agent.queued_action = action
+
+    # Step the engine, moving everyone to cafeteria and changing phases
+    await game_instance.game_step()
+
+    return {
+        "status": "success",
+        "message": f"🚨 {human_agent.player.name.split(':')[0]} reported {dead_name}'s body!",
+        "timestep": game_instance.timestep,
+        "phase": game_instance.current_phase
+    }
+
+@app.get("/api/cheat-kill")
+async def cheat_kill():
+    # Instantly kill Player 2 (or anyone else) to test the report button
+    if len(game_instance.players) > 1:
+        target = game_instance.players[1]
+        target.is_alive = False
+        return {"status": f"Killed {target.name}"}
+    return {"error": "Not enough players"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
