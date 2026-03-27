@@ -258,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render players in current room and handle report button
         const playersInRoomList = document.getElementById('players-in-room-list');
         const reportBtn = document.getElementById('report-btn');
+        const humanRole = document.getElementById('role-display').innerText.toLowerCase();
         let freshBodyFound = false;
 
         if (playersInRoomList){
@@ -271,6 +272,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     li.className = 'list-group-item bg-dark border-secondary d-flex align-items-center';
                     if (player.is_alive){
                         li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">`;
+
+                        if (humanRole === 'impostor'){
+                            const killBtn = document.createElement('button');
+                            killBtn.className = 'btn btn-danger btn-sm fw-bold';
+                            killBtn.innerText = 'KILL!';
+                            killBtn.onclick = () => performKill(player.color);
+                            li.appendChild(killBtn);
+                        }
                     }
                     else{
                         if (!player.reported_death){
@@ -476,16 +485,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function triggerReport() {
-    const response = await fetch('/api/report', { method: 'POST' });
-    if (response.ok) {
-        const data = await response.json();
-        const log = document.getElementById('game-log');
-        log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
+        const response = await fetch('/api/report', { method: 'POST' });
+        if (response.ok) {
+            const data = await response.json();
+            const log = document.getElementById('game-log');
+            log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
+            log.scrollTop = log.scrollHeight;
 
-        // Immediate sync that teleports ppl to cafeteria
-        if (typeof updateMapUI === "function"){
-            updateMapUI();
+
+            await refreshRoomContext();
+            await updateMapUI();
+
+            document.getElementById('current-phase').innerText = "Meeting";
+            document.getElementById('current-phase').className = "text-danger fw-bold";
         }
     }
-}
+
+    async function performKill(targetColor){
+        const response = await fetch('/api/kill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: targetColor })
+        });
+
+        if (response.ok){
+            const data = await response.json();
+            const log = document.getElementById('game-log');
+            log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
+            log.scrollTop = log.scrollHeight;
+
+            await refreshRoomContext();
+            await updateMapUI();
+        }
+    }
 });
