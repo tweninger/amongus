@@ -18,7 +18,7 @@ if research_path not in sys.path:
 from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
-from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting
+from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -117,6 +117,13 @@ async def join_game(request: Request):
         }
     )
     game_instance.initialize_game()
+    # --- INITIAL ASSIGNMENT PRINT ---
+    print("\n=== INITIAL TASK ROSTER ===")
+    for p in game_instance.players:
+        p_color = p.name.split()[-1]
+        task_list = [t.name for t in p.tasks]
+        print(f"{p_color.upper()}: {task_list}")
+    print("===========================\n")
 
     # Convert Agent 0 to the human
     game_instance.agents[0] = WebPlayerAgent(game_instance.players[0])
@@ -165,7 +172,7 @@ async def start_game_loop():
 async def get_status():
     global game_instance
     if not game_instance:
-        return {"event": "Game not initialized"}
+        return {"status": "Waiting", "event": "No game", "timestep": 0}
 
     try:
         if game_instance.activity_log:
@@ -174,7 +181,7 @@ async def get_status():
             last_log = "Turn complete"
 
         return {
-            "status": "Active",
+            "status": game_instance.game_phase,
             "event": last_log,
             "timestep": game_instance.timestep
         }
@@ -374,7 +381,7 @@ async def report_body(request: Request):
     human_agent.queued_action = action
 
     # Step the engine, moving everyone to cafeteria and changing phases
-    await game_instance.game_step()
+    asyncio.create_task(game_instance.game_step())
 
     return {
         "status": "success",
@@ -383,6 +390,39 @@ async def report_body(request: Request):
         "phase": game_instance.current_phase
     }
 
+@app.post("/api/kill")
+async def kill_player(request: Request):
+    global game_instance
+    data = await request.json()
+
+    # Returns victim color
+    target_color = data.get("target")
+
+    human_agent = game_instance.agents[0]
+    current_room = human_agent.player.location
+
+    target_player = None
+    # Find target player object by color
+    for player in game_instance.players:
+        if player.name.split()[-1].lower() == target_color.lower():
+            target_player = player
+            break
+
+    if target_player:
+        action = Kill(current_location=current_room, other_player=target_player)
+        human_agent.queued_action = action
+
+        # Step the engine
+        await game_instance.game_step()
+
+        return{
+            "status": "success",
+            "message": f"You killed {target_color.capitalize()}!",
+            "timestep": game_instance.timestep
+        }
+
+    return {"status": "error", "message": "Error: Target not found."}
+# Debugging
 @app.get("/api/cheat-kill")
 async def cheat_kill():
     # Instantly kill Player 2 (or anyone else) to test the report button
