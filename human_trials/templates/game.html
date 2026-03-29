@@ -76,7 +76,7 @@
                     <div id="room-interaction-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none;"></div>
                 </div>
             </div>
-            
+
             <div class="text-center mb-3">
                 <span class="badge text-dark fs-6 shadow-sm">
                     Current Timestep: <span id="step-counter">0</span>
@@ -131,7 +131,6 @@
                                 </ul>
                             </div>
                         </div>
-      
                         <div class="card mb-3 border-danger shadow-sm">
                             <div class="card-body text-center">
                                 <button id="report-btn" class="btn btn-danger fw-bold disabled">
@@ -151,6 +150,12 @@
                             <div class="card-body">
                                 <h6>Move To:</h6>
                                 <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
+                            </div>
+                        </div>
+                        <div id="vent-panel" class="card mb-3 border-danger d-none" style="background: rgba(255, 0, 0, 0.05);">
+                            <div class="card-body">
+                                <h6 class="text-danger small fw-bold text-uppercase">Vent To:</h6>
+                                <div id="vent-options" class="d-flex flex-wrap gap-2"></div>
                             </div>
                         </div>
                     </div> <div id="discussion-panel" class="card d-none border-danger mt-3">
