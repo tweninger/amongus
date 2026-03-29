@@ -23,20 +23,20 @@ const roomCoordinates = {
 document.addEventListener('DOMContentLoaded', () => {
     const startBtn = document.getElementById('start-btn');
     const playerCountDisplay = document.getElementById('player-count-display');
-
     const stagingPanel = document.getElementById('staging-panel');
     const actionPanel = document.getElementById('action-panel');
     const readyChecklist = document.getElementById('ready-checklist');
     const readyUpBtn = document.getElementById('ready-up-btn');
-    let isHumanReady = false;
-    let readyPlayers = 0;
-    let totalPlayers = 0;
-
     const lobbyScreen = document.getElementById('lobby-screen');
     const gameScreen = document.getElementById('game-screen');
     const gameLog = document.getElementById('game-log');
     const userDisplay = document.getElementById('user-display');
     const phaseDisplay = document.getElementById('current-phase');
+
+    let isHumanReady = false;
+    let readyPlayers = 0;
+    let totalPlayers = 0;
+    let lastPhase = "active";
 
     // Grab 5, and 7 player buttons
     const sizeButtons = document.querySelectorAll('#count-selector .btn');
@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeBtn = document.querySelector('#count-selector .btn.active');
         const totalPlayerCount = parseInt(activeBtn.innerText);
         playerCountDisplay.innerText = `Current Setup ${totalPlayerCount} Players`;
-        
     };
 
     // Update highlighted size (player count) button when clicked
@@ -62,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     startBtn.addEventListener('click', async () => {
         // Get config setup (ex: FIVE_MEMBER_GAME) from the active button
         const activeSize = document.querySelector('#count-selector .btn.active').dataset.value;
-        
         try {
 
             // Send chosen game size to server.py
@@ -74,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.ok) {
                 const data = await response.json();
-                
                 // Update HUD
                 if (userDisplay) userDisplay.innerText = data.color.charAt(0).toUpperCase() + data.color.slice(1);
                 if (phaseDisplay) phaseDisplay.innerText = "Staging";
@@ -110,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Create name label and set its color
                     const nameSpan = document.createElement('span');
-                    
+
                     if (player.is_human){
                         nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name} (me) </span>`;
                     }
@@ -120,8 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Set status badge (waiting -> ready)
                     const statusBadge = document.createElement('span');
-                    statusBadge.className = 'badge bg-secondary'; // greyed-out look
-                    statusBadge.innerText = 'Waiting...'; // starts out waiting
+                    statusBadge.className = 'badge bg-secondary';
+                    statusBadge.innerText = 'Waiting...';
                     statusBadge.id = `badge-${player.id}`;
 
                     // Render li
@@ -148,12 +145,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Human ready up logic
                 readyUpBtn.onclick = () => {
-
                     // prevent accidental double clicking
                     if (isHumanReady){
                         return;
                     }
-
                     isHumanReady = true;
 
                     // Find human (agent id 0) and mark as ready
@@ -168,17 +163,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     checkAllReady();
                 };
 
-
                 // Handles start button and switch screens
-                document.getElementById('enter-map-btn').onclick = () => {
+                document.getElementById('enter-map-btn').addEventListener('click', async () => {
                     if (lobbyScreen) lobbyScreen.classList.add('d-none');
                     if (gameScreen) gameScreen.classList.remove('d-none');
+
+                    await fetch('/api/next-step', { method: 'POST' });
+
                     refreshRoomContext();
                     updateMapUI();
-                }
+                });
                 if (gameLog) gameLog.innerHTML += `<p class="text-success">> Player ${data.color} authenticated.</p>`;
             }
-        } catch (error) {
+        }
+        catch (error) {
             console.error("Failed to start:", error);
         }
     });
@@ -295,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Enable and disable report button
-
         if (reportBtn){
             if (freshBodyFound){
                 reportBtn.classList.remove('disabled');
@@ -307,9 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 reportBtn.style.opacity = '0.5';
                 reportBtn.onclick = null;
             }
-
-
-
         }
     }
 
@@ -323,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (response.ok) {
             const data = await response.json();
-            
+
             // Update the log
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] Moved to ${destination}</p>`;
@@ -351,11 +345,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (response.ok) {
             const data = await response.json();
-            
+
             // Update the log
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-success">> [Step ${data.timestep}] ${data.message}</p>`;
-            
+
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
                     log.innerHTML += `<p class="text-warning">> [Step ${data.timestep}] ${observation}</p>`;
@@ -376,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             const roomContextResponse = await fetch('/api/room-context');
             const contextData = await roomContextResponse.json();
-            
+
             if (data.error){
                 return;
             }
@@ -435,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                if (playerLoc === currentRoomStr && roomPlayerLayer){
+                if (playerLoc === currentRoomStr && roomPlayerLayer) {
                     const img = document.createElement('img');
                     img.src = `/static/assets/player_${player.color}.png`;
                     img.className = 'player-sprite';
@@ -447,9 +441,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     img.style.top = `${verticalPos}%`;
                     img.style.left = `${horizontalPos}%`;
                     img.style.width = '80px';
-                    img.style.transform = 'translate(-50%, -50%)';
-                    img.style.transition = 'all 0.5s ease';
 
+                    // Dead, grey out and rotate 90 degrees
+                    if (!player.is_alive) {
+                        img.style.filter = "grayscale(100%) brightness(70%)";
+                        img.style.transform = "translate(-50%, -50%) rotate(90deg)";
+                        img.style.opacity = "0.8";
+                    }
+                    else { // Alive
+                        img.style.transform = "translate(-50%, -50%)";
+                    }
+
+                    img.style.transition = 'all 0.5s ease';
                     img.title = player.name;
 
                     roomPlayerLayer.appendChild(img);
@@ -480,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 log.scrollTop = log.scrollHeight;
 
                 refreshRoomContext(); // Load initial tasks and moves
+                updateMapUI()
             }
         }
     }
@@ -491,7 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const log = document.getElementById('game-log');
             log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
             log.scrollTop = log.scrollHeight;
-
 
             await refreshRoomContext();
             await updateMapUI();
@@ -518,4 +521,253 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateMapUI();
         }
     }
+
+async function populateVotingRoster() {
+    const response = await fetch('/api/map-state');
+    const data = await response.json();
+    const container = document.getElementById('voting-roster-container');
+    const userDisplay = document.getElementById('user-display');
+    const myColor = userDisplay ? userDisplay.innerText.toLowerCase() : ""; 
+    if (!container || !data.players) return;
+        container.innerHTML = '';
+
+    data.players.forEach(player => {
+        if (player.color === myColor) return;
+
+        const btn = document.createElement('button');
+        btn.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary d-flex align-items-center mb-1';
+        btn.style.cursor = "pointer";
+        btn.innerHTML = `
+            <img src="/static/assets/player_${player.color}.png" style="width: 30px; margin-right: 15px;">
+            <span>Vote for <strong>${player.name}</strong></span>
+        `;
+
+        btn.onclick = async () => {
+            // 1. Lock UI
+            container.querySelectorAll('button').forEach(b => b.disabled = true);
+            btn.classList.add('bg-danger', 'text-white');
+
+            // 2. Send Vote
+            const voteResponse = await fetch('/api/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target: player.color })
+            });
+
+            if (voteResponse.ok) {
+                // 3. FORCE HIDE EVERYTHING IMMEDIATELY
+                document.getElementById('meeting-overlay').classList.add('d-none');
+                document.getElementById('discussion-panel').classList.add('d-none');
+                document.getElementById('action-panel').classList.remove('d-none');
+
+                // 4. Update the map so we see the new state
+                await refreshRoomContext();
+                await updateMapUI();
+
+                // 5. Clean up the roster for next time
+                container.innerHTML = '';
+            }
+        };
+
+        container.appendChild(btn);
+    });
+
+    const skipBtn = document.getElementById('skip-vote-btn');
+    if (skipBtn) {
+        skipBtn.onclick = async () => {
+            container.querySelectorAll('button').forEach(b => b.disabled = true);
+            skipBtn.disabled = true;
+
+            const skipResponse = await fetch('/api/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target: "none" })
+            });
+
+            if (skipResponse.ok) {
+                document.getElementById('meeting-overlay').classList.add('d-none');
+                document.getElementById('discussion-panel').classList.add('d-none');
+                document.getElementById('action-panel').classList.remove('d-none');
+                await refreshRoomContext();
+                await updateMapUI();
+                container.innerHTML = '';
+            }
+        };
+    }
+}
+
+// Tracks how many messages we've already shown so we don't duplicate them
+let processedMessageCount = 0;
+
+function startPhaseWatcher() {
+    setInterval(async () => {
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+
+            // Win Condition Check on js side
+            if (data.winner) {
+                alert("GAME OVER: " + data.winner);
+                window.location.reload();
+                return;
+            }
+
+            // Phase transition logic
+            if (data.phase !== lastPhase) {
+
+                // Task -> Meeting: Clear all previous chat boxes and voting roster
+                if (lastPhase === "task" && data.phase === "meeting") {
+                    const chatBox = document.getElementById('discussion-chat');
+                    const votingRoster = document.getElementById('voting-roster-container');
+                    if (chatBox){
+                        chatBox.innerHTML = '';
+                    }
+                    if (votingRoster){
+                        votingRoster.innerHTML = '';
+                    }
+                    processedMessageCount = 0;
+                }
+
+                // Meeting -> Task: Refresh the map when returning to task phase
+                if (lastPhase === "meeting" && data.phase === "task") {
+                    // Pulls fresh data so that ejected player is no longer alive
+                    refreshRoomContext();
+                    updateMapUI();
+                }
+
+                lastPhase = data.phase;
+                handlePhaseChange(data.phase);
+            }
+
+            // Chat Renderer for Meeting Phase
+            const chatBox = document.getElementById('discussion-chat');
+            if (data.phase === "meeting" && data.meeting_messages) {
+                if (data.meeting_messages.length > processedMessageCount) {
+                    const newMessages = data.meeting_messages.slice(processedMessageCount);
+
+                    newMessages.forEach(msg => {
+                        if (chatBox) {
+                            // Create individual msgs for each chat
+                            const msgDiv = document.createElement('div');
+                            msgDiv.className = "d-flex align-items-start mb-3 p-2 animate__animated animate__fadeInUp";
+                            msgDiv.style.backgroundColor = "rgba(255,255,255,0.05)";
+                            msgDiv.style.borderRadius = "8px";
+                            msgDiv.style.borderLeft = `4px solid ${msg.sender_color}`;
+
+                            msgDiv.innerHTML = `
+                                <img src="/static/assets/player_${msg.sender_color}.png"
+                                     style="width: 40px; height: 40px; margin-right: 12px; border-radius: 50%;">
+                                <div style="flex-grow: 1;">
+                                    <div class="d-flex justify-content-between">
+                                        <strong style="color: ${msg.sender_color}; font-size: 0.85rem;">${msg.sender_name}</strong>
+                                        <small class="text-muted" style="font-size: 0.7rem;">Step ${msg.timestep}</small>
+                                    </div>
+                                    <p class="mb-0 text-light" style="font-size: 0.95rem; line-height: 1.4;">${msg.text}</p>
+                                </div>
+                            `;
+                            chatBox.appendChild(msgDiv);
+                        }
+                    });
+
+                    if (chatBox){
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
+                    processedMessageCount = data.meeting_messages.length;
+                }
+            }
+
+            // Turn Logic
+            const chatInputGroup = document.getElementById('chat-input-group');
+            const votingRoster = document.getElementById('voting-roster-container');
+
+            if (data.is_my_turn) {
+                // If it's my turn, am I in discussion or voting
+                if (data.can_vote) {
+
+                    // Vote phase -> hide chat and show roster
+                    if (chatInputGroup) chatInputGroup.style.display = 'none';
+                    if (votingRoster && votingRoster.innerHTML.trim() === '') {
+                        console.log("Discussion over. Populating voting roster...");
+                        populateVotingRoster();
+                    }
+                }
+                else {
+                    // Else, discussion phase -> Show submit chat button
+                    if (chatInputGroup) chatInputGroup.style.display = 'flex';
+                }
+            }
+            else {
+                // Not my turn
+                if (chatInputGroup){
+                    chatInputGroup.style.display = 'none';
+                }
+                // Poke AI to advance every 500 ms
+                if (data.phase === "meeting") {
+                        setTimeout(() => {
+                            fetch('/api/next-step', { method: 'POST' });
+                        }, 500);
+                    }
+            }
+        }
+        catch (err) { console.error("Polling error:", err); }
+    }, 1000);
+}
+
+// Ensure you call the functions properly inside the rest of your file...
+    function handlePhaseChange(newPhase) {
+    const actionPanel = document.getElementById('action-panel');
+    const discussionPanel = document.getElementById('discussion-panel');
+    const meetingOverlay = document.getElementById('meeting-overlay');
+    const phaseDisplay = document.getElementById('current-phase');
+
+    if (newPhase.toLowerCase() === "meeting") {
+        phaseDisplay.innerText = "MEETING CALLED!";
+        phaseDisplay.className = "text-danger fw-bold";
+
+        // Show discussion panel screen
+        actionPanel.classList.add('d-none');
+        discussionPanel.classList.remove('d-none');
+
+        const btn = document.getElementById('proceed-to-vote-btn');
+        if (btn) {
+            btn.onclick = async () => {
+                meetingOverlay.classList.remove('d-none');
+                await fetch('/api/next-step', { method: 'POST' });
+            };
+        }
+    }
+    // Not meeting: Active
+    else {
+        actionPanel.classList.remove('d-none');
+        discussionPanel.classList.add('d-none');
+        meetingOverlay.classList.add('d-none');
+
+        phaseDisplay.innerText = "Active";
+        phaseDisplay.className = "text-success fw-bold";
+    }
+}
+
+    const sendChatBtn = document.getElementById('send-chat-btn');
+    const chatInput = document.getElementById('chat-input');
+
+    if (sendChatBtn) {
+        sendChatBtn.onclick = async () => {
+            const message = chatInput.value.trim();
+            if (!message){
+                return;
+            }
+
+            const response = await fetch('/api/speak', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+
+            if (response.ok) {
+                chatInput.value = '';
+                await refreshRoomContext();
+            }
+        };
+    }
+    startPhaseWatcher();
 });
