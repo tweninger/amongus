@@ -186,6 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const response = await fetch('/api/room-context');
         const data = await response.json();
 
+        const isAlive = data.is_alive;
+
+        actionPanel.classList.remove('d-none');
+
         // Update Location
         document.getElementById('location-display').innerText = data.current_room;
 
@@ -198,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             phaseDisplay.className = "text-danger fw-bold";
         }
         else{
-            phaseDisplay.innerText = "Active";
+            phaseDisplay.innerText = isAlive ? "Active" : "Spectating";
             phaseDisplay.className = "text-success fw-bold";
         }
 
@@ -242,6 +246,43 @@ document.addEventListener('DOMContentLoaded', () => {
             taskContainer.appendChild(btn);
         });
 
+        const ventPanel = document.getElementById('vent-panel');
+        const ventContainer = document.getElementById('vent-options');
+        const isImpostor = document.getElementById('role-display').innerText.toLowerCase() === 'impostor';
+
+        // Show venting options if alive impostor
+
+        if (isImpostor && isAlive){
+            const ventResponse = await fetch ('/api/vent-options');
+            const ventData = await ventResponse.json();
+
+            if (ventData.can_vent){
+                ventPanel.classList.remove('d-none');
+                ventContainer.innerHTML= '';
+
+                ventData.options.forEach(room => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-danger btn-sm fw-bold';
+                    btn.innerText = room.replace('_', ' ');
+
+                    btn.onclick = () => {
+                        // Prevent multi-clicking during timestep
+                        ventContainer.querySelectorAll('button').forEach(b => b.disabled = true);
+                        performVent(room);
+                    };
+                    ventContainer.appendChild(btn);
+                });
+            }
+            else{
+                ventPanel.classList.add('d-none');
+            }
+        }
+        else{
+            if (ventPanel){
+                ventPanel.classList.add('d-none');
+            }
+        }
+
         // Update movement options - "Where can I go to now?"
         const moveContainer = document.getElementById('movement-options');
         moveContainer.innerHTML = '';
@@ -271,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (player.is_alive){
                         li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">`;
 
-                        if (humanRole === 'impostor'){
+                        if (humanRole === 'impostor' && isAlive){
                             const killBtn = document.createElement('button');
                             killBtn.className = 'btn btn-danger btn-sm fw-bold';
                             killBtn.innerText = 'KILL!';
@@ -294,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Enable and disable report button
         if (reportBtn){
-            if (freshBodyFound){
+            if (freshBodyFound && isAlive){
                 reportBtn.classList.remove('disabled');
                 reportBtn.style.opacity = '1';
                 reportBtn.onclick = () => triggerReport();
@@ -332,6 +373,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await refreshRoomContext();
             updateMapUI();
+        }
+    }
+
+    async function performVent(destination) {
+        const ventContainer = document.getElementById('vent-options');
+        if (ventContainer) {
+            ventContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+        }
+        const response = await fetch('/api/vent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destination: destination })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const log = document.getElementById('game-log');
+
+            log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
+            log.scrollTop = log.scrollHeight;
+
+            await refreshRoomContext();
+            await updateMapUI();
         }
     }
 
@@ -424,6 +488,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         miniImg.style.left = `${coords.left + miniJitterX}%`;
                         miniImg.style.width = '40px';
                         miniImg.style.transform = 'translate(-50%, -50%)';
+                        if (!player.is_alive) {
+                            miniImg.style.filter = "grayscale(100%) opacity(0.5)";
+                            miniImg.style.transform = "translate(-50%, -50%) rotate(90deg)";
+                        }
                         miniImg.style.zIndex = '10'
                         skeldLayer.appendChild(miniImg);
                     }
@@ -496,11 +564,13 @@ document.addEventListener('DOMContentLoaded', () => {
             log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
             log.scrollTop = log.scrollHeight;
 
+            const phase= document.getElementById('current-phase');
+            if (data.new_phase === "meeting") {
+                phase.innerText = "Meeting";
+                phase.className = "text-danger fw-bold";
+            }
             await refreshRoomContext();
             await updateMapUI();
-
-            document.getElementById('current-phase').innerText = "Meeting";
-            document.getElementById('current-phase').className = "text-danger fw-bold";
         }
     }
 
@@ -533,6 +603,7 @@ async function populateVotingRoster() {
 
     data.players.forEach(player => {
         if (player.color === myColor) return;
+        if (!player.is_alive) return;
 
         const btn = document.createElement('button');
         btn.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary d-flex align-items-center mb-1';
@@ -598,9 +669,12 @@ async function populateVotingRoster() {
 
 // Tracks how many messages we've already shown so we don't duplicate them
 let processedMessageCount = 0;
-
+let stepInProgress = false;
 function startPhaseWatcher() {
     setInterval(async () => {
+        if (stepInProgress){
+            return;
+        }
         try {
             const response = await fetch('/api/status');
             const data = await response.json();
@@ -636,7 +710,7 @@ function startPhaseWatcher() {
                 }
 
                 lastPhase = data.phase;
-                handlePhaseChange(data.phase);
+                handlePhaseChange(data.phase, data.is_alive);
             }
 
             // Chat Renderer for Meeting Phase
@@ -680,10 +754,9 @@ function startPhaseWatcher() {
             const chatInputGroup = document.getElementById('chat-input-group');
             const votingRoster = document.getElementById('voting-roster-container');
 
-            if (data.is_my_turn) {
+            if (data.is_my_turn && data.is_alive) {
                 // If it's my turn, am I in discussion or voting
                 if (data.can_vote) {
-
                     // Vote phase -> hide chat and show roster
                     if (chatInputGroup) chatInputGroup.style.display = 'none';
                     if (votingRoster && votingRoster.innerHTML.trim() === '') {
@@ -693,7 +766,13 @@ function startPhaseWatcher() {
                 }
                 else {
                     // Else, discussion phase -> Show submit chat button
-                    if (chatInputGroup) chatInputGroup.style.display = 'flex';
+                    if (chatInputGroup){
+                        chatInputGroup.style.display = 'flex';
+                        if (sendChatBtn.innerText === "Sent" || sendChatBtn.disabled) {
+                            sendChatBtn.disabled = false;
+                            sendChatBtn.innerText = "Send";
+                        }
+                    }
                 }
             }
             else {
@@ -701,33 +780,51 @@ function startPhaseWatcher() {
                 if (chatInputGroup){
                     chatInputGroup.style.display = 'none';
                 }
-                // Poke AI to advance every 500 ms
-                if (data.phase === "meeting") {
-                        setTimeout(() => {
-                            fetch('/api/next-step', { method: 'POST' });
-                        }, 500);
-                    }
+                // Poke AI to advance every 2 seconds
+                if (!data.is_my_turn && data.phase === "meeting") {
+                        stepInProgress = true;
+                        setTimeout(async () => {
+                            try {
+                                await fetch('/api/next-step', { method: 'POST' });
+                            }
+                            finally {
+                                stepInProgress = false; // Open the gate after the AI finishes
+                            }
+                        }, 2000);
+                }
             }
         }
-        catch (err) { console.error("Polling error:", err); }
+        catch (err) { 
+            console.error("Polling error:", err);
+            stepInProgress = false;
+        }
     }, 1000);
 }
 
-// Ensure you call the functions properly inside the rest of your file...
-    function handlePhaseChange(newPhase) {
+    function handlePhaseChange(newPhase, isAlive) {
     const actionPanel = document.getElementById('action-panel');
     const discussionPanel = document.getElementById('discussion-panel');
     const meetingOverlay = document.getElementById('meeting-overlay');
     const phaseDisplay = document.getElementById('current-phase');
+    const chatInputGroup = document.getElementById('chat-input-group');
+    const skipBtn = document.getElementById('skip-vote-btn');
 
     if (newPhase.toLowerCase() === "meeting") {
         phaseDisplay.innerText = "MEETING CALLED!";
         phaseDisplay.className = "text-danger fw-bold";
 
-        // Show discussion panel screen
-        actionPanel.classList.add('d-none');
-        discussionPanel.classList.remove('d-none');
-
+        if (!isAlive) {
+            if (chatInputGroup) chatInputGroup.style.display = 'none';
+            if (skipBtn) skipBtn.style.display = 'none';
+            
+            actionPanel.classList.add('d-none');
+            discussionPanel.classList.remove('d-none');
+        } 
+        else {
+            actionPanel.classList.add('d-none');
+            discussionPanel.classList.remove('d-none');
+        }
+       
         const btn = document.getElementById('proceed-to-vote-btn');
         if (btn) {
             btn.onclick = async () => {
@@ -742,7 +839,7 @@ function startPhaseWatcher() {
         discussionPanel.classList.add('d-none');
         meetingOverlay.classList.add('d-none');
 
-        phaseDisplay.innerText = "Active";
+        phaseDisplay.innerText = isAlive ? "Active" : "Spectating";
         phaseDisplay.className = "text-success fw-bold";
     }
 }
@@ -754,18 +851,34 @@ function startPhaseWatcher() {
         sendChatBtn.onclick = async () => {
             const message = chatInput.value.trim();
             if (!message){
-                return;
+                return
             }
+            // prevent double posts
+            sendChatBtn.disabled = true;
+            sendChatBtn.innerText = "Sent";
 
-            const response = await fetch('/api/speak', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message })
-            });
+            try{
+                const response = await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
 
-            if (response.ok) {
-                chatInput.value = '';
-                await refreshRoomContext();
+                if (response.ok) {
+                    chatInput.value = '';
+
+                    // Manually trigger next-step to move engine from human to ai turn.
+                    await fetch('/api/next-step', { method: 'POST' });
+                    await refreshRoomContext();
+
+                }
+            }
+            catch(error){
+                console.error("Chat Error:", error);
+            }
+            finally{
+                sendChatBtn.disabled = false;
+                sendChatBtn.innerText = "Send";
             }
         };
     }
