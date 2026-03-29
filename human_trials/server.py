@@ -18,7 +18,7 @@ if research_path not in sys.path:
 from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
-from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill
+from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill, Speak, Vote
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -48,14 +48,18 @@ class Map:
         ]
 skeld = Map()
 
+
+# Represents human player
 class WebPlayerAgent:
     def __init__(self, player):
         self.player = player
-        self.model = "homosapiens/web"
+        self.model = "homosapiens/brain1.0"
         self.queued_action = None
 
     async def choose_action(self, timestep):
-        # Give queued action to engine
+        # Blocking loop. Pause until human has returned a response (turn)
+        while self.queued_action is None:
+            await asyncio.sleep(0.5)
         action = self.queued_action
         self.queued_action = None
         return action
@@ -63,8 +67,8 @@ class WebPlayerAgent:
     def choose_observation_location(self, map):
         return self.player.location
 
-app = FastAPI()
 
+app = FastAPI()
 # Security and setup
 app.add_middleware(
     CORSMiddleware,
@@ -116,7 +120,10 @@ async def join_game(request: Request):
             "CREWMATE_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
         }
     )
+
     game_instance.initialize_game()
+
+    # DEBUG
     # --- INITIAL ASSIGNMENT PRINT ---
     print("\n=== INITIAL TASK ROSTER ===")
     for p in game_instance.players:
@@ -136,6 +143,7 @@ async def join_game(request: Request):
 
     # Build roster for staging phase checklist
     roster = []
+
     for i, agent in enumerate(game_instance.agents):
         agent_color = agent.player.name.split()[-1].lower()
         agent_name = agent_color.capitalize()
@@ -157,6 +165,7 @@ async def join_game(request: Request):
         "roster": roster
     }
 
+# Send response to start game
 @app.post("/api/ready")
 async def start_game_loop():
     global game_instance
@@ -167,28 +176,98 @@ async def start_game_loop():
 
     return {"status": "success", "phase": game_instance.game_phase}
 
-
 @app.get("/api/status")
 async def get_status():
     global game_instance
     if not game_instance:
-        return {"status": "Waiting", "event": "No game", "timestep": 0}
-
+        return {"phase": "lobby"}
+    
     try:
-        if game_instance.activity_log:
-            last_log = str(game_instance.activity_log[-1]) 
-        else:
-            last_log = "Turn complete"
+        # Get current phase (default to active if not set)
+        current_phase = str(getattr(game_instance, 'current_phase', 'active')).lower()
+
+        # Win Condition Logic
+        # 0: Continue, 1: Impostor Win, 2: Crew Win (Kill), 3: Crew Win (Tasks), 4: Impostor Win (Time)
+        win_code = game_instance.check_game_over()
+        win_text = None
+
+        if win_code != 0:
+            win_reason_map = {
+                1: "Impostors win! (Crewmates outnumbered)",
+                2: "Crewmates win! (Impostors eliminated)",
+                3: "Crewmates win! (All tasks completed)",
+                4: "Impostors win! (Time limit reached)",
+            }
+            win_text = win_reason_map.get(win_code, "Game Over!")
+
+        # Meeting Logic: Scan messages and check voting status
+        meeting_messages = []
+        can_vote = False
+
+        if current_phase == "meeting":
+            # Check if rounds left is 0 or less
+            if getattr(game_instance, 'discussion_rounds_left', 0) <= 0:
+                can_vote = True
+
+            # Scan activity log for messages to send to the UI
+            for record in game_instance.activity_log:
+                if isinstance(record, dict):
+                    # Only grab messages from the current meeting/timestep
+                    if record.get("phase") == "meeting" and record.get("timestep") == game_instance.timestep:
+                        action = str(record.get("action", ""))
+                        msg_text = ""
+
+                        if action.startswith("SPEAK:"):
+                            msg_text = action.split("SPEAK:")[-1].strip()
+                        elif action.startswith("CALL MEETING"):
+                            msg_text = "Called an Emergency Meeting!"
+                        elif action.startswith("VOTE"):
+                            msg_text = action
+
+                        if msg_text:
+                            player_obj = record.get("player", "")
+                            player_name = getattr(player_obj, "name", str(player_obj))
+  
+                            player_color = "red"
+                            colors = ["red", "blue", "green", "pink", "orange", "yellow", 
+                                      "black", "white", "purple", "brown", "cyan", "lime"]
+                            for color in colors:
+                                if color in player_name.lower():
+                                    player_color = color
+                                    break
+      
+                            meeting_messages.append({
+                                "sender_name": player_color.capitalize(),
+                                "sender_color": player_color,
+                                "text": msg_text,
+                                "timestep": game_instance.timestep
+                            })
+
+        # Turn Management
+        # For VOTING and DISCUSSION, not for tasks
+        is_my_turn = False
+        human_agent = game_instance.agents[0]
+
+        is_alive = getattr(human_agent.player, 'is_alive', True)
+        
+        # Human turn if we are in a meeting and engine is waiting for an action
+        if current_phase == "meeting" and is_alive:
+            if human_agent.queued_action is None:
+                is_my_turn = True
 
         return {
-            "status": game_instance.game_phase,
-            "event": last_log,
-            "timestep": game_instance.timestep
+            "status": "online",
+            "phase": current_phase,
+            "meeting_messages": meeting_messages, 
+            "timestep": game_instance.timestep,
+            "is_my_turn": is_my_turn,
+            "can_vote": can_vote,
+            "winner": win_text
         }
-    except Exception as e:
-        print(f"STATUS ERROR: {e}")
-        return {"status": "Error", "event": str(e)}
 
+    except Exception as e:
+        print(f"Status Error: {e}")
+        return {"phase": "error", "details": str(e)}
 
 @app.get("/api/map-state")
 async def get_map_state():
@@ -210,22 +289,22 @@ async def get_map_state():
     # Build locations list
     for player in all_players:
         color = player.name.split()[-1].lower() 
-        
+
         player_locations.append({
             "name": color.capitalize(),
             "color": color,
-            "location": player.location
+            "location": player.location,
+            "is_alive": getattr(player, 'is_alive', True)
         })
 
     return {"players": player_locations}
 
-# Get current room, connected rooms, current tasks available, and players sharing your room (+ DOA status)
+# Get current room, connected rooms, current tasks available, and players sharing your room (+ whether they are dead or alive)
 @app.get("/api/room-context")
 async def get_room_context():
     global game_instance
     if not game_instance:
         return {"error": "Game not initialized"}
- 
     human_player = game_instance.agents[0].player
     current_room = human_player.location
 
@@ -262,7 +341,6 @@ async def get_room_context():
             continue
 
         if agent.player.location == current_room:
-
             # Check engine's built-in status flags
             is_alive = getattr(agent.player, 'is_alive', True)
             reported_death = getattr(agent.player, 'reported_death', False)
@@ -273,7 +351,7 @@ async def get_room_context():
                 "name": color.capitalize(),
                 "color": color,
                 "is_alive": is_alive,
-                "reported_death": getattr(agent.player, 'reported_death', False)
+                "reported_death": reported_death
             })
 
     return {
@@ -318,7 +396,8 @@ async def move_player(request: Request):
         "status": "success",
         "current_room": new_room,
         "timestep": game_instance.timestep,
-        "observations": observations
+        "observations": observations,
+        "is_alive" : getattr(human_player.player, 'is_alive', True)
     }
 
 # Handles performing a task
@@ -375,17 +454,27 @@ async def report_body(request: Request):
     players_here = game_instance.map.get_players_in_room(current_room, include_new_deaths=True)
     for player in players_here:
         if not player.is_alive and not player.reported_death:
-            dead_name = player.name.split(":")[0]
+            raw_name = player.name
+            if ":" in raw_name: # get color as name
+                dead_name = raw_name.split(":")[-1].strip().capitalize()
+            else:
+                dead_name = raw_name.capitalize()
             break
+
+    # Tell engine to call meeting
     action = CallMeeting(current_location = current_room)
     human_agent.queued_action = action
 
+    if hasattr(game_instance, 'meeting_messages'):
+        # Clear msgs from previous meetings
+        game_instance.meeting_messages = []
+
     # Step the engine, moving everyone to cafeteria and changing phases
-    asyncio.create_task(game_instance.game_step())
+    await game_instance.game_step()
 
     return {
         "status": "success",
-        "message": f"🚨 {human_agent.player.name.split(':')[0]} reported {dead_name}'s body!",
+        "message": f"🚨 {human_agent.player.name.split(':')[-1].strip().capitalize()} reported {dead_name}'s body!",
         "timestep": game_instance.timestep,
         "phase": game_instance.current_phase
     }
@@ -394,8 +483,6 @@ async def report_body(request: Request):
 async def kill_player(request: Request):
     global game_instance
     data = await request.json()
-
-    # Returns victim color
     target_color = data.get("target")
 
     human_agent = game_instance.agents[0]
@@ -422,16 +509,83 @@ async def kill_player(request: Request):
         }
 
     return {"status": "error", "message": "Error: Target not found."}
-# Debugging
-@app.get("/api/cheat-kill")
-async def cheat_kill():
-    # Instantly kill Player 2 (or anyone else) to test the report button
-    if len(game_instance.players) > 1:
-        target = game_instance.players[1]
-        target.is_alive = False
-        return {"status": f"Killed {target.name}"}
-    return {"error": "Not enough players"}
 
+@app.post("/api/speak")
+async def human_speak(request: Request):
+    global game_instance
+    if not game_instance:
+        return {"error": "No game"}
+
+    data = await request.json()
+    chat_msg = data.get("message", "")
+
+    human_agent = game_instance.agents[0]
+    if not human_agent.player.is_alive:
+        return{"status": "error", "message": "Dead players can't talk!"}
+
+    action = Speak(current_location=human_agent.player.location)
+    action.provide_message(chat_msg)
+    human_agent.queued_action = action
+
+    await game_instance.game_step()
+
+    return {"status": "success"}
+
+# Steps forward one, primarily used during meetings
+@app.post("/api/next-step")
+async def next_step():
+    global game_instance
+    if not game_instance: return {"error": "No game"}
+
+    human_agent = game_instance.agents[0]
+    is_meeting = game_instance.current_phase == "meeting"
+    is_not_my_turn = human_agent.queued_action is not None or not human_agent.player.is_alive
+
+    if is_meeting and is_not_my_turn:
+        await game_instance.game_step()
+        return {"status": "success"}
+    return {"status": "error", "reason": "Not your turn!"}
+
+@app.post("/api/vote")
+async def handle_vote(request: Request):
+    global game_instance
+    data = await request.json()
+    target_color = data.get("target")
+    human_agent = game_instance.agents[0]
+
+    # Handle skip voting
+    if target_color == "none":
+        action = Vote(current_location=human_agent.player.location, other_player=None)
+        human_agent.queued_action = action
+        await game_instance.game_step()
+        await game_instance.game_step()
+        print(f"DEBUG: API Vote call finishing. Sending phase {game_instance.current_phase} to browser.")
+        return {"status": "success", "new_phase": str(game_instance.current_phase).lower()}
+
+    target_player = next((player for player in game_instance.players if target_color.lower() in player.name.lower()), None)
+
+    if target_player:
+        # Create and queue voting action
+        action = Vote(current_location=human_agent.player.location, other_player=target_player)
+        human_agent.queued_action = action
+
+        print(f"DEBUG: Human voting for {target_player.name}")
+
+        # Step once to record vote. Step twice to process voteout & ejection
+        await game_instance.game_step()
+        await game_instance.game_step()
+
+        # Return new phase to JS to hide discussion screen UI
+        new_phase = str(game_instance.current_phase).lower()
+        print(f"DEBUG: Meeting ended. New Phase: {new_phase}")
+
+        return {
+            "status": "success",
+            "new_phase": new_phase,
+            "message": f"Voting complete. Phase is now {new_phase}"
+        }
+
+    return {"status": "error", "message": "Player not found"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
