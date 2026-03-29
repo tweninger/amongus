@@ -32,7 +32,38 @@
             </div>
         </section>
 
-        <section id="game-screen" class="d-none mt-4">
+        <section id="game-screen" class="d-none mt-4" style="position: relative;">
+            <div id="meeting-overlay" class="d-none" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; border-radius: 8px;">
+                <div class="p-4 text-center h-100 d-flex flex-column">
+                    <h2 class="text-danger fw-bold mb-3">📢 EMERGENCY MEETING</h2>
+
+                    <div class="row flex-grow-1 overflow-hidden">
+                        <div class="col-md-7 d-flex flex-column h-100">
+                                <div class="card bg-dark border-secondary flex-grow-1 mb-2 overflow-hidden">
+                                <div class="card-header text-info small fw-bold">CREW DISCUSSION</div>
+                                <div id="discussion-chat" class="card-body text-start scrollable" style="height: 300px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; background: #050505;">
+                            </div>
+                        </div>
+
+                <div id="chat-input-group" class="input-group" style="display: none;">
+                    <input type="text" id="chat-input" class="form-control bg-dark text-light border-secondary" placeholder="Defend yourself or accuse others...">
+                    <button class="btn btn-info fw-bold" id="send-chat-btn">SEND MESSAGE</button>
+                </div>
+            </div>
+                        <div class="col-md-5 h-100">
+                            <div class="card bg-dark border-secondary h-100">
+                                <div class="card-header text-success small fw-bold">SELECT A TARGET</div>
+                                <div id="voting-roster-container" class="list-group list-group-flush p-2 overflow-auto" style="max-height: 300px;">
+                                </div>
+                                <div class="card-footer bg-transparent border-0">
+                                    <button class="btn btn-outline-warning w-100 fw-bold" id="skip-vote-btn">SKIP VOTE</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="minimap-container" style="position: relative; width: 800px; max-width: 100%; margin: 0 auto 20px auto; border: 2px solid #fff;">
                 <img src="/static/assets/skeld.png" alt="The Skeld" style="width: 100%; height: auto; display: block;">
                 <div id="skeld-player-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
@@ -40,10 +71,8 @@
 
             <div class="col-12 mb-4">
                 <h6 class="text-muted small text-uppercase">Current Location: <span id="location-header" class="text-info fw-bold">Cafeteria</span></h6>
-
                 <div id="room-view" style="position: relative; width: 100%; aspect-ratio: 16/9; background-color: #111; border: 4px solid #444; border-radius: 8px; overflow: hidden; transition: background-image 0.4s ease-in-out;">
                     <div id="room-player-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;"></div>
-
                     <div id="room-interaction-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none;"></div>
                 </div>
             </div>
@@ -74,7 +103,6 @@
                             <p>Phase: <span id="current-phase">Initialzing...</span></p>
                             <p>Turn: <span id="current-turn">-</span></p>
                         </div>
-
                         <div id="my-tasks-panel" class="card mt-3 border-success">
                             <div class="card-body">
                                 <h5 class="text-success"> My Tasks</h5>
@@ -84,59 +112,59 @@
                                 </ul>
                             </div>
                         </div>
-
                     </div>
 
-                <div id="staging-panel" class="card mb-3">
-                    <div class="card-body text-center">
-                        <h5 class="mb-3"> Pre-Game Lobby</h5>
-                        <ul id="ready-checklist" class="list-group list-group-flush mb-3 text-start"></ul>
-                        <button id="ready-up-btn" class="btn btn-primary btn-lg w-100 fw-bold">Ready Up</button>
-                    </div>
-                </div>
-
-                <div id="action-panel" class="d-none">
-                    <div class="card mb-3">
-                        <div class="card-body">
-                            <h6 class="text-uppercase small fw-bold">Other Players in Room</h6>
-                            <ul id="players-in-room-list" class="list-group list-group-flush">
-                                <li class="list-group-item bg-dark text-muted small">Loading...</li>
-                            </ul>
+                    <div id="staging-panel" class="card mb-3">
+                        <div class="card-body text-center">
+                            <h5 class="mb-3"> Pre-Game Lobby</h5>
+                            <ul id="ready-checklist" class="list-group list-group-flush mb-3 text-start"></ul>
+                            <button id="ready-up-btn" class="btn btn-primary btn-lg w-100 fw-bold">Ready Up</button>
                         </div>
                     </div>
-  
-                    <div class="card mb-3 border-danger shadow-sm">
+
+                    <div id="action-panel" class="d-none">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="text-uppercase small fw-bold">Other Players in Room</h6>
+                                <ul id="players-in-room-list" class="list-group list-group-flush">
+                                    <li class="list-group-item bg-dark text-muted small">Loading...</li>
+                                </ul>
+                            </div>
+                        </div>
+      
+                        <div class="card mb-3 border-danger shadow-sm">
+                            <div class="card-body text-center">
+                                <button id="report-btn" class="btn btn-danger fw-bold disabled">
+                                    🚨 REPORT DEAD BODY 🚨
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="text-uppercase small fw-bold text-muted">Room Tasks</h6>
+                                <ul id="task-list" class="list-group list-group-flush"></ul>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-body">
+                                <h6>Move To:</h6>
+                                <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
+                            </div>
+                        </div>
+                    </div> <div id="discussion-panel" class="card d-none border-danger mt-3">
                         <div class="card-body text-center">
-                            <button id="report-btn" class="btn btn-danger fw-bold disabled">
-                                🚨 REPORT DEAD BODY 🚨
+                            <h4 class="text-danger"> Meeting Has Been Called</h4>
+                            <button id="proceed-to-vote-btn" class="btn btn-danger w-100 fw-bold">
+                                ENTER DISCUSSION
                             </button>
                         </div>
-                    </div>
-
-                    <div class="card mb-3">
-                        <div class="card-body">
-                            <h6 class="text-uppercase small fw-bold text-muted">Room Tasks</h6>
-                            <ul id="task-list" class="list-group list-group-flush"></ul>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-body">
-                            <h6>Move To:</h6>
-                            <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
-                        </div>
-                    </div>
-
                     </div>
                 </div>
             </div>
         </section>
         <hr class="my-5">
-
-        <section id="about">
-            <h2>About the Study</h2>
-            <p>This platform evaluates the strategic deception and deductive reasoning capabilities of LLMs. By simulating social dynamics, we measure how agents build trust, and perform and detect deceptive actions.</p>
-        </section>
     </div>
 
     <div id="role-reveal-modal" class="modal fade" tabindex="-1" data-bs-backdrop="static">
