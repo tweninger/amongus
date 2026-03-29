@@ -18,7 +18,7 @@ if research_path not in sys.path:
 from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
-from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill, Speak, Vote
+from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill, Speak, Vote, Vent
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -262,7 +262,8 @@ async def get_status():
             "timestep": game_instance.timestep,
             "is_my_turn": is_my_turn,
             "can_vote": can_vote,
-            "winner": win_text
+            "winner": win_text,
+            "is_alive": is_alive
         }
 
     except Exception as e:
@@ -305,8 +306,10 @@ async def get_room_context():
     global game_instance
     if not game_instance:
         return {"error": "Game not initialized"}
-    human_player = game_instance.agents[0].player
+    human_agent = game_instance.agents[0]
+    human_player = human_agent.player
     current_room = human_player.location
+    human_is_alive = getattr(human_player, 'is_alive', True)
 
     # Get human's assigned tasks from the engine
     personal_tasks = []
@@ -327,7 +330,6 @@ async def get_room_context():
         else:
             task_locations[task] = "Unknown"
 
-    # Get possible moves from the map logic
     possible_moves = skeld.get_adjacent_rooms(current_room)
 
     # Get tasks for this room
@@ -342,7 +344,7 @@ async def get_room_context():
 
         if agent.player.location == current_room:
             # Check engine's built-in status flags
-            is_alive = getattr(agent.player, 'is_alive', True)
+            ai_is_alive = getattr(agent.player, 'is_alive', True)
             reported_death = getattr(agent.player, 'reported_death', False)
             color = agent.player.name.split()[-1].lower()
 
@@ -350,7 +352,7 @@ async def get_room_context():
             players_in_room.append({
                 "name": color.capitalize(),
                 "color": color,
-                "is_alive": is_alive,
+                "is_alive": ai_is_alive,
                 "reported_death": reported_death
             })
 
@@ -362,7 +364,8 @@ async def get_room_context():
         "personal_tasks": personal_tasks,
         "task_locations": task_locations,
         "timestep": game_instance.timestep,
-        "players_in_room": players_in_room
+        "players_in_room": players_in_room,
+        "is_alive": human_is_alive
     }
 
 # Handles moving, trigers AI turns, and generates movement observations
@@ -372,18 +375,31 @@ async def move_player(request: Request):
     data = await request.json()
     new_room = data.get("destination")
 
-    human_player = game_instance.agents[0]
-    current_room = human_player.player.location
+    human_agent = game_instance.agents[0]
+    current_room = human_agent.player.location
+    is_alive = getattr(human_agent.player, 'is_alive', True)
 
-    players_here = [player for player in game_instance.map.get_players_in_room(current_room) if player != human_player.player]
+    players_here = [player for player in game_instance.map.get_players_in_room(current_room) if player != human_agent.player]
 
     # Human executes movement
-    action = MoveTo(current_location=current_room, new_location=new_room)
-    human_player.queued_action = action
+    if is_alive:
+        action = MoveTo(current_location=current_room, new_location=new_room)
+        human_agent.queued_action = action
 
-    # Await AI agents run
-    await game_instance.game_step()
+        # Await AI agents run
+        await game_instance.game_step()
 
+    # Spectator / Ghost Mode: Need to manually override location
+    else:
+        await game_instance.game_step()
+        human_agent.player.location = new_room
+        # Need to log manually since skipped by the engine
+        game_instance.activity_log.append({
+            "timestep": game_instance.timestep,
+            "phase": game_instance.current_phase,
+            "action": f"GHOST_MOVE: {human_agent.player.name} moved to {new_room}",
+            "player": human_agent.player
+        })
     # Generate movement observations (X was seen leaving towards Y)
     observations = []
     for player in players_here:
@@ -397,7 +413,7 @@ async def move_player(request: Request):
         "current_room": new_room,
         "timestep": game_instance.timestep,
         "observations": observations,
-        "is_alive" : getattr(human_player.player, 'is_alive', True)
+        "is_alive" : is_alive
     }
 
 # Handles performing a task
@@ -407,23 +423,35 @@ async def do_task(request: Request):
     data = await request.json()
     task_name = data.get("task")
 
-    human_player = game_instance.agents[0]
-    current_room = human_player.player.location
+    human_agent = game_instance.agents[0]
+    current_room = human_agent.player.location
+    is_alive = getattr(human_agent.player, 'is_alive', True)
 
-    players_here = [player for player in game_instance.map.get_players_in_room(current_room) if player != human_player.player]
+    players_here = [player for player in game_instance.map.get_players_in_room(current_room) if player != human_agent.player]
     task_to_complete = None
-    for task in human_player.player.tasks:
+    for task in human_agent.player.tasks:
         if task.name == task_name and not task.check_completion():
             task_to_complete = task
             break
     if task_to_complete:
-        action = CompleteTask(current_location=current_room, task=task_to_complete)
-        human_player.queued_action = action
+        if is_alive:
+            action = CompleteTask(current_location=current_room, task=task_to_complete)
+            human_agent.queued_action = action
+            await game_instance.game_step()
+        else:
+            task_to_complete.do_task()
 
-    action_msg = f"{human_player.player.name} completed {task_name}"
+            game_instance.activity_log.append({
+                "timestep": game_instance.timestep,
+                "phase": game_instance.current_phase,
+                "action": f"GHOST: {human_agent.player.name} completed {task_name}",
+                "player": human_agent.player
+            })
 
-    # Await AI agents run
-    await game_instance.game_step()
+            await game_instance.game_step()
+        action_msg = f"You completed {task_name}!"
+    else:
+        action_msg = "Task already completed or not found."
 
     # Generate movement observations (X was seen leaving towards Y)
     observations = []
@@ -437,7 +465,8 @@ async def do_task(request: Request):
         "status": "success",
         "message": action_msg,
         "timestep": game_instance.timestep,
-        "observations": observations
+        "observations": observations,
+        "is_alive": is_alive
     }
 
 @app.post("/api/report")
@@ -448,6 +477,16 @@ async def report_body(request: Request):
 
     human_agent = game_instance.agents[0]
     current_room = human_agent.player.location
+    is_alive = getattr(human_agent.player, 'is_alive', True)
+
+    if not is_alive:
+        await game_instance.game_step()
+        return {
+            "status": "error", 
+            "message": "Ghosts cannot report bodies!",
+            "timestep": game_instance.timestep,
+            "is_alive": is_alive
+        }
 
     # Check who is dead in the room
     dead_name = "Unknown"
@@ -476,7 +515,8 @@ async def report_body(request: Request):
         "status": "success",
         "message": f"🚨 {human_agent.player.name.split(':')[-1].strip().capitalize()} reported {dead_name}'s body!",
         "timestep": game_instance.timestep,
-        "phase": game_instance.current_phase
+        "phase": game_instance.current_phase,
+        "is_alive": is_alive
     }
 
 @app.post("/api/kill")
@@ -486,7 +526,17 @@ async def kill_player(request: Request):
     target_color = data.get("target")
 
     human_agent = game_instance.agents[0]
+    is_alive = getattr(human_agent.player, 'is_alive', True)
     current_room = human_agent.player.location
+
+    if not is_alive:
+        await game_instance.game_step()
+        return {
+            "status": "error", 
+            "message": "Ghosts cannot kill others!", 
+            "timestep": game_instance.timestep,
+            "is_alive": is_alive
+        }
 
     target_player = None
     # Find target player object by color
@@ -505,10 +555,15 @@ async def kill_player(request: Request):
         return{
             "status": "success",
             "message": f"You killed {target_color.capitalize()}!",
-            "timestep": game_instance.timestep
+            "timestep": game_instance.timestep,
+            "is_alive": is_alive
         }
-
-    return {"status": "error", "message": "Error: Target not found."}
+    return {
+        "status": "error", 
+        "message": "Error: Target not found.",
+        "timestep": game_instance.timestep,
+        "is_alive": is_alive
+    }
 
 @app.post("/api/speak")
 async def human_speak(request: Request):
@@ -520,8 +575,16 @@ async def human_speak(request: Request):
     chat_msg = data.get("message", "")
 
     human_agent = game_instance.agents[0]
-    if not human_agent.player.is_alive:
-        return{"status": "error", "message": "Dead players can't talk!"}
+    is_alive = getattr(human_agent.player, 'is_alive', True)
+
+    if not is_alive:
+        await game_instance.game_step()
+        return {
+            "status": "error", 
+            "message": "Ghosts can't talk!",
+            "timestep": game_instance.timestep,
+            "is_alive": is_alive
+        }
 
     action = Speak(current_location=human_agent.player.location)
     action.provide_message(chat_msg)
@@ -529,7 +592,11 @@ async def human_speak(request: Request):
 
     await game_instance.game_step()
 
-    return {"status": "success"}
+    return {
+        "status": "success",
+        "timestep": game_instance.timestep,
+        "is_alive": is_alive
+    }
 
 # Steps forward one, primarily used during meetings
 @app.post("/api/next-step")
@@ -552,6 +619,17 @@ async def handle_vote(request: Request):
     data = await request.json()
     target_color = data.get("target")
     human_agent = game_instance.agents[0]
+    is_alive = getattr(human_agent.player, 'is_alive', True)
+
+    # Ghost bypass. Pulse the engine twice.
+    if not is_alive:
+        await game_instance.game_step() # Process AI votes
+        await game_instance.game_step() # Process Ejection
+        return {
+            "status": "success", 
+            "new_phase": str(game_instance.current_phase).lower(),
+            "is_alive": False
+        }
 
     # Handle skip voting
     if target_color == "none":
@@ -586,6 +664,63 @@ async def handle_vote(request: Request):
         }
 
     return {"status": "error", "message": "Player not found"}
+
+
+@app.get("/api/vent-options")
+async def get_vent_options():
+    global game_instance
+    human_agent = game_instance.agents[0]
+
+    # Only alive impostors can vent
+    is_impostor = "Impostor" in human_agent.player.__class__.__name__
+    is_alive = getattr(human_agent, 'is_alive', True)
+
+    if not is_impostor or not is_alive:
+        return {"can_vent": False, "options": []}
+    
+    current_room = human_agent.player.location
+
+    vent_targets = [
+        adj for adj, attr in skeld.ship_map[current_room].items() if attr.get("connection_type") == "vent"
+    ]
+
+    return{
+        "can_vent": len(vent_targets) > 0,
+        "options": vent_targets
+    }
+
+@app.post("/api/vent")
+async def perform_vent(request: Request):
+    global game_instance
+    data = await request.json()
+    target_room = data.get("destination")
+
+    human_agent = game_instance.agents[0]
+    is_alive = getattr(human_agent.player, 'is_alive', True)
+
+    if not is_alive:
+        await game_instance.game_step()
+        return {
+            "status": "error",
+            "message": "Ghosts cannot vent!",
+            "timestep": game_instance.timestep,
+            "is_alive": False
+        }
+
+    current_room = human_agent.player.location
+
+    action = Vent(current_location=current_room, new_location=target_room)
+    human_agent.queued_action = action
+
+    await game_instance.game_step()
+
+    return {
+        "status": "success",
+        "current_room": target_room,
+        "timestep": game_instance.timestep,
+        "message": f"You vented to {target_room.replace('_', ' ').capitalize()}.",
+        "is_alive": is_alive
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
