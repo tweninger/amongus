@@ -54,8 +54,10 @@ class LLMAgent(Agent):
 
         self.system_prompt = system_prompt
         self.model = model
+        #self.model = "llama3.2:3b"
         self.temperature = 0.7
         self.api_key = os.getenv("OPENROUTER_API_KEY")
+        #self.api_key="ollama"
         #self.api_url = "http://localhost:11434/v1/chat/completions"
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.summarization = "No thought process has been made."

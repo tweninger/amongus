@@ -324,9 +324,10 @@ class AmongUs:
         self.update_map()
 
         # Discussion
-        for round in range(self.game_config["discussion_rounds"]):
+        while self.discussion_rounds_left > 0:
             #print("Discussion round", round)
             for agent in self.agents:
+                print(f"DEBUG: STARTING DISCUSSION turn for {agent.player.name}")
                 if 'homosapiens' in agent.model:
                     self.is_human_turn = True
                 else:
@@ -341,6 +342,7 @@ class AmongUs:
         #print("Voting phase")
         self.vote_info_one_round = {}
         for agent in self.agents:
+            print(f"DEBUG: STARTING VOTING turn for {agent.player.name}")
             if 'homosapiens' in agent.model:
                 self.is_human_turn = True
             else:
@@ -349,9 +351,11 @@ class AmongUs:
             # Update game state after each vote
             self.check_actions()
             self.update_map()
+        print("REACHED")
 
         # Vote out
         self.voteout()
+        self.current_phase = "task"
         self.update_map()
 
     def voteout(self):
@@ -390,6 +394,8 @@ class AmongUs:
         self.current_phase = "task"
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
         self.votes = {}
+        self.update_map()
+        self.check_actions()
 
     def check_monitor(self, room):
         players = self.map.get_players_in_room(room)
