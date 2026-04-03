@@ -275,9 +275,25 @@ class AmongUs:
         # interview
         if self.interviewer is not None:
             await self.interviewer.auto_question(self, agent)
-
-        # choose action
-        action = await agent.choose_action(self.timestep)
+        try:
+            # Enforce a 10.0 second timeout for AI players
+            if 'homosapiens' in agent.model:
+                action = await agent.choose_action(self.timestep)
+            else:
+                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=10.0)
+        except asyncio.TimeoutError:
+            # Pick a safe fallback from available actions
+            available = agent.player.available_actions
+            action = available[0] if available else None
+            for a in available:
+                if "Speak" in str(type(a)):
+                    action = a
+                    action.provide_message("...")
+                    break
+                elif "Vote" in str(type(a)):
+                    action = a
+                    action.target = "none" # Force a skipped vote
+                    break
         #print(action)
         observation_location = ""
         if action.name == "ViewMonitor":
