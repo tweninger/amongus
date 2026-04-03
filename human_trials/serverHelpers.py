@@ -54,11 +54,14 @@ def parse_meeting_messages(game_instance):
         response_data = interaction.get("response", {})
 
         # Check phase and step
-        log_phase = prompt_data.get("Phase", "")
-        log_step = record.get("step") 
+        log_phase = prompt_data.get("Phase", "") or record.get("phase", "")
+        log_step = record.get("step") or record.get("timestep") 
 
-        if log_phase == "Meeting phase" and log_step == game_instance.timestep:
-            action = str(response_data.get("action", ""))
+        if "meeting" in str(log_phase).lower() and log_step == game_instance.timestep:
+            
+            # Action is in "Thinking Process" block
+            thinking_process = response_data.get("Thinking Process", {})
+            action = str(thinking_process.get("action", "") or record.get("action", ""))
             
             text = ""
             if "SPEAK:" in action:
@@ -70,7 +73,12 @@ def parse_meeting_messages(game_instance):
 
             if text:
                 player_data = record.get("player", {})
-                player_name = player_data.get("name", "unknown").lower()
+                
+                if isinstance(player_data, dict):
+                    player_name = player_data.get("name", "unknown").lower()
+                else:
+                    player_name = getattr(player_data, "name", "unknown").lower()
+                    
                 player_color = next((color for color in colors if color in player_name), "white")
 
                 messages.append({

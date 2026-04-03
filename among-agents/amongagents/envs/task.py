@@ -118,9 +118,7 @@ class TaskAssignment:
         all_tasks = 0
         completed_tasks = 0
         for task in self.assigned_tasks:
-            if (
-                task.assigned_player.is_alive
-            ):  # if a player is dead, we do not check his task
+            if (task.assigned_player.is_alive):  # if a player is dead, we do not check his task
                 all_tasks += 1
                 if task.check_completion():
                     completed_tasks += 1

@@ -1,44 +1,142 @@
 // game.js
 
-// Map string name of room to the X/Y coordinates of skeld.png
-// Used to overlay character imgs
-const roomCoordinates = {
-    "cafeteria": { top: 30, left: 50 },
-    "weapons": { top: 25, left: 75 },
-    "navigation": { top: 45, left: 88 },
-    "o2": { top: 42, left: 68 },
-    "shields": { top: 75, left: 75 },
-    "communication": { top: 85, left: 65 },
-    "communications": { top: 85, left: 65 },
-    "admin": { top: 60, left: 65 },
-    "storage": { top: 75, left: 50 },
-    "electrical": { top: 60, left: 35 },
-    "lower engine": { top: 75, left: 20 },
-    "reactor": { top: 50, left: 10 },
-    "security": { top: 50, left: 28 },
-    "upper engine": { top: 25, left: 20 },
-    "medbay": { top: 35, left: 35 }
-};
+import { roomCoordinates } from "./config.js";
+let isHumanReady = false;
+let readyPlayers = 0;
+let totalPlayers = 0;
+let processedMessageCount = 0;
+let stepInProgress = false;
+let gameStarted = false
 
+let stagingPanel, actionPanel, phaseDisplay;
+
+// --- HELPERS ---
+// Standardize sending messages to on-screen game log.
+function addLogMessage(text, type = 'info') {
+    const log = document.getElementById('game-log');
+    if (!log){
+        return;
+    }
+
+    // Map types to common Boostrap colors
+    const colorMap = {
+        'info': 'text-info',
+        'success': 'text-success',
+        'danger': 'text-danger fw-bold',
+        'warning': 'text-warning'
+    };
+
+    const colorClass = colorMap[type] || 'text-light';
+    
+    // Append msg with a > prefix
+    log.innerHTML += `<p class="${colorClass}">> ${text}</p>`;
+    
+    // Auto-scroll to the bottom
+    log.scrollTop = log.scrollHeight;
+}
+
+function getPlayerImg(color){
+    return `/static/assets/player_${color.toLowerCase()}.png`;
+}
+
+// Simply capitalize a color string
+function formatColorName(color){
+    return color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
+}
+
+function showRoleReveal(role, color){
+    const roleDisplay = document.getElementById('role-display');
+    const colorDisplay = document.getElementById('color-name-display');
+    const imgDisplay = document.getElementById('color-img-display');
+    const userDisplay = document.getElementById('user-display');
+    if (roleDisplay){
+        roleDisplay.innerText = role;
+        // Assign role display color as red for impostor, blue for crewmate
+        roleDisplay.className = `display-3 fw-bold text-uppercase mb-5 ${role.toLowerCase() === 'impostor' ? 'text-danger' : 'text-info'}`;
+    }
+    if (colorDisplay){
+        colorDisplay.innerText = formatColorName(color);
+        colorDisplay.style.color = color;
+    }
+    if (imgDisplay){
+        imgDisplay.src = getPlayerImg(color);
+    }
+    if (userDisplay){
+        userDisplay.innerText = formatColorName(color);
+    }
+    const roleModal = new bootstrap.Modal(document.getElementById('role-reveal-modal'));
+
+    roleModal.show();
+}
+
+
+// --- Begin JS Logic ---
 document.addEventListener('DOMContentLoaded', () => {
+
     const startBtn = document.getElementById('start-btn');
     const playerCountDisplay = document.getElementById('player-count-display');
-    const stagingPanel = document.getElementById('staging-panel');
-    const actionPanel = document.getElementById('action-panel');
     const readyChecklist = document.getElementById('ready-checklist');
     const readyUpBtn = document.getElementById('ready-up-btn');
     const lobbyScreen = document.getElementById('lobby-screen');
     const gameScreen = document.getElementById('game-screen');
-    const gameLog = document.getElementById('game-log');
     const userDisplay = document.getElementById('user-display');
-    const phaseDisplay = document.getElementById('current-phase');
+    stagingPanel = document.getElementById('staging-panel');
+    actionPanel = document.getElementById('action-panel');
+    phaseDisplay = document.getElementById('current-phase');
 
-    let isHumanReady = false;
-    let readyPlayers = 0;
-    let totalPlayers = 0;
     let lastPhase = "active";
 
-    // Grab 5, and 7 player buttons
+    function simulateAiReady(playerId) {
+        const delay = Math.floor(Math.random() * 7000) + 3000;
+        setTimeout(() => {
+            const badge = document.getElementById(`badge-${playerId}`);
+            if (badge) {
+                badge.className = 'badge bg-success';
+                badge.innerText = 'Ready';
+                readyPlayers++;
+                checkAllReady(); 
+            }
+        }, delay);
+    }
+
+    // Checks if everyone is ready, and if so, starts the actual game
+    async function checkAllReady() {
+        if (readyPlayers === totalPlayers && isHumanReady) {
+            const response = await fetch('/api/ready', { method: 'POST' });
+            console.log("EVERYONE IS READY");
+
+            if (response.ok) {
+                console.log("RESPONSE FROM CHECKALLREADY IS OK");
+                gameStarted = true;
+                if (stagingPanel){
+                    stagingPanel.classList.add('d-none');
+                }
+
+                 if (actionPanel){
+                    actionPanel.classList.remove('d-none');
+                }
+                
+                // Reveal Tasks and Actions now that the game started
+                const myTasks = document.getElementById('my-tasks-panel');
+                if (myTasks){
+                    myTasks.classList.remove('d-none');
+                }
+
+                const phaseDisplay = document.getElementById('current-phase');
+                if (phaseDisplay) {
+                    phaseDisplay.innerText = "Active";
+                    phaseDisplay.className = "text-success fw-bold";
+                }
+
+                addLogMessage('All players are ready. Game has started!', 'success');
+                
+                await refreshRoomContext(); // Load initial tasks and moves
+                await updateMapUI();
+            }
+        }
+    }
+
+      // Grab 5, and 7 player buttons
     const sizeButtons = document.querySelectorAll('#count-selector .btn');
     
     // Update the text on webpage when a new size is clicked
@@ -76,25 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userDisplay) userDisplay.innerText = data.color.charAt(0).toUpperCase() + data.color.slice(1);
                 if (phaseDisplay) phaseDisplay.innerText = "Staging";
 
-                // Set up role reveal
-                const roleDisplay = document.getElementById('role-display');
-                roleDisplay.innerText = data.role;
-
-                if (data.role.toLowerCase() === 'impostor'){
-                    roleDisplay.className = "display-3 fw-bold text-uppercase mb-5 text-danger"; // red
-                }
-                else{
-                    roleDisplay.className = "display-3 fw-bold text-uppercase mb-5 text-info"; // blue
-                }
-
-                // Inject colors and PNG sprite to webpage
-                document.getElementById('color-name-display').innerText = data.color;
-                document.getElementById('color-name-display').style.color = data.color; 
-                document.getElementById('color-img-display').src = `/static/assets/player_${data.color}.png`;
-
                 // Display role modal
-                const roleModal = new bootstrap.Modal(document.getElementById('role-reveal-modal'))
-                roleModal.show();
+                showRoleReveal(data.role, data.color);
 
                 totalPlayers = data.roster.length;
                 readyChecklist.innerHTML = ''; // Clear old lists
@@ -105,41 +186,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
                     li.id = `player-status-${player.id}`;
 
-                    // Create name label and set its color
-                    const nameSpan = document.createElement('span');
+                    const nameLabel = player.is_human ? `${player.name} (me)` : player.name;
 
-                    if (player.is_human){
-                        nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name} (me) </span>`;
-                    }
-                    else{
-                        nameSpan.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${player.name}</span>`;
-                    }
-
-                    // Set status badge (waiting -> ready)
-                    const statusBadge = document.createElement('span');
-                    statusBadge.className = 'badge bg-secondary';
-                    statusBadge.innerText = 'Waiting...';
-                    statusBadge.id = `badge-${player.id}`;
-
-                    // Render li
-                    li.appendChild(nameSpan);
-                    li.appendChild(statusBadge);
+                    li.innerHTML = `
+                        <span style="color: ${player.color}; font-weight: bold;">${nameLabel}</span>
+                        <span class="badge bg-secondary" id="badge-${player.id}">Waiting...</span>
+                    `;
                     readyChecklist.appendChild(li);
 
-                    // Create artificial delay for AI players
                     if (!player.is_human) {
-                        // Random delay between 3s and 10s
-                        const randomDelay = Math.floor(Math.random() * 7000) + 3000;
-
-                        setTimeout(() => {
-                            const badge = document.getElementById(`badge-${player.id}`);
-                            if (badge) {
-                                badge.className = 'badge bg-success';
-                                badge.innerText = 'Ready';
-                                readyPlayers++;
-                                checkAllReady(); // Check if this was the last person needed
-                            }
-                        }, randomDelay);
+                        simulateAiReady(player.id);
                     }
                 });
 
@@ -165,15 +221,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Handles start button and switch screens
                 document.getElementById('enter-map-btn').addEventListener('click', async () => {
-                    if (lobbyScreen) lobbyScreen.classList.add('d-none');
-                    if (gameScreen) gameScreen.classList.remove('d-none');
+                    if (lobbyScreen){
+                        lobbyScreen.classList.add('d-none');
+                    }
+                    if (gameScreen){
+                        gameScreen.classList.remove('d-none');
+                    }
+                    
+                    // initally hide these
+                    gameStarted = false;
+                    const myTasks = document.getElementById('my-tasks-panel');
+                    const actionPanel = document.getElementById('action-panel');
+                    if (myTasks){
+                        myTasks.classList.add('d-none');
+                    }
 
+                    if (actionPanel){
+                        actionPanel.classList.add('d-none');
+                    }
+                    
                     await fetch('/api/next-step', { method: 'POST' });
-
-                    refreshRoomContext();
-                    updateMapUI();
+                    await refreshRoomContext();
+                    await updateMapUI();
                 });
-                if (gameLog) gameLog.innerHTML += `<p class="text-success">> Player ${data.color} authenticated.</p>`;
+                addLogMessage(`Player ${data.color} authenticated.`, 'success');
             }
         }
         catch (error) {
@@ -188,7 +259,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isAlive = data.is_alive;
 
-        actionPanel.classList.remove('d-none');
+        if (gameStarted) {
+            actionPanel.classList.remove('d-none');
+        } 
+        else {
+            actionPanel.classList.add('d-none');
+        }
 
         // Update Location
         document.getElementById('location-display').innerText = data.current_room;
@@ -359,20 +435,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (response.ok) {
             const data = await response.json();
 
-            // Update the log
-            const log = document.getElementById('game-log');
-            log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] Moved to ${destination}</p>`;
-
+            addLogMessage(`[Step ${data.timestep}] Moved to ${destination}`, 'info');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    log.innerHTML += `<p class="text-info">> [Step ${data.timestep}] ${observation}</p>`;
-
-                })
+                    addLogMessage(observation, 'info');
+                });
             }
-            log.scrollTop = log.scrollHeight;
-
             await refreshRoomContext();
-            updateMapUI();
+            //updateMapUI();
+            await updateMapUI();
         }
     }
 
@@ -389,11 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (response.ok) {
             const data = await response.json();
-            const log = document.getElementById('game-log');
-
-            log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
-            log.scrollTop = log.scrollHeight;
-
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
             await refreshRoomContext();
             await updateMapUI();
         }
@@ -411,20 +478,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             // Update the log
-            const log = document.getElementById('game-log');
-            log.innerHTML += `<p class="text-success">> [Step ${data.timestep}] ${data.message}</p>`;
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'success')
 
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    log.innerHTML += `<p class="text-warning">> [Step ${data.timestep}] ${observation}</p>`;
+                    addLogMessage(observation, 'warning');
                 })
             }
+
             // Update the counter on screen
             document.getElementById('step-counter').innerText = data.timestep;
-            log.scrollTop = log.scrollHeight;
 
             await refreshRoomContext();
-            updateMapUI(); // Redraw map after tasks
+            //updateMapUI(); // Redraw map after tasks
+            await updateMapUI();
         }
     }
 
@@ -532,37 +599,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Checks if everyone is ready, and if so, starts the actual game
-    async function checkAllReady() {
-        if (readyPlayers === totalPlayers && isHumanReady) {
-
-            // Tell backend to switch to "active"
-            const response = await fetch('/api/ready', { method: 'POST' });
-
-            if (response.ok) {
-                // UI Transition
-                stagingPanel.classList.add('d-none'); // Hide checklist
-                actionPanel.classList.remove('d-none'); // Reveal Tasks and Movement
-                document.getElementById('current-phase').innerText = "Active";
-                document.getElementById('current-phase').className = "text-success fw-bold";
-
-                const log = document.getElementById('game-log');
-                log.innerHTML += `<p class="text-warning">> All players ready. Game has started.</p>`;
-                log.scrollTop = log.scrollHeight;
-
-                refreshRoomContext(); // Load initial tasks and moves
-                updateMapUI()
-            }
-        }
-    }
-
+    
     async function triggerReport() {
         const response = await fetch('/api/report', { method: 'POST' });
         if (response.ok) {
             const data = await response.json();
-            const log = document.getElementById('game-log');
-            log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
-            log.scrollTop = log.scrollHeight;
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
 
             const phase= document.getElementById('current-phase');
             if (data.new_phase === "meeting") {
@@ -583,100 +625,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (response.ok){
             const data = await response.json();
-            const log = document.getElementById('game-log');
-            log.innerHTML += `<p class="text-danger fw-bold">> [Step ${data.timestep}] ${data.message}</p>`;
-            log.scrollTop = log.scrollHeight;
-
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
             await refreshRoomContext();
             await updateMapUI();
         }
     }
 
-async function populateVotingRoster() {
-    const response = await fetch('/api/map-state');
-    const data = await response.json();
-    const container = document.getElementById('voting-roster-container');
-    const userDisplay = document.getElementById('user-display');
-    const myColor = userDisplay ? userDisplay.innerText.toLowerCase() : ""; 
-    if (!container || !data.players) return;
+    async function populateVotingRoster() {
+        const response = await fetch('/api/map-state');
+        const data = await response.json();
+        const container = document.getElementById('voting-roster-container');
+        const userDisplay = document.getElementById('user-display');
+        const myColor = userDisplay ? userDisplay.innerText.toLowerCase() : ""; 
+        if (!container || !data.players){
+            return;
+        }
         container.innerHTML = '';
 
-    data.players.forEach(player => {
-        if (player.color === myColor) return;
-        if (!player.is_alive) return;
-
-        const btn = document.createElement('button');
-        btn.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary d-flex align-items-center mb-1';
-        btn.style.cursor = "pointer";
-        btn.innerHTML = `
-            <img src="/static/assets/player_${player.color}.png" style="width: 30px; margin-right: 15px;">
-            <span>Vote for <strong>${player.name}</strong></span>
-        `;
-
-        btn.onclick = async () => {
-            // 1. Lock UI
-            container.querySelectorAll('button').forEach(b => b.disabled = true);
-            btn.classList.add('bg-danger', 'text-white');
-
-            // 2. Send Vote
-            const voteResponse = await fetch('/api/vote', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target: player.color })
-            });
-
-            if (voteResponse.ok) {
-                // 3. FORCE HIDE EVERYTHING IMMEDIATELY
-                document.getElementById('meeting-overlay').classList.add('d-none');
-                document.getElementById('discussion-panel').classList.add('d-none');
-                document.getElementById('action-panel').classList.remove('d-none');
-
-                // 4. Update the map so we see the new state
-                await refreshRoomContext();
-                await updateMapUI();
-
-                // 5. Clean up the roster for next time
-                container.innerHTML = '';
+        data.players.forEach(player => {
+            if (player.color === myColor){
+                return;
             }
-        };
-
-        container.appendChild(btn);
-    });
-
-    const skipBtn = document.getElementById('skip-vote-btn');
-    if (skipBtn) {
-        skipBtn.onclick = async () => {
-            container.querySelectorAll('button').forEach(b => b.disabled = true);
-            skipBtn.disabled = true;
-
-            const skipResponse = await fetch('/api/vote', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target: "none" })
-            });
-
-            if (skipResponse.ok) {
-                document.getElementById('meeting-overlay').classList.add('d-none');
-                document.getElementById('discussion-panel').classList.add('d-none');
-                document.getElementById('action-panel').classList.remove('d-none');
-                await refreshRoomContext();
-                await updateMapUI();
-                container.innerHTML = '';
+            if (!player.is_alive){
+                return;
             }
-        };
+
+            const btn = document.createElement('button');
+            btn.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary d-flex align-items-center mb-1';
+            btn.style.cursor = "pointer";
+            btn.innerHTML = `
+                <img src="/static/assets/player_${player.color}.png" style="width: 30px; margin-right: 15px;">
+                <span>Vote for <strong>${player.name}</strong></span>
+            `;
+
+            btn.onclick = async () => {
+                // 1. Lock UI
+                container.querySelectorAll('button').forEach(b => b.disabled = true);
+                btn.classList.add('bg-danger', 'text-white');
+
+                // 2. Send Vote
+                const voteResponse = await fetch('/api/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target: player.color })
+                });
+
+                if (voteResponse.ok) {
+                    // 3. Force hide discussion elements
+                    document.getElementById('meeting-overlay').classList.add('d-none');
+                    document.getElementById('discussion-panel').classList.add('d-none');
+                    document.getElementById('action-panel').classList.remove('d-none');
+
+                    // 4. Update the map so we see the new state
+                    await refreshRoomContext();
+                    await updateMapUI();
+
+                    // 5. Clean up the roster for next time
+                    container.innerHTML = '';
+                }
+            };
+
+            container.appendChild(btn);
+        });
+
+        const skipBtn = document.getElementById('skip-vote-btn');
+        if (skipBtn) {
+            skipBtn.onclick = async () => {
+                container.querySelectorAll('button').forEach(b => b.disabled = true);
+                skipBtn.disabled = true;
+
+                const skipResponse = await fetch('/api/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target: "none" })
+                });
+
+                // Force hide discussion elements
+                if (skipResponse.ok) {
+                    document.getElementById('meeting-overlay').classList.add('d-none');
+                    document.getElementById('discussion-panel').classList.add('d-none');
+                    document.getElementById('action-panel').classList.remove('d-none');
+                    await refreshRoomContext();
+                    await updateMapUI();
+                    container.innerHTML = '';
+                }
+            };
+        }
     }
-}
 
-// Tracks how many messages we've already shown so we don't duplicate them
-let processedMessageCount = 0;
-let stepInProgress = false;
 function startPhaseWatcher() {
     setInterval(async () => {
         if (stepInProgress){
             return;
         }
         try {
-            const response = await fetch('/api/status');
+            const response = await fetch('/api/meeting-context');
             const data = await response.json();
 
             // Win Condition Check on js side
@@ -705,14 +748,16 @@ function startPhaseWatcher() {
                 // Meeting -> Task: Refresh the map when returning to task phase
                 if (lastPhase === "meeting" && data.phase === "task") {
                     // Pulls fresh data so that ejected player is no longer alive
-                    refreshRoomContext();
-                    updateMapUI();
+                    //refreshRoomContext();
+                    //updateMapUI();
+
+                    await refreshRoomContext();
+                    await updateMapUI();
                 }
 
                 lastPhase = data.phase;
                 handlePhaseChange(data.phase, data.is_alive);
             }
-
             // Chat Renderer for Meeting Phase
             const chatBox = document.getElementById('discussion-chat');
             if (data.phase === "meeting" && data.meeting_messages) {
@@ -747,6 +792,7 @@ function startPhaseWatcher() {
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
                     processedMessageCount = data.meeting_messages.length;
+                    console.log(processedMessageCount);
                 }
             }
 
@@ -758,9 +804,10 @@ function startPhaseWatcher() {
                 // If it's my turn, am I in discussion or voting
                 if (data.can_vote) {
                     // Vote phase -> hide chat and show roster
-                    if (chatInputGroup) chatInputGroup.style.display = 'none';
+                    if (chatInputGroup){
+                        chatInputGroup.style.display = 'none';
+                    }
                     if (votingRoster && votingRoster.innerHTML.trim() === '') {
-                        console.log("Discussion over. Populating voting roster...");
                         populateVotingRoster();
                     }
                 }
@@ -780,6 +827,7 @@ function startPhaseWatcher() {
                 if (chatInputGroup){
                     chatInputGroup.style.display = 'none';
                 }
+
                 // Poke AI to advance every 2 seconds
                 if (!data.is_my_turn && data.phase === "meeting") {
                         stepInProgress = true;
@@ -865,20 +913,13 @@ function startPhaseWatcher() {
                 });
 
                 if (response.ok) {
+                    console.log("RESPONSE WAS OK!");
                     chatInput.value = '';
-
-                    // Manually trigger next-step to move engine from human to ai turn.
                     await fetch('/api/next-step', { method: 'POST' });
-                    await refreshRoomContext();
-
                 }
             }
             catch(error){
                 console.error("Chat Error:", error);
-            }
-            finally{
-                sendChatBtn.disabled = false;
-                sendChatBtn.innerText = "Send";
             }
         };
     }
