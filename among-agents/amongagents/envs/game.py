@@ -86,6 +86,7 @@ class AmongUs:
         self.all_phases = ["meeting", "task"]
         self.summary_json = {f"Game {game_index}": {"config": game_config}}
         self.list_of_impostors = []
+        self.meeting_in_progress = False
 
     def initialize_game(self):
         # reset game state
@@ -105,6 +106,7 @@ class AmongUs:
 
         # game state
         self.current_phase = "task"
+        self.meeting_in_progress = False
         self.initialize_players()
         self.initialize_agents()
         self.agent_log = []
@@ -263,13 +265,18 @@ class AmongUs:
 
     async def agent_step(self, agent):
         self.check_actions()
-        if not agent.player.is_alive:
+
+        is_human = 'homosapiens' in getattr(agent, 'model', '')
+
+        # Disregard dead AI players
+        if not agent.player.is_alive and not is_human:
             return
+
         # kill cooldown
         if agent.player.identity == "Impostor" and agent.player.kill_cooldown > 0:
             agent.player.kill_cooldown -= 1
 
-        # Set current player for UI updates
+        # set current player for AI updates
         self.current_player = agent.player.name
 
         # interview
@@ -277,10 +284,11 @@ class AmongUs:
             await self.interviewer.auto_question(self, agent)
         try:
             # Enforce a 10.0 second timeout for AI players
-            if 'homosapiens' in agent.model:
+            if is_human:
                 action = await agent.choose_action(self.timestep)
             else:
                 action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=10.0)
+                
         except asyncio.TimeoutError:
             # Pick a safe fallback from available actions
             available = agent.player.available_actions
@@ -294,12 +302,18 @@ class AmongUs:
                     action = a
                     action.target = "none" # Force a skipped vote
                     break
+        # Dead humans are ghost observers, consume the action to advance the turn
+        # but don't record or execute it, so AI agents don't see ghosts speaking
+        if not agent.player.is_alive and is_human:
+            self.update_map()
+            return
+
         #print(action)
         observation_location = ""
-        if action.name == "ViewMonitor":
+        if not isinstance(action, str) and action.name == "ViewMonitor":
             observation_location = agent.choose_observation_location(
-                self.map.ship_map.nodes
-            )
+            self.map.ship_map.nodes
+    )
         self.camera_record[agent.player.name] = action
         if str(action).startswith("KILL"):
             location = agent.player.location
@@ -330,9 +344,21 @@ class AmongUs:
                 self.is_human_turn = False
             await self.agent_step(agent)
             if self.current_phase == "meeting":
-                break
+                self.is_human_turn = True
+                return
 
     async def meeting_phase(self):
+        self.meeting_in_progress = True
+        try:
+            await self._run_meeting_phase()
+        finally:
+            self.meeting_in_progress = False
+
+    async def _run_meeting_phase(self):
+        # Always reset discussion rounds at the start of a new meeting
+        self.discussion_rounds_left = self.game_config["discussion_rounds"]
+        print(f"DEBUG: _run_meeting_phase start, discussion_rounds_left={self.discussion_rounds_left}, agents={[a.player.name for a in self.agents]}")
+
         # Move all players to the Cafeteria
         for player in self.players:
             player.location = "Cafeteria"
@@ -341,40 +367,57 @@ class AmongUs:
 
         # Discussion
         while self.discussion_rounds_left > 0:
-            #print("Discussion round", round)
+            print(f"DEBUG: discussion round, rounds_left={self.discussion_rounds_left}")
             for agent in self.agents:
-                print(f"DEBUG: STARTING DISCUSSION turn for {agent.player.name}")
-                if 'homosapiens' in agent.model:
+                print(f"DEBUG: STARTING DISCUSSION turn for {agent.player.name} (rounds_left={self.discussion_rounds_left})")
+
+                is_human = 'homosapiens' in getattr(agent, 'model', '')
+                if is_human:
                     self.is_human_turn = True
+                    await self.agent_step(agent)
                 else:
                     self.is_human_turn = False
-                await self.agent_step(agent)
+                    await self.agent_step(agent)
+
             self.discussion_rounds_left -= 1
             # Update game state after each round
             self.check_actions()
             self.update_map()
 
         # Voting phase
-        #print("Voting phase")
+        print(f"DEBUG: entering voting phase, discussion_rounds_left={self.discussion_rounds_left}")
         self.vote_info_one_round = {}
         for agent in self.agents:
-            print(f"DEBUG: STARTING VOTING turn for {agent.player.name}")
-            if 'homosapiens' in agent.model:
+
+            is_human = 'homosapiens' in getattr(agent, 'model', '')
+            is_alive = agent.player.is_alive
+
+            if is_human:
                 self.is_human_turn = True
+                if not agent.player.is_alive:
+                    continue
             else:
                 self.is_human_turn = False
+            print(f"DEBUG: STARTING VOTING turn for {agent.player.name} (rounds_left={self.discussion_rounds_left})")
             await self.agent_step(agent)
+            
             # Update game state after each vote
             self.check_actions()
             self.update_map()
         print("REACHED")
-
         # Vote out
         self.voteout()
         self.current_phase = "task"
         self.update_map()
 
     def voteout(self):
+        if not self.votes:
+            print("== No votes. ==")
+            # Manually trigger the transition back to tasks
+            self.current_phase = "task"
+            self.discussion_rounds_left = self.game_config["discussion_rounds"]
+            return
+
         round = self.game_config["discussion_rounds"] - self.discussion_rounds_left
         max_votes = max(self.votes.values())
         print(self.vote_info_one_round)
@@ -494,9 +537,13 @@ class MessageSystem:
             instruction = TASK_PHASE_INSTRUCTION
         elif env.current_phase == "meeting":
             max_rounds = env.game_config["discussion_rounds"]
-            round = max_rounds - env.discussion_rounds_left
-            phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
-            instruction = MEETING_PHASE_INSTRUCTION
+            if env.discussion_rounds_left == 0:
+                phase_info = "Meeting phase - Voting Round (discussion is over, cast your VOTE)"
+                instruction = "Discussion is over. You must now cast your VOTE for who you think the Impostor is."
+            else:
+                round = max_rounds - env.discussion_rounds_left
+                phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
+                instruction = MEETING_PHASE_INSTRUCTION
         message = f"Game Time: {env.timestep}/{env.game_config['max_timesteps']}\n"
         message += f"Current phase: {phase_info}\n"
         message += f"{instruction}\n"
