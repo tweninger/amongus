@@ -97,7 +97,8 @@ def format_player_data(player):
         "color": color,
         "location": player.location,
         "is_alive": getattr(player, 'is_alive', True),
-        "reported_death": getattr(player, 'reported_death', False)
+        "reported_death": getattr(player, 'reported_death', False),
+        "identity": getattr(player, 'identity', 'Crewmate')
     }
 
 # Map list of tasks to their room names
