@@ -297,24 +297,37 @@ class LLMAgent(Agent):
     async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
-        # phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
-        phase = "Meeting phase" if len(available_actions) == 1 or all(a.name == "VOTE" for a in available_actions) else "Task phase"
+        if all(action.name == "VOTE" for action in available_actions) and available_actions:
+            phase = "Meeting phase - Voting Round. You MUST cast a VOTE. Do NOT SPEAK."
+        elif any(action.name == "SPEAK" for action in available_actions):
+            phase = "Meeting phase - Discussion Round. You MUST SPEAK. Do NOT VOTE yet."
+        else:
+            phase = "Task phase"
+
+        # Iterate through each available action object and converts to bullet newline menu for LLM
+        actions_str = "\n".join(f"- {repr(action)}" for action in available_actions)
 
         messages = [
             {"role": "system", "content": self.system_prompt},
             {
                 "role": "user",
-                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\
-                    \n\nPhase: {phase}. Return your output.",
+                "content": (
+                    f"Summarization: {self.summarization}\n\n{all_info}\n\n"
+                    f"Memory: {self.processed_memory}\n\n"
+                    f"Phase: {phase}.\n"
+                    f"Available actions (choose EXACTLY one, copy the format exactly):\n{actions_str}\n\n"
+                    f"Return your output."
+                ),
             },
         ]
-        
+
         # log everything needed to reproduce the interaction
         full_prompt = {
             "Summarization": self.summarization,
             "All Info": all_info,
             "Memory": self.processed_memory,
             "Phase": phase,
+            "Available Actions": actions_str,
         }
         
         response = await self.send_request(messages)
@@ -402,8 +415,13 @@ class LLMAgent(Agent):
         #                 print("WAIT? ", output_action)
 
         for action in available_actions:
-            #print("TRAVERSE:", action)
-            if repr(action) in output_action:
+            if action.name == "VOTE":
+                # Strip identity suffix so crewmates can match e.g. "Player 5: green"
+                # even when repr is "VOTE Player 5: green (Impostor)"
+                target = re.sub(r'\s*\([^)]*\)\s*$', '', str(action.other_player.name)).strip()
+                if target and target in output_action:
+                    return action
+            elif repr(action) in output_action:
                 return action
             elif "SPEAK: " in repr(action) and "SPEAK: " in output_action:
                 message = output_action.split("SPEAK: ")[1]
