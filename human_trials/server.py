@@ -115,12 +115,27 @@ async def start_game_loop():
 # Get high level game data
 @app.get("/api/game-state")
 async def get_game_state():
+    # If no game, dont check stats
+    if game_instance is None:
+        return {
+            "phase": "lobby",
+            "timestep": 0,
+            "winner": None,
+            "task_progress": 0
+        }
+
+    task_progress = game_instance.task_assignment.check_task_completion() # is a decimal
+
     return {
         "phase": str(game_instance.current_phase).lower(),
         "timestep": game_instance.timestep,
-        "winner": get_win_message(game_instance)
+        "winner": get_win_message(game_instance),
+        "task_progress": task_progress
     }
 
+
+# Retrieves current game state and meeting context for the human player
+# Helps in determining phase transitions, turn availability, and discussion history
 @app.get("/api/meeting-context")
 async def get_meeting_context():
     global game_instance
@@ -129,18 +144,22 @@ async def get_meeting_context():
 
     try:
         agent = get_human_agent()
+
         current_phase = str(getattr(game_instance, 'current_phase', 'active')).lower()
 
-        # Determine meeting specifics
+        # Is it time for the human to vote?
         can_vote = (current_phase == "meeting" and getattr(game_instance, 'discussion_rounds_left', 0) <= 0)
-        
+
+        # Get meeting msgs for front end
         meeting_messages = parse_meeting_messages(game_instance) if current_phase == "meeting" else []
 
         # Turn management
         is_alive = getattr(agent.player, 'is_alive', True)
-        is_human_turn_engine = getattr(game_instance, 'is_human_turn', False)
-        is_my_turn = (current_phase == "meeting" and is_alive and is_human_turn_engine)
 
+
+        # Are we in a meeting and its our turn according to game_instance backend?
+        is_my_turn = (current_phase == "meeting" and getattr(game_instance, 'is_human_turn', False))
+        print(f"is_my_turn {is_my_turn}")
         return {
             "status": "online",
             "phase": current_phase,
@@ -149,11 +168,10 @@ async def get_meeting_context():
             "is_my_turn": is_my_turn,
             "can_vote": can_vote,
             "meeting_messages": meeting_messages,
-            "winner": get_win_message(game_instance)
+            "winner": get_win_message(game_instance),
         }
 
     except Exception as e:
-        print(f"Status Error: {e}")
         return {"phase": "error", "details": str(e)}
 
 @app.get("/api/map-state")
@@ -215,16 +233,13 @@ async def move_player(request: Request):
     old_room = player.location
 
     # Human executes movement
-    if is_alive:
-        human_agent.queued_action = MoveTo(current_location=old_room, new_location=new_room)
+    human_agent.queued_action = MoveTo(current_location=old_room, new_location=new_room)
 
-        # Await AI agent run
-        await game_instance.game_step()
+    # Await AI agent run
+    await game_instance.game_step()
 
     # Spectator / Ghost Mode: Need to manually override location
-    else:
-        await game_instance.game_step()
-
+    if not is_alive:
         player.location = new_room
         # Need to log manually since skipped by the engine
         game_instance.activity_log.append({
@@ -260,10 +275,10 @@ async def do_task(request: Request):
     if not task_to_complete:
         return {"status": "error", "message": "Task not found or completed", "observations": []}
     
-    if is_alive:
-        human_agent.queued_action = CompleteTask(current_location=player.location, task=task_to_complete)
-        await game_instance.game_step()
-    else:
+    human_agent.queued_action = CompleteTask(current_location=player.location, task=task_to_complete)
+    await game_instance.game_step()
+
+    if not is_alive:
         # Ghost logic
         task_to_complete.do_task()
         game_instance.activity_log.append({
@@ -309,7 +324,6 @@ async def report_body(request: Request):
     players_here = game_instance.map.get_players_in_room(player.location, include_new_deaths=True)
     dead_name = get_fresh_corpse_name(players_here)
 
-
     # Tell engine to call meeting
     human_agent.queued_action = CallMeeting(current_location=player.location)
 
@@ -317,8 +331,12 @@ async def report_body(request: Request):
         # Clear msgs from previous meetings
         game_instance.meeting_messages = []
 
-    # Step the engine, moving everyone to cafeteria and changing phases
+    # Step the engine, moving everyone to cafeteria
     await game_instance.game_step()
+
+    # Initiate the meeting
+    await game_instance.game_step()
+
 
     return {
         "status": "success",
@@ -390,7 +408,6 @@ async def human_speak(request: Request):
 
     # Guard for Ghosts
     if not is_alive:
-        #await game_instance.game_step()
         return {
             "status": "error", 
             "message": "Ghosts can't talk!",
@@ -402,8 +419,6 @@ async def human_speak(request: Request):
     action.provide_message(chat_msg)
     human_agent.queued_action = action
 
-    #await game_instance.game_step()
-
     return {
         "status": "success",
         "timestep": game_instance.timestep,
@@ -414,16 +429,27 @@ async def human_speak(request: Request):
 @app.post("/api/next-step")
 async def next_step():
     global game_instance
-    if not game_instance: return {"error": "No game"}
+    if not game_instance:
+        return {"error": "No game"}
 
-    human_agent = get_human_agent()
-    is_meeting = game_instance.current_phase == "meeting"
-    is_not_my_turn = human_agent.queued_action is not None or not human_agent.player.is_alive
-
-    if is_meeting and is_not_my_turn:
+    if game_instance.is_human_turn:
+        # If meeting_phase is already running, queued_action will be picked up
+        # automatically, starting a second concurrent meeting_phase breaks things.
+        if getattr(game_instance, 'meeting_in_progress', False):
+            return {"status": "meeting_in_progress"}
         await game_instance.game_step()
         return {"status": "success"}
-    return {"status": "error", "reason": "Not your turn!"}
+
+    return {"status": "error", "reason": "Not your Turn!"}
+
+# Nudge is a null action that is handled by models.py that = Speak with msg (...)
+# Used by ghosts to pass their discussion turn
+@app.post("/api/set-nudge")
+async def set_nudge():
+    human_agent = get_human_agent()
+    if not human_agent.player.is_alive:
+        human_agent.queued_action = "nudge"
+    return {"status": "success"}
 
 @app.post("/api/vote")
 async def handle_vote(request: Request):
@@ -432,49 +458,29 @@ async def handle_vote(request: Request):
     target_color = data.get("target")
     human_agent = get_human_agent()
     player = human_agent.player
-    is_alive = getattr(player, 'is_alive', True)
 
-    # Ghost bypass. Pulse the engine twice.
-    if not is_alive:
-        await game_instance.game_step() # Process AI votes
-        await game_instance.game_step() # Process Ejection
-        return {
-            "status": "success", 
-            "new_phase": str(game_instance.current_phase).lower(),
-            "is_alive": False
-        }
+    target_player = None
+    if getattr(player, 'is_alive', True):
+        if target_color != "none":
+            target_player = next((p for p in game_instance.players if target_color.lower() in p.name.lower()), None)
 
-    # Handle skip voting
-    if target_color == "none":
-        human_agent.queued_action = Vote(current_location=player.location, other_player=None)
-        await game_instance.game_step()
-        await game_instance.game_step()
-        return {"status": "success", "new_phase": str(game_instance.current_phase).lower()}
+        human_agent.queued_action = Vote(current_location=human_agent.player.location, other_player=target_player)
 
-    target_player = next((player for player in game_instance.players if target_color.lower() in player.name.lower()), None)
+    # If meeting_phase is already running, the queued_action will be picked up
+    # automatically. Calling game_step() here would start a second meeting phase which is bad
+    if getattr(game_instance, 'meeting_in_progress', False):
+        return {"status": "success", "new_phase": "meeting"}
 
-    if target_player:
-        # Create and queue voting action
-        human_agent.queued_action = Vote(current_location=player.location, other_player=target_player)
+    print(f"DEBUG: Human voting for {target_player.name}")
+    # Return new phase to JS to hide discussion screen UI
+    new_phase = str(game_instance.current_phase).lower()
+    print(f"DEBUG: Meeting ended. New Phase: {new_phase}")
 
-        print(f"DEBUG: Human voting for {target_player.name}")
-
-        # Step once to record vote. Step twice to process voteout & ejection
-        await game_instance.game_step()
-        await game_instance.game_step()
-
-        # Return new phase to JS to hide discussion screen UI
-        new_phase = str(game_instance.current_phase).lower()
-        print(f"DEBUG: Meeting ended. New Phase: {new_phase}")
-
-        return {
-            "status": "success",
-            "new_phase": new_phase,
-            "message": f"Voting complete. Phase is now {new_phase}"
-        }
-
-    return {"status": "error", "message": "Player not found"}
-
+    return {
+        "status": "success",
+        "new_phase": new_phase,
+        "message": f"Voting complete. Phase is now {new_phase}"
+    }
 
 @app.get("/api/vent-options")
 async def get_vent_options():
@@ -506,7 +512,12 @@ async def perform_vent(request: Request):
     target_room = data.get("destination")
 
     human_agent = get_human_agent()
-    is_alive = getattr(human_agent.player, 'is_alive', True)
+    player = human_agent.player
+    is_alive = getattr(player, 'is_alive', True)
+
+    # Capture stats before venting for observations
+    initial_neighbors = get_players_in_room_except_human(game_instance, player.location, player)
+    old_room = player.location
 
     # Ghost Guard
     if not is_alive:
@@ -523,12 +534,15 @@ async def perform_vent(request: Request):
 
     await game_instance.game_step()
 
+    observations = generate_room_observations(game_instance, initial_neighbors, old_room)
+
     return {
         "status": "success",
         "current_room": target_room,
         "timestep": game_instance.timestep,
         "message": f"You vented to {target_room.replace('_', ' ').capitalize()}.",
-        "is_alive": is_alive
+        "is_alive": is_alive,
+        "observations" : observations
     }
 
 if __name__ == "__main__":
