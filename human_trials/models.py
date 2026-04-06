@@ -9,6 +9,8 @@ if research_path not in sys.path:
     sys.path.append(research_path)
 
 from amongagents.envs.configs.map_config import room_data, connections, vent_connections
+from amongagents.envs.action import Speak
+
 
 class Map:
     """Handles the physical layout of the ship and connectivity."""
@@ -49,6 +51,10 @@ class WebPlayerAgent:
             await asyncio.sleep(0.5)
         action = self.queued_action
         self.queued_action = None
+        if action == "nudge":
+            speak = Speak(current_location=self.player.location)
+            speak.provide_message("...")
+            return speak
         return action
 
     def choose_observation_location(self, map):
