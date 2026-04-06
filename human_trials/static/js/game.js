@@ -10,8 +10,32 @@ let gameStarted = false
 
 let stagingPanel, actionPanel, phaseDisplay, sendChatBtn, chatInput;
 let lastPhase = "active";
+let actionLocked = false;
 
 // --- HELPERS ---
+
+// Helper to prevent repeated action button presses
+function lockActions() {
+    if (actionLocked){
+        return false;
+    }
+    actionLocked = true;
+    const panel = document.getElementById('action-panel');
+    if (panel){
+        panel.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    }
+    return true;
+}
+
+function unlockActions() {
+    actionLocked = false;
+    // Re-enable existing buttons in case refreshRoomContext was never reached
+    const panel = document.getElementById('action-panel');
+    if (panel){
+        panel.querySelectorAll('button').forEach(btn => btn.disabled = false);
+    }
+}
+
 // Standardize sending messages to on-screen game log.
 function addLogMessage(text, type = 'info') {
     const log = document.getElementById('game-log');
@@ -446,12 +470,13 @@ async function refreshRoomContext() {
                 const li = document.createElement('li');
                 li.className = 'list-group-item bg-dark border-secondary d-flex align-items-center';
                 if (player.is_alive){
-                    li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">`;
-
-                    // If you're the impostor, create kill btn for each player in room
+                    const impostorTag = (humanRole === 'impostor' && player.identity === 'Impostor')
+                        ? '<span class="text-danger small fw-bold ms-2">(Impostor)</span>' : '';
+                    li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">${impostorTag}<span class="ms-2">${player.name}</span>`;
+                    // If you're the impostor, create kill btn pinned to right
                     if (humanRole === 'impostor' && isAlive){
                         const killBtn = document.createElement('button');
-                        killBtn.className = 'btn btn-danger btn-sm fw-bold';
+                        killBtn.className = 'btn btn-danger btn-sm fw-bold ms-auto';
                         killBtn.innerText = 'KILL!';
                         killBtn.onclick = () => performKill(player.color);
                         li.appendChild(killBtn);
@@ -488,69 +513,97 @@ async function refreshRoomContext() {
 }
 
 async function performMove(destination) {
-    const response = await fetch('/api/move', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destination: destination })
-    });
+    if (!lockActions()){
+        return;
+    }
+    try {
+        const response = await fetch('/api/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destination: destination })
+        });
 
-    if (response.ok) {
-        const data = await response.json();
-        addLogMessage(`[Step ${data.timestep}] Moved to ${destination}`, 'info');
-        // Log who you saw leaving each room
-        if (data.observations && data.observations.length > 0){
-            data.observations.forEach(observation => {
-                addLogMessage(observation, 'info');
-            });
+        if (response.ok) {
+            const data = await response.json();
+            addLogMessage(`[Step ${data.timestep}] Moved to ${destination}`, 'info');
+            // Log who you saw leaving the room
+            if (data.observations && data.observations.length > 0){
+                data.observations.forEach(observation => {
+                    addLogMessage(observation, 'info');
+                });
+            }
+            await refreshRoomContext();
+            await updateMapUI();
         }
-        await refreshRoomContext();
-        await updateMapUI();
+    } 
+    catch (e) {
+        console.error('performMove error:', e);
+    }
+    finally {
+        unlockActions();
     }
 }
 
 async function performVent(destination) {
-    const ventContainer = document.getElementById('vent-options');
-    if (ventContainer) {
-        ventContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    if (!lockActions()){
+        return;
     }
-    const response = await fetch('/api/vent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destination: destination })
-    });
+    try {
+        const response = await fetch('/api/vent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destination: destination })
+        });
 
-    if (response.ok) {
-        const data = await response.json();
-        addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
-         if (data.observations && data.observations.length > 0){
-            data.observations.forEach(observation => {
-                addLogMessage(observation, 'info');
-            });
+        if (response.ok) {
+            const data = await response.json();
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            if (data.observations && data.observations.length > 0){
+                data.observations.forEach(observation => {
+                    addLogMessage(observation, 'info');
+                });
+            }
+            await refreshRoomContext();
+            await updateMapUI();
         }
-        await refreshRoomContext();
-        await updateMapUI();
+    }
+    catch (e) {
+        console.error('performVent error:', e);
+    }
+    finally {
+        unlockActions();
     }
 }
 
 async function completeTask(taskName) {
-    const response = await fetch('/api/do-task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task: taskName })
-    });
+    if (!lockActions()){
+        return;
+    }
+    try {
+        const response = await fetch('/api/do-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task: taskName })
+        });
 
-    if (response.ok) {
-        const data = await response.json();
-        addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'success')
-        // Log who you saw leaving each room
-        if (data.observations && data.observations.length > 0){
-            data.observations.forEach(observation => {
-                addLogMessage(observation, 'warning');
-            })
+        if (response.ok) {
+            const data = await response.json();
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'success');
+            if (data.observations && data.observations.length > 0){
+                data.observations.forEach(observation => {
+                    addLogMessage(observation, 'warning');
+                });
+            }
+            document.getElementById('step-counter').innerText = data.timestep;
+            await refreshRoomContext();
+            await updateMapUI();
         }
-        document.getElementById('step-counter').innerText = data.timestep;
-        await refreshRoomContext();
-        await updateMapUI();
+    } 
+    catch (e) {
+        console.error('completeTask error:', e);
+    } 
+    finally {
+        unlockActions();
     }
 }
 
@@ -657,32 +710,54 @@ async function updateMapUI() {
 }
 
 async function triggerReport() {
-    const response = await fetch('/api/report', { method: 'POST' });
-    if (response.ok) {
-        const data = await response.json();
-        addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
-        const phaseEl = document.getElementById('current-phase');
-        if (data.new_phase === "meeting" && phaseEl) {
-            phaseEl.innerText = "Meeting";
-            phaseEl.className = "text-danger fw-bold";
+    if (!lockActions()){
+        return;
+    }
+    try {
+        const response = await fetch('/api/report', { method: 'POST' });
+        if (response.ok) {
+            const data = await response.json();
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            const phaseEl = document.getElementById('current-phase');
+            if (data.new_phase === "meeting" && phaseEl) {
+                phaseEl.innerText = "Meeting";
+                phaseEl.className = "text-danger fw-bold";
+            }
+            await refreshRoomContext();
+            await updateMapUI();
         }
-        await refreshRoomContext();
-        await updateMapUI();
+    }
+    catch (e) {
+        console.error('triggerReport error:', e);
+    }
+    finally {
+        unlockActions();
     }
 }
 
 async function performKill(targetColor){
-    const response = await fetch('/api/kill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: targetColor })
-    });
+    if (!lockActions()){
+        return;
+    }
+    try {
+        const response = await fetch('/api/kill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: targetColor })
+        });
 
-    if (response.ok){
-        const data = await response.json();
-        addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
-        await refreshRoomContext();
-        await updateMapUI();
+        if (response.ok){
+            const data = await response.json();
+            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            await refreshRoomContext();
+            await updateMapUI();
+        }
+    }
+    catch (e) {
+        console.error('performKill error:', e);
+    }
+    finally {
+        unlockActions();
     }
 }
 
