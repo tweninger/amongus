@@ -458,13 +458,14 @@ async function refreshRoomContext() {
                     }
                 }
 
-                // Render body in list as dead, flipped 90% and greyed out
-                else{
-                    if (!player.reported_death){
-                        freshBodyFound = true;
-                    }
+                // Only render fresh unreported bodies
+                else if (!player.reported_death){
+                    freshBodyFound = true;
                     li.classList.add('text-muted');
                     li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name} (Dead)" style="width: 35px; height: 35px; opacity: 0.5; transform: rotate(90deg);"> <span class="ms-2 small">(Dead)</span>`;
+                }
+                else {
+                    return; // Reported dead body. Skip.
                 }
                 playersInRoomList.appendChild(li);
             });
@@ -591,11 +592,19 @@ async function updateMapUI() {
             }
         
         const currentRoomStr = contextData.current_room.toLowerCase();
+        const userDisplayEl = document.getElementById('user-display');
+        const myColor = userDisplayEl ? userDisplayEl.innerText.toLowerCase() : "";
 
         // Render player images over minimap and room map with jitter
         data.players.forEach(player => {
             const playerLoc = player.location.toLowerCase();
-            
+
+            // Skip reported dead bodies — they've been cleaned up after a meeting.
+            // Exception: always render the human ghost (their own sprite) so they
+            // can see where they are on the map.
+            const isStaleCorpse = !player.is_alive && player.reported_death && player.color !== myColor;
+            if (isStaleCorpse) return;
+
             // FOR MASTER VIEW OR GHOST MODE - Modify later
             if (skeldLayer){
                 const coords = roomCoordinates[playerLoc];
