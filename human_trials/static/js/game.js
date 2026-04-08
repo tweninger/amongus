@@ -69,6 +69,12 @@ function formatColorName(color){
     return color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
 }
 
+
+// Black returns white text for readability
+function displayColor(color){
+    return color.toLowerCase() === 'black' ? 'grey' : color;
+}
+
 // Create and show role reveal modal in UI
 function showRoleReveal(role, color){
     const roleDisplay = document.getElementById('role-display');
@@ -82,7 +88,7 @@ function showRoleReveal(role, color){
     }
     if (colorDisplay){
         colorDisplay.innerText = formatColorName(color);
-        colorDisplay.style.color = color;
+        colorDisplay.style.color = displayColor(color);
     }
     if (imgDisplay){
         imgDisplay.src = getPlayerImg(color);
@@ -152,13 +158,12 @@ function renderMeetingChat(messages) {
     newMessages.forEach(msg => {
         const msgDiv = document.createElement('div');
         msgDiv.className = "d-flex align-items-start mb-3 p-2 animate__animated animate__fadeInUp";
-        msgDiv.style.cssText = `background-color: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid ${msg.sender_color};`;
+        msgDiv.style.cssText = `background-color: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid ${displayColor(msg.sender_color)};`;
         msgDiv.innerHTML = `
             <img src="/static/assets/player_${msg.sender_color}.png" style="width: 40px; height: 40px; margin-right: 12px; border-radius: 50%;">
             <div style="flex-grow: 1;">
                 <div class="d-flex justify-content-between">
-                    <strong style="color: ${msg.sender_color}; font-size: 0.85rem;">${msg.sender_name}</strong>
-                    <small class="text-muted" style="font-size: 0.7rem;">Step ${msg.timestep}</small>
+                    <strong style="color: ${displayColor(msg.sender_color)}; font-size: 0.85rem;">${msg.sender_name}</strong>
                 </div>
                 <p class="mb-0 text-light" style="font-size: 0.95rem;">${msg.text}</p>
             </div>`;
@@ -1000,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
                             li.id = `player-status-${player.id}`;
                             const nameLabel = player.is_human ? `${player.name} (me)` : player.name;
-                            li.innerHTML = `<span style="color: ${player.color}; font-weight: bold;">${nameLabel}</span><span class="badge bg-secondary" id="badge-${player.id}">Waiting...</span>`;
+                            li.innerHTML = `<span style="color: ${displayColor(player.color)}; font-weight: bold;">${nameLabel}</span><span class="badge bg-secondary" id="badge-${player.id}">Waiting...</span>`;
                             readyChecklist.appendChild(li);
 
                             // Get AI to ready up, artificially adding delay
