@@ -287,21 +287,21 @@ class AmongUs:
             if is_human:
                 action = await agent.choose_action(self.timestep)
             else:
-                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=10.0)
-                
+                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=10.0) 
         except asyncio.TimeoutError:
-            # Pick a safe fallback from available actions
             available = agent.player.available_actions
+            # If timed out, return silently
+            if any("Speak" in str(type(a)) for a in available): # Speak confirms we are in discussion
+                print(f"DEBUG: {agent.player.name} timed out during discussion, skipping.")
+                return
+            # During voting, cast a skip vote
             action = available[0] if available else None
             for a in available:
-                if "Speak" in str(type(a)):
+                if "Vote" in str(type(a)):
                     action = a
-                    action.provide_message("...")
+                    action.target = "none"
                     break
-                elif "Vote" in str(type(a)):
-                    action = a
-                    action.target = "none" # Force a skipped vote
-                    break
+
         # Dead humans are ghost observers, consume the action to advance the turn
         # but don't record or execute it, so AI agents don't see ghosts speaking
         if not agent.player.is_alive and is_human:
@@ -400,7 +400,7 @@ class AmongUs:
                 self.is_human_turn = False
             print(f"DEBUG: STARTING VOTING turn for {agent.player.name} (rounds_left={self.discussion_rounds_left})")
             await self.agent_step(agent)
-            
+
             # Update game state after each vote
             self.check_actions()
             self.update_map()
