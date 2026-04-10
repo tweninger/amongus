@@ -10,11 +10,11 @@ let gameStarted = false
 
 let stagingPanel, actionPanel, phaseDisplay, sendChatBtn, chatInput;
 let lastPhase = "active";
-let actionLocked = false;
+let actionLocked = false; // Global Lock for human actions
 
 // --- HELPERS ---
 
-// Helper to prevent repeated action button presses
+// Lock to prevent repeated action button presses
 function lockActions() {
     if (actionLocked){
         return false;
@@ -29,7 +29,6 @@ function lockActions() {
 
 function unlockActions() {
     actionLocked = false;
-    // Re-enable existing buttons in case refreshRoomContext was never reached
     const panel = document.getElementById('action-panel');
     if (panel){
         panel.querySelectorAll('button').forEach(btn => btn.disabled = false);
@@ -42,7 +41,6 @@ function addLogMessage(text, type = 'info') {
     if (!log){
         return;
     }
-
     // Map types to common Boostrap colors
     const colorMap = {
         'info': 'text-info',
@@ -69,8 +67,7 @@ function formatColorName(color){
     return color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
 }
 
-
-// Black returns white text for readability
+// Black returns grey text for readability
 function displayColor(color){
     return color.toLowerCase() === 'black' ? 'grey' : color;
 }
@@ -123,9 +120,8 @@ function updateTaskProgressBar(progress_dec) {
 // Manage transition between game phases by resetting chat and voting UI for meetings
 // OR refreshing room and map context for tasks
 async function handleGlobalPhaseTransition(data) {
-    handlePhaseChange(data.phase, data.is_alive);
-
     if (data.phase === "meeting") {
+        handlePhaseChange(data.phase, data.is_alive);
         const chatBox = document.getElementById('discussion-chat');
         const votingRoster = document.getElementById('voting-roster-container');
         if (chatBox){
@@ -135,15 +131,37 @@ async function handleGlobalPhaseTransition(data) {
             votingRoster.innerHTML = '';
         }
         processedMessageCount = 0;
-    } 
+    }
     else if (data.phase === "task") {
+        // Show vote result banner before transitioning back to tasks screen
+        if (data.vote_result !== undefined && data.vote_result !== null) {
+            const chatBox = document.getElementById('discussion-chat');
+            if (chatBox) {
+                const banner = document.createElement('div');
+                banner.className = 'text-center p-3 my-2 animate__animated animate__fadeIn';
+                banner.style.cssText = 'background: rgba(0,0,0,0.6); border-radius: 12px; border: 2px solid #ffc107;';
+                const ejected = data.vote_result.ejected;
+                if (ejected) {
+                    banner.innerHTML = `
+                        <img src="/static/assets/player_${ejected}.png" style="width:60px;height:60px;opacity:0.5;transform:rotate(90deg);margin-bottom:8px;"><br>
+                        <span class="fw-bold text-warning" style="font-size:1.1rem;">${ejected.charAt(0).toUpperCase() + ejected.slice(1)} was ejected.</span>`;
+                }
+                else {
+                    banner.innerHTML = `<span class="fw-bold text-warning" style="font-size:1.1rem;">No one was ejected.</span>`;
+                }
+                chatBox.appendChild(banner);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+        // Delay on discussion screen so we can see the result of vote
+        await new Promise(timer => setTimeout(timer, 5000));
+        handlePhaseChange(data.phase, data.is_alive);
         await refreshRoomContext();
         await updateMapUI();
     }
 }
 
 function renderMeetingChat(messages) {
-
     // Only render new chats
     if (!messages || messages.length <= processedMessageCount){
         return;
@@ -152,7 +170,6 @@ function renderMeetingChat(messages) {
     if (!chatBox){
         return;
     }
-
     const newMessages = messages.slice(processedMessageCount);
 
     newMessages.forEach(msg => {
@@ -174,7 +191,7 @@ function renderMeetingChat(messages) {
 }
 
 // Manages transition between chat and voting views
-// Unlocks interaction status when its the humans turn
+// Called each time the meeting-context poll returns updated status
 function updateMeetingUI(data) {
     const chatInputGroup = document.getElementById('chat-input-group');
     const votingRoster = document.getElementById('voting-roster-container');
@@ -187,9 +204,9 @@ function updateMeetingUI(data) {
         proceedBtnEl.classList.remove('disabled');
     }
 
+    // It is the human's turn to VOTE
+    // Hide the chat bar and show the voting roster instead
     if (data.is_my_turn) {
-
-        // Only show voting roster if alive and can vote
         if (data.can_vote && data.is_alive){
             if (chatInputGroup){
                 chatInputGroup.style.display = 'none';
@@ -199,7 +216,7 @@ function updateMeetingUI(data) {
             }
         }
 
-        // Human turn but not voting, re-show chatInputGroup for sending msgs
+        // Its the human's turn to SPEAK or to pass turn
         else{
             if (chatInputGroup){
                 chatInputGroup.style.display = 'flex';
@@ -241,7 +258,6 @@ async function executeAiStep() {
     }
 }
 
-
 // Handles screen transitions when transitioning from active <-> meeting
 function handlePhaseChange(newPhase, isAlive) {
     const actionPanelEl = document.getElementById('action-panel');
@@ -251,13 +267,16 @@ function handlePhaseChange(newPhase, isAlive) {
     const chatInputGroupEl = document.getElementById('chat-input-group');
     const skipBtnEl = document.getElementById('skip-vote-btn');
     const proceedBtnEl = document.getElementById('proceed-to-vote-btn');
-
+    // --- ACTIVE -> MEETING PHASE ---
     if (newPhase.toLowerCase() === "meeting") {
+
+        // Update phase badge to indicate meeting phase has started
         if (phaseDisplayEl) {
             phaseDisplayEl.innerText = "MEETING CALLED!";
             phaseDisplayEl.className = "text-danger fw-bold";
         }
-        // Ghost logic for meetings. Must acknolwedge observe AI discussion.
+        // Ghost sub-branch. Dead players can only observe.
+        // Hide chat input and skip button, and relabel proceed button
         if (!isAlive) {
             if (chatInputGroupEl){
                 chatInputGroupEl.style.display = 'none';
@@ -271,8 +290,10 @@ function handlePhaseChange(newPhase, isAlive) {
                 proceedBtnEl.classList.add('btn-info');
             }
         }
+
+        // Alive
         else {
-            // Re-show elements if player is alive
+            // Show relevant meeting forms
             if (chatInputGroupEl){
                 chatInputGroupEl.style.display = 'flex';
             }
@@ -287,15 +308,17 @@ function handlePhaseChange(newPhase, isAlive) {
             }
         }
 
-        // Hide active game screen elements
+        // Hide ACTIVE PHASE action panel
         if (actionPanelEl){
             actionPanelEl.classList.add('d-none');
         }
+
+        // Show meeting discussion panel
         if (discussionPanelEl){
             discussionPanelEl.classList.remove('d-none');
         }
 
-        // Nudge Handler
+        // Handles entering meeting screen and restores its own state after completion
         if (proceedBtnEl) {
             proceedBtnEl.onclick = async () => {
                 // Prevent double clicks
@@ -315,7 +338,8 @@ function handlePhaseChange(newPhase, isAlive) {
             };
         }
     }
-    // We are in active phase
+
+    // --- MEETING -> ACTIVE PHASE ---
     else {
         if (actionPanelEl){
             actionPanelEl.classList.remove('d-none');
@@ -333,26 +357,30 @@ function handlePhaseChange(newPhase, isAlive) {
     }
 }
 
-// Fetch and update room context (movement options, tasks available, and who is in the room with you)
+// Fetch and update ROOM CONTEXT (movement options, tasks available, and who is in the room with you)
 async function refreshRoomContext() {
+
+    // Data Acquisition
     const response = await fetch('/api/room-context');
     const data = await response.json();
-
     const isAlive = data.is_alive;
 
+    // --- Global UI State ---
+    // Toggle action panel based on whether game is running or not
     if (gameStarted) {
-        if (actionPanel) actionPanel.classList.remove('d-none');
+        if (actionPanel){
+            actionPanel.classList.remove('d-none');
+        }
     } 
     else {
-        if (actionPanel) actionPanel.classList.add('d-none');
+        if (actionPanel){
+            actionPanel.classList.add('d-none');
+        }
     }
 
-    // Update Location
+    // --- Update Location, Timestep, Phase ---
     document.getElementById('location-display').innerText = data.current_room;
-
-    // Update the Clock
     document.getElementById('step-counter').innerText = data.timestep;
-
     const phaseDisplayEl = document.getElementById('current-phase');
 
     if (data.phase.toLowerCase() === "meeting"){
@@ -368,46 +396,52 @@ async function refreshRoomContext() {
         }
     }
 
-    // Render player's personal tasks
-    const humanTasksList = document.getElementById('personal-tasks');
-    if (humanTasksList){
-        humanTasksList.innerHTML = '';
+    // --- Personal Task Tracking ---
+    // Renders the persistent list of TODO tasks for the human player
+    const personalTasksList = document.getElementById('personal-tasks');
+    if (personalTasksList){
+        personalTasksList.innerHTML = '';
         if (data.personal_tasks.length === 0){
-            humanTasksList.innerHTML= '<li class="list-group-item text-dark bg-transparent">No tasks left!</li>';
+            personalTasksList.innerHTML= '<li class="list-group-item text-dark bg-transparent">No tasks left!</li>';
         }
         else{
             data.personal_tasks.forEach(task => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item py-1 text-dark fw-bold';
-                const location = data.task_locations[task] || "Unknown";
-                li.innerText = `${task} - ${location}`;
-                humanTasksList.appendChild(li);
+                const location = data.task_locations[task.name] || "Unknown";
+                const progress = task.max_duration > 1 ? ` (${task.steps_done}/${task.max_duration})` : ''; // Some tasks have duration > 1
+                li.innerText = `${task.name}${progress} - ${location}`;
+                personalTasksList.appendChild(li);
             })
         }
     }
 
-    // Update and render tasks - "What can I do here now?"
-    const taskContainer = document.getElementById('task-list');    
-    if (taskContainer) {
-        taskContainer.innerHTML = '';
+    // --- In Current Room Task Tracking ---
+    // Generates buttons for tasks specifically available in the current room
+    const tasksInRoom = document.getElementById('task-list');    
+    if (tasksInRoom) {
+        tasksInRoom.innerHTML = '';
         data.tasks.forEach(taskName => {
             const btn = document.createElement('button');
             btn.className = 'btn btn-sm text-start m-1';
-            btn.innerText = taskName;
 
-            if (data.personal_tasks.includes(taskName)){
+            const taskInfo = data.personal_tasks.find(t => t.name === taskName);
+            if (taskInfo) {
+                const progress = taskInfo.max_duration > 1 ? ` ${taskInfo.steps_done}/${taskInfo.max_duration}` : '';
+                btn.innerText = `${taskName}${progress}`;
                 btn.classList.add('btn-outline-success');
                 btn.onclick = () => completeTask(taskName);
             }
-            else{
+            else {
+                btn.innerText = taskName;
                 btn.classList.add('btn-outline-secondary', 'disabled');
                 btn.style.opacity = '0.5';
             }
-            taskContainer.appendChild(btn);
+            tasksInRoom.appendChild(btn);
         });
     }
 
-    // Venting as Impostor Only
+    // --- IMPOSTOR MECHANICS (VENTING)
     const ventPanel = document.getElementById('vent-panel');
     const ventContainer = document.getElementById('vent-options');
     const roleDisplayEl = document.getElementById('role-display');
@@ -418,8 +452,11 @@ async function refreshRoomContext() {
         const ventData = await ventResponse.json();
 
         if (ventData.can_vent){
-            if (ventPanel) ventPanel.classList.remove('d-none');
-            
+            if (ventPanel){
+                ventPanel.classList.remove('d-none');
+            }
+
+            // Contains all vent target rendered buttons
             if (ventContainer) {
                 ventContainer.innerHTML= '';
                 ventData.options.forEach(room => {
@@ -435,18 +472,22 @@ async function refreshRoomContext() {
             }
         }
 
-        // Cannot Vent
+        // Cannot Vent - No Targets
         else{
-            if (ventPanel) ventPanel.classList.add('d-none');
+            if (ventPanel){
+                ventPanel.classList.add('d-none');
+            }
         }
     }
 
-    // Dead or non-impostors can never vent
+    // Cannot Vent - Dead or Crewmate
     else{
         if (ventPanel) ventPanel.classList.add('d-none');
     }
 
-    // Update movement options
+
+    // --- MOVEMENT NAVIGATION ---
+    // Render buttons for all adjacent rooms the player can walk to
     const moveContainer = document.getElementById('movement-options');
     if (moveContainer) {
         moveContainer.innerHTML = '';
@@ -459,7 +500,7 @@ async function refreshRoomContext() {
         });
     }
 
-    // Render players in current room
+    // --- LOCAL PLAYER LIST ---
     const playersInRoomList = document.getElementById('players-in-room-list');
     const reportBtn = document.getElementById('report-btn');
     const humanRole = roleDisplayEl ? roleDisplayEl.innerText.toLowerCase() : "";
@@ -475,6 +516,8 @@ async function refreshRoomContext() {
                 const li = document.createElement('li');
                 li.className = 'list-group-item bg-dark border-secondary d-flex align-items-center';
                 if (player.is_alive){
+
+                    // Reveal fellow impostors
                     const impostorTag = (humanRole === 'impostor' && player.identity === 'Impostor')
                         ? '<span class="text-danger small fw-bold ms-2">(Impostor)</span>' : '';
                     li.innerHTML = `<img src="/static/assets/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">${impostorTag}<span class="ms-2">${player.name}</span>`;
@@ -487,7 +530,7 @@ async function refreshRoomContext() {
                         li.appendChild(killBtn);
                     }
                 }
-
+                // Handle corpse detection
                 // Only render fresh unreported bodies
                 else if (!player.reported_death){
                     freshBodyFound = true;
@@ -502,6 +545,7 @@ async function refreshRoomContext() {
         }
     }
 
+    // --- REPORTING DEAD BODIES ---
     if (reportBtn){
         if (freshBodyFound && isAlive){
             reportBtn.classList.remove('disabled');
@@ -527,20 +571,28 @@ async function performMove(destination) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ destination: destination })
         });
-
+        // Construct Game Logs
         if (response.ok) {
             const data = await response.json();
             addLogMessage(`[Step ${data.timestep}] Moved to ${destination}`, 'info');
-            // Log who you saw leaving the room
+            // Log who was seen leaving the room
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(observation, 'info');
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info');
                 });
             }
+            // Log who was seen venting from room
+            if (data.vent_observations && data.vent_observations.length > 0){
+                data.vent_observations.forEach(observation => {
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'danger');
+                });
+            }
+
+
             await refreshRoomContext();
             await updateMapUI();
         }
-    } 
+    }
     catch (e) {
         console.error('performMove error:', e);
     }
@@ -565,9 +617,15 @@ async function performVent(destination) {
             addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(observation, 'info');
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info');
                 });
             }
+            if (data.vent_observations && data.vent_observations.length > 0){
+                data.vent_observations.forEach(obs => {
+                    addLogMessage(`[Step ${data.timestep}] ${obs}`, 'danger');
+                });
+            }
+
             await refreshRoomContext();
             await updateMapUI();
         }
@@ -596,14 +654,19 @@ async function completeTask(taskName) {
             addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'success');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(observation, 'warning');
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
                 });
             }
-            document.getElementById('step-counter').innerText = data.timestep;
+            if (data.vent_observations && data.vent_observations.length > 0){
+                data.vent_observations.forEach(obs => {
+                    addLogMessage(`[Step ${data.timestep}] ${obs}`, 'danger');
+                });
+            }
+
             await refreshRoomContext();
             await updateMapUI();
         }
-    } 
+    }
     catch (e) {
         console.error('completeTask error:', e);
     } 
@@ -615,7 +678,7 @@ async function completeTask(taskName) {
 // Adds player sprites to room with jitter for visual indicator of who is present
 async function updateMapUI() {
     try {
-        const response = await fetch('/api/map-state');
+        const response = await fetch('/api/player-states');
         const data = await response.json();
         const roomContextResponse = await fetch('/api/room-context');
         const contextData = await roomContextResponse.json();
@@ -754,6 +817,17 @@ async function performKill(targetColor){
         if (response.ok){
             const data = await response.json();
             addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            if (data.observations && data.observations.length > 0){
+                data.observations.forEach(observation => {
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info');
+                });
+            }
+            if (data.vent_observations && data.vent_observations.length > 0){
+                data.vent_observations.forEach(obs => {
+                    addLogMessage(`[Step ${data.timestep}] ${obs}`, 'danger');
+                });
+            }
+
             await refreshRoomContext();
             await updateMapUI();
         }
@@ -766,8 +840,10 @@ async function performKill(targetColor){
     }
 }
 
+
+// Create and handle voting roster during voting phase
 async function populateVotingRoster() {
-    const response = await fetch('/api/map-state');
+    const response = await fetch('/api/player-states');
     const data = await response.json();
     const container = document.getElementById('voting-roster-container');
     const userDisplayEl = document.getElementById('user-display');
@@ -795,59 +871,25 @@ async function populateVotingRoster() {
         btn.onclick = async () => {
             container.querySelectorAll('button').forEach(b => b.disabled = true);
             btn.classList.add('bg-danger', 'text-white');
-            const voteResponse = await fetch('/api/vote', {
+            await fetch('/api/vote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target: player.color })
             });
-            // Transition back to active phase
-            if (voteResponse.ok) {
-                const overlay = document.getElementById('meeting-overlay');
-                const discPanel = document.getElementById('discussion-panel');
-                if (overlay){
-                    overlay.classList.add('d-none');
-                }
-                if (discPanel){
-                    discPanel.classList.add('d-none');
-                }
-                if (actionPanel){
-                    actionPanel.classList.remove('d-none');
-                }
-                await refreshRoomContext();
-                await updateMapUI();
-                container.innerHTML = '';
-            }
         };
         container.appendChild(btn);
     });
 
-    // FIX
     const skipBtn = document.getElementById('skip-vote-btn');
     if (skipBtn) {
         skipBtn.onclick = async () => {
             container.querySelectorAll('button').forEach(b => b.disabled = true);
             skipBtn.disabled = true;
-            const skipResponse = await fetch('/api/vote', {
+            await fetch('/api/vote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target: "none" })
             });
-            if (skipResponse.ok) {
-                const overlay = document.getElementById('meeting-overlay');
-                const discPanel = document.getElementById('discussion-panel');
-                if (overlay){
-                    overlay.classList.add('d-none');
-                }
-                if (discPanel){
-                    discPanel.classList.add('d-none');
-                }
-                if (actionPanel){
-                    actionPanel.classList.remove('d-none');
-                }
-                await refreshRoomContext();
-                await updateMapUI();
-                container.innerHTML = '';
-            }
         };
     }
 }
@@ -873,8 +915,8 @@ async function startPhaseWatcher() {
 
             // Check for phase changes
             if (data.phase !== lastPhase) {
-                await handleGlobalPhaseTransition(data);
                 lastPhase = data.phase;
+                await handleGlobalPhaseTransition(data);
             }
 
             if (data.phase === "meeting") {
@@ -903,9 +945,55 @@ async function startPhaseWatcher() {
     }, 1000);
 }
 
+// Handles the Send / Pass Turn button in the discussion panel.
+// Alive players submit a chat message
+// Ghosts send a nudge to pass their turn.
+async function handleSendChat() {
+    const isGhost = chatInput.disabled || chatInput.value === "Observing Discussion...";
+    const message = chatInput.value.trim();
+
+    // Alive players must type something before submitting
+    if (!isGhost && !message){
+        return;
+    }
+
+    sendChatBtn.disabled = true;
+    sendChatBtn.innerText = "Wait...";
+
+    try {
+        if (!isGhost) {
+            // Call Speak
+            await fetch('/api/speak', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+            chatInput.value = '';
+        } 
+        else {
+            // Ghost mode. Just pass.
+            await fetch('/api/set-nudge', { method: 'POST' });
+        }
+
+        // Advance the game engine one step
+        stepInProgress = true;
+        await fetch('/api/next-step', { method: 'POST' });
+        stepInProgress = false;
+
+        sendChatBtn.disabled = false;
+        sendChatBtn.innerText = isGhost ? "Pass Turn" : "Send";
+    }
+    catch (error) {
+        console.error("Chat Error:", error);
+        sendChatBtn.disabled = false;
+        sendChatBtn.innerText = isGhost ? "Pass Turn" : "Send";
+    }
+}
+
 // --- Begin JS Logic ---
 document.addEventListener('DOMContentLoaded', () => {
 
+    // --- DOM Refs ---
     stagingPanel = document.getElementById('staging-panel');
     actionPanel = document.getElementById('action-panel');
     phaseDisplay = document.getElementById('current-phase');
@@ -920,7 +1008,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameScreen = document.getElementById('game-screen');
     const userDisplay = document.getElementById('user-display');
 
-    // Waits random time, updates badge of AI player to ready, then increments readyCounter
+    // --- Lobby Helpers ---
+    // Waits random time, updates badge of AI player to ready, then increments ready counter
     function simulateAiReady(playerId) {
         const delay = Math.floor(Math.random() * 7000) + 3000;
         setTimeout(() => {
@@ -961,6 +1050,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Player Count Selector ---
     const sizeButtons = document.querySelectorAll('#count-selector .btn');
     const updatePlayerCountDisplay = () => {
         const activeBtn = document.querySelector('#count-selector .btn.active');
@@ -978,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- Join Game ---
     if (startBtn) {
         startBtn.addEventListener('click', async () => {
             const activeSize = document.querySelector('#count-selector .btn.active').dataset.value;
@@ -1040,7 +1131,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         enterMapBtn.addEventListener('click', async () => {
                             if (lobbyScreen) lobbyScreen.classList.add('d-none');
                             if (gameScreen) gameScreen.classList.remove('d-none');
-                            gameStarted = false;
                             const myTasks = document.getElementById('my-tasks-panel');
                             if (myTasks) myTasks.classList.add('d-none');
                             if (actionPanel) actionPanel.classList.add('d-none');
@@ -1058,47 +1148,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Chat Handler ---
     if (sendChatBtn) {
-        sendChatBtn.onclick = async () => {
-            const isGhost = chatInput.disabled || chatInput.value === "Observing Discussion...";
-            const message = chatInput.value.trim();
-
-            // Living players must have a msg before clicking send
-            if (!isGhost && !message){
-                return;
-            }
-            sendChatBtn.disabled = true;
-            sendChatBtn.innerText = "Wait...";
-
-            try{
-               // Submit human msg to discussion log
-               if (!isGhost) {
-                    await fetch('/api/speak', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message: message })
-                    });
-                    chatInput.value = '';
-                }
-                else{
-                    // Ghost mode: Send nudge to pass turn
-                    await fetch('/api/set-nudge', { method: 'POST' });
-                }
-                // Step game engine
-                stepInProgress = true;
-                await fetch('/api/next-step', { method: 'POST' });
-
-                // Reset interaction state and lock for next turn
-                stepInProgress = false;
-                sendChatBtn.disabled = false;
-                sendChatBtn.innerText = isGhost ? "Pass Turn" : "Send";
-            }
-            catch(error){
-                console.error("Chat Error:", error);
-                sendChatBtn.disabled = false;
-                sendChatBtn.innerText = isGhost ? "Pass Turn" : "Send";
-            }
-        };
+        sendChatBtn.onclick = handleSendChat;
     }
+
+    // --- Start Phase Watcher ---
     startPhaseWatcher();
 });
