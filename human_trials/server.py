@@ -51,7 +51,7 @@ def get_human_agent():
 async def serve_game():
     return FileResponse("templates/game.html")
 
-# Receive player name from frontend, initiate global game instance, and return state to session
+# Receive player color from frontend, initiate global game instance, and return state to session
 @app.post("/api/join")
 async def join_game(request: Request):
     global game_instance
@@ -115,7 +115,7 @@ async def start_game_loop():
 # Get high level game data
 @app.get("/api/game-state")
 async def get_game_state():
-    # If no game, dont check stats
+    # If no game, send null stats
     if game_instance is None:
         return {
             "phase": "lobby",
@@ -156,10 +156,8 @@ async def get_meeting_context():
         # Turn management
         is_alive = getattr(agent.player, 'is_alive', True)
 
-
         # Are we in a meeting and its our turn according to game_instance backend?
         is_my_turn = (current_phase == "meeting" and getattr(game_instance, 'is_human_turn', False))
-        print(f"is_my_turn {is_my_turn}")
         return {
             "status": "online",
             "phase": current_phase,
@@ -169,40 +167,58 @@ async def get_meeting_context():
             "can_vote": can_vote,
             "meeting_messages": meeting_messages,
             "winner": get_win_message(game_instance),
+            "vote_result": get_latest_vote_result(game_instance),
         }
 
     except Exception as e:
         return {"phase": "error", "details": str(e)}
 
-@app.get("/api/map-state")
+# Iterates through all agents and returning list of various stats for frontend UI rendering
+@app.get("/api/player-states")
 async def get_map_state():
     global game_instance
     if not game_instance:
         return {"error": "Game not initialized"}
     
-    # Map players using format_player_data helper
     return {
+        # name, color, location, is_alive, reported_death, identity
         "players": [format_player_data(agent.player) for agent in game_instance.agents]
     }
 
-# Get current room, connected rooms, current tasks available, and players sharing your room (+ whether they are dead or alive)
+# Returns everything the frontend needs to render the human player's current room view
+# Location, phase, adjacent rooms, available tasks, and other players present in current room
 @app.get("/api/room-context")
 async def get_room_context():
     if not game_instance:
         return {"error": "Game not initialized"}
 
     agent = get_human_agent()
+    if not agent:
+        return {"error": "No human agent found"}
     player = agent.player
     current_room = player.location
 
-    # Tasks
-    incomplete_tasks = [task.name for task in player.tasks if not task.check_completion()]
-    task_locations = get_task_location_map(incomplete_tasks)
+    # Only include tasks the player hasn't finished yet
+    # Has progress fraction for multi-step tasks
+    all_incomplete = [task for task in player.tasks if not task.check_completion()]
 
-    # Filter and format all agents except human player
+    # Tasks left to do
+    personal_tasks = [
+        {
+            "name": task.name,
+            "max_duration": task.max_duration,
+            "steps_done": task.max_duration - task.duration,
+        }
+        for task in all_incomplete
+    ]
+
+    # Map each task name to the locations where it can be completed
+    task_locations = get_task_location_map([t["name"] for t in personal_tasks])
+
+    # Everyone in the same room except the human player themselves
     others_in_room = [
-        format_player_data(a.player) 
-        for a in game_instance.agents 
+        format_player_data(a.player)
+        for a in game_instance.agents
         if a.player.location == current_room and a != agent
     ]
 
@@ -211,7 +227,7 @@ async def get_room_context():
         "phase": str(game_instance.current_phase),
         "adjacent": skeld.get_adjacent_rooms(current_room),
         "tasks": room_data.get(current_room, {}).get("tasks", []),
-        "personal_tasks": incomplete_tasks,
+        "personal_tasks": personal_tasks,
         "task_locations": task_locations,
         "timestep": game_instance.timestep,
         "players_in_room": others_in_room,
@@ -250,11 +266,14 @@ async def move_player(request: Request):
         })
     # Generate movement observations (X was seen leaving towards Y)
     observations = generate_room_observations(game_instance, initial_neighbors, old_room)
+    vent_observations = generate_vent_observations(game_instance.camera_record, initial_neighbors, old_room)
+    log_human_action(game_instance, player, "MOVE", {"from": old_room, "to": player.location})
     return {
         "status": "success",
         "current_room": player.location,
         "timestep": game_instance.timestep,
         "observations": observations,
+        "vent_observations": vent_observations,
         "is_alive" : is_alive
     }
 
@@ -275,6 +294,7 @@ async def do_task(request: Request):
     if not task_to_complete:
         return {"status": "error", "message": "Task not found or completed", "observations": []}
     
+    task_room = player.location
     human_agent.queued_action = CompleteTask(current_location=player.location, task=task_to_complete)
     await game_instance.game_step()
 
@@ -289,17 +309,31 @@ async def do_task(request: Request):
         })
         await game_instance.game_step()
 
+    # Build progress message
+    steps_done = task_to_complete.max_duration - task_to_complete.duration
+    max_dur = task_to_complete.max_duration
+    if task_to_complete.check_completion():
+        msg = f"You completed {task_name}!"
+        if max_dur > 1:
+            msg = f"You completed {task_name}! ({max_dur}/{max_dur})"
+    else:
+        msg = f"Working on {task_name}... ({steps_done}/{max_dur})"
+
     # Generate movement observations (X was seen leaving towards Y)
     observations = generate_room_observations(game_instance, initial_neighbors, player.location)
+    vent_observations = generate_vent_observations(game_instance.camera_record, initial_neighbors, task_room)
+    log_human_action(game_instance, player, "COMPLETE_TASK", {"task": task_name, "location": task_room, "progress": f"{steps_done}/{max_dur}"})
 
     return {
         "status": "success",
-        "message": f"You completed {task_name}!",
+        "message": msg,
         "timestep": game_instance.timestep,
         "observations": observations,
+        "vent_observations": vent_observations,
         "is_alive": is_alive
     }
 
+# Endpoint for reporting dead body
 @app.post("/api/report")
 async def report_body(request: Request):
     global game_instance
@@ -337,6 +371,7 @@ async def report_body(request: Request):
     # Initiate the meeting
     await game_instance.game_step()
 
+    log_human_action(game_instance, player, "REPORT", {"body": dead_name, "location": player.location})
 
     return {
         "status": "success",
@@ -353,38 +388,44 @@ async def kill_player(request: Request):
     target_color = data.get("target")
 
     human_agent = get_human_agent()
-    player = human_agent.player
-    is_alive = getattr(player, 'is_alive', True)
+    if not human_agent:
+        return {"status": "error", "message": "No human agent found"}
+    human_player = human_agent.player
+    is_alive = getattr(human_player, 'is_alive', True)
 
     # Guard for Ghosts
     if not is_alive:
         await game_instance.game_step()
         return {
-            "status": "error", 
-            "message": "Ghosts cannot kill others!", 
+            "status": "error",
+            "message": "Ghosts cannot kill others!",
             "timestep": game_instance.timestep,
             "is_alive": is_alive
         }
 
-    target_player = None
     # Find target player object by color
-    for player in game_instance.players:
-        if player.name.split()[-1].lower() == target_color.lower():
-            target_player = player
-            break
+    target_player = next(
+        (p for p in game_instance.players if p.name.split()[-1].lower() == target_color.lower()),
+        None
+    )
 
     if target_player:
-        human_agent.queued_action = Kill(current_location=player.location, other_player=target_player)
+        kill_room = human_player.location
+        initial_neighbors = get_players_in_room_except_human(game_instance, kill_room, human_player)
+        human_agent.queued_action = Kill(current_location=human_player.location, other_player=target_player)
         await game_instance.game_step()
 
-        # Step the engine
-        await game_instance.game_step()
+        observations = generate_room_observations(game_instance, initial_neighbors, kill_room)
+        vent_observations = generate_vent_observations(game_instance.camera_record, initial_neighbors, kill_room)
 
+        log_human_action(game_instance, human_player, "KILL", {"target": target_color.capitalize(), "location": human_player.location})
         return{
             "status": "success",
             "message": f"You killed {target_color.capitalize()}!",
             "timestep": game_instance.timestep,
-            "is_alive": is_alive
+            "is_alive": is_alive,
+            "observations": observations,
+            "vent_observations": vent_observations,
         }
     return {
         "status": "error", 
@@ -418,6 +459,7 @@ async def human_speak(request: Request):
     action = Speak(current_location=player.location)
     action.provide_message(chat_msg)
     human_agent.queued_action = action
+    log_human_action(game_instance, player, "SPEAK", {"message": chat_msg, "phase": str(game_instance.current_phase)})
 
     return {
         "status": "success",
@@ -465,6 +507,7 @@ async def handle_vote(request: Request):
             target_player = next((p for p in game_instance.players if target_color.lower() in p.name.lower()), None)
 
         human_agent.queued_action = Vote(current_location=human_agent.player.location, other_player=target_player)
+        log_human_action(game_instance, player, "VOTE", {"target": target_color})
 
     # If meeting_phase is already running, the queued_action will be picked up
     # automatically. Calling game_step() here would start a second meeting phase which is bad
@@ -535,6 +578,8 @@ async def perform_vent(request: Request):
     await game_instance.game_step()
 
     observations = generate_room_observations(game_instance, initial_neighbors, old_room)
+    vent_observations = generate_vent_observations(game_instance.camera_record, initial_neighbors, old_room)
+    log_human_action(game_instance, player, "VENT", {"from": old_room, "to": target_room})
 
     return {
         "status": "success",
@@ -542,7 +587,8 @@ async def perform_vent(request: Request):
         "timestep": game_instance.timestep,
         "message": f"You vented to {target_room.replace('_', ' ').capitalize()}.",
         "is_alive": is_alive,
-        "observations" : observations
+        "observations": observations,
+        "vent_observations": vent_observations,
     }
 
 if __name__ == "__main__":
