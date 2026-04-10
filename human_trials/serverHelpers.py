@@ -1,4 +1,6 @@
 import os
+import json
+from datetime import datetime
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 
@@ -6,6 +8,27 @@ def setup_log_directory():
     log_dir = os.path.join(os.getcwd(), "logs")
     os.makedirs(log_dir, exist_ok=True)
     os.environ["EXPERIMENT_PATH"] = log_dir
+
+
+def log_human_action(game_instance, player, action_type, details=None):
+    log_dir = os.environ.get("EXPERIMENT_PATH", "logs")
+    log_path = os.path.join(log_dir, "human-logs.json")
+    entry = {
+        "game_index": f"Game {game_instance.game_index}",
+        "step": game_instance.timestep,
+        "timestamp": str(datetime.now()),
+        "player": {
+            "name": player.name,
+            "identity": player.__class__.__name__,
+            "location": player.location,
+        },
+        "action": {
+            "type": action_type,
+            **(details or {}),
+        },
+    }
+    with open(log_path, "a") as f:
+        f.write(json.dumps(entry, indent=2) + "\n")
 
 def get_game_config(game_size_str):
     config_map = {
@@ -132,9 +155,37 @@ def get_clean_name(player_obj):
     name = raw_name.split(":")[-1].strip() if ":" in raw_name else raw_name
     return name.capitalize()
 
+# Check camera_record for actual VENT actions taken by players who were in the room
+def generate_vent_observations(camera_record, players_initially_here, room):
+    observations = []
+    for player in players_initially_here:
+        if player.location == room:
+            continue  # still in the room, didn't move
+        action = camera_record.get(player.name)
+        if action is not None and str(action).startswith("VENT"):
+            player_color = player.name.split()[-1].capitalize()
+            source = room.replace("_", " ")
+            destination = player.location.replace("_", " ")
+            observations.append(f"Observation: {player_color} was seen venting from {source} to {destination}.")
+    return observations
+
 # Identify unreported dead body in a list of players
 def get_fresh_corpse_name(room_players):
     for player in room_players:
         if not getattr(player, 'is_alive', True) and not getattr(player, 'reported_death', False):
             return get_clean_name(player)
     return "Unknown"
+
+# Returns the most recent vote result as {ejected: "blue"} or {ejected: None}
+def get_latest_vote_result(game_instance):
+    for record in reversed(game_instance.important_activity_log):
+        action = str(record.get("action", ""))
+        if "voted out" not in action.lower():
+            continue
+        if action.lower().startswith("no one"):
+            return {"ejected": None}
+        # EX: "Cyan was voted out! Detailed vote info:..."
+        name_part = action.split(" was voted out")[0].strip()
+        color = name_part.split()[-1].lower()
+        return {"ejected": color}
+    return None
