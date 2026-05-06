@@ -1,0 +1,2384 @@
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 18:24:12.600317",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "Hello!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 18:24:27.568764",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "I was killing Cyan as Red said",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 18:24:58.577045",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "That was obviously sarcasm. of course i didnt kill him. i was mocking you guys believing red so easily.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 18:25:07.997860",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "red"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-09 18:25:14.759795",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Cyan",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 18:27:03.563891",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-09 18:27:12.870547",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-09 18:27:22.028239",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Submit Scan",
+    "location": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-09 18:28:10.925819",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-09 18:28:29.524272",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Accept Diverted Power",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-09 18:28:39.756921",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 7,
+  "timestamp": "2026-04-09 18:28:49.603779",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-09 18:28:57.292199",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-09 18:29:05.885549",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "what happened now.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-09 18:29:26.279732",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "Black, why did you kill him?",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-09 18:29:55.842434",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "I think its black and purple. got you didnt i!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-09 18:30:07.442201",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "black"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 10,
+  "timestamp": "2026-04-09 18:30:45.307024",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 11,
+  "timestamp": "2026-04-09 18:30:57.296046",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 12,
+  "timestamp": "2026-04-09 18:31:07.886413",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 13,
+  "timestamp": "2026-04-09 18:31:19.391057",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Accept Diverted Power",
+    "location": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 14,
+  "timestamp": "2026-04-09 18:31:38.454898",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-04-09 18:31:46.090619",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 16,
+  "timestamp": "2026-04-09 18:31:57.679595",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 22:59:09.441647",
+  "player": {
+    "name": "Pink",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-09 22:59:29.134776",
+  "player": {
+    "name": "Pink",
+    "identity": "Impostor",
+    "location": "Lower Engine"
+  },
+  "action": {
+    "type": "VENT",
+    "from": "Upper Engine",
+    "to": "Lower Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-09 22:59:43.157764",
+  "player": {
+    "name": "Pink",
+    "identity": "Impostor",
+    "location": "Storage"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Lower Engine",
+    "to": "Storage"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-09 22:59:53.870503",
+  "player": {
+    "name": "Pink",
+    "identity": "Impostor",
+    "location": "Storage"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Purple",
+    "location": "Storage"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-09 23:00:19.167632",
+  "player": {
+    "name": "Pink",
+    "identity": "Impostor",
+    "location": "Storage"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Cyan",
+    "location": "Storage"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 23:01:16.645412",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-09 23:01:27.105612",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-09 23:01:37.327760",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Orange",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-09 23:01:47.742419",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Pink",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 23:10:05.532698",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-09 23:10:21.446108",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-09 23:13:44.705736",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-09 23:13:55.622385",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-09 23:14:20.720839",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-09 23:14:38.172277",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Shields"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "Shields"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-09 23:14:47.612525",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Shields"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Cyan",
+    "location": "Shields"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-09 23:15:02.722795",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Shields",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 7,
+  "timestamp": "2026-04-09 23:15:32.801652",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-09 23:15:45.722414",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-09 23:16:08.076719",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-09 23:16:28.806946",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "who called the meeting",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-09 23:16:53.307445",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i am all the way on the left side of the map.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-09 23:17:12.508270",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "I was in medbay.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-09 23:17:28.626276",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "yellow"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 11,
+  "timestamp": "2026-04-09 23:17:57.000028",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 12,
+  "timestamp": "2026-04-09 23:18:05.466264",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 13,
+  "timestamp": "2026-04-09 23:18:16.213067",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-04-09 23:19:49.955391",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 16,
+  "timestamp": "2026-04-09 23:19:59.492049",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 17,
+  "timestamp": "2026-04-09 23:20:08.602627",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Lower Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Security",
+    "to": "Lower Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 18,
+  "timestamp": "2026-04-09 23:20:16.628414",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Storage"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Lower Engine",
+    "to": "Storage"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-10 12:09:24.641079",
+  "player": {
+    "name": "Cyan",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-10 20:20:53.346738",
+  "player": {
+    "name": "Orange",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-10 20:21:04.744408",
+  "player": {
+    "name": "Orange",
+    "identity": "Impostor",
+    "location": "Shields"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "Shields"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-10 20:39:46.512685",
+  "player": {
+    "name": "Orange",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 11:26:39.738937",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 11:27:00.161417",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-11 11:27:15.783091",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Submit Scan",
+    "location": "Medbay",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-11 11:27:33.465946",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-11 11:27:49.074701",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-11 11:28:00.754665",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 7,
+  "timestamp": "2026-04-11 11:28:12.167564",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-11 11:28:19.705693",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Shields"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "O2",
+    "to": "Shields"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-11 11:28:37.329711",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "what happened",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-11 11:28:42.745413",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "what happened now.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-11 11:29:08.981889",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "it was me!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-11 11:29:19.441939",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "no. it was me!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 11:49:52.527039",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 11:50:09.449887",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Red",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-11 11:50:29.169924",
+  "player": {
+    "name": "Yellow",
+    "identity": "Impostor",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 11:53:44.981998",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Empty Garbage",
+    "location": "Cafeteria",
+    "progress": "1/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 16:43:01.216046",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 16:43:11.529654",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-11 16:43:34.028520",
+  "player": {
+    "name": "Green",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-11 16:43:48.359945",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Reactor"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Security",
+    "to": "Reactor"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-11 16:43:57.801201",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Reactor",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-11 16:44:05.298316",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Reactor"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Security",
+    "to": "Reactor"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-11 16:44:11.880694",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "whats good bro bro.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 7,
+  "timestamp": "2026-04-11 16:44:22.058754",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "what happened.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 17:28:33.038869",
+  "player": {
+    "name": "Yellow",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 17:28:41.232804",
+  "player": {
+    "name": "Yellow",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Orange",
+    "location": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 17:28:48.177043",
+  "player": {
+    "name": "Cyan",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "whats good bro bro.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 17:48:58.109714",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 18:29:47.385891",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 20:25:29.964626",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 20:25:40.311550",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "it was me!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 20:26:05.544737",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "Because i thought it would be funny!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 20:26:21.864725",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "whats good bro bro.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-11 20:26:33.898803",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "orange"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:47.470812",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:49.552193",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:51.508476",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:52.150140",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Lower Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Security",
+    "to": "Lower Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:53.697045",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Electrical"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Lower Engine",
+    "to": "Electrical"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:54.813940",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:55.371395",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-11 20:26:55.851426",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:44:43.092105",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:44:50.309195",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "it was me!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:44:58.672998",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "no it wasnt",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:45:23.662072",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i was just joking guys",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:45:27.922137",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "whats good bro bro.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:45:38.277278",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "asdfasdf",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:45:41.273103",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "asdfasdf",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:45:50.130868",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "yellow"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 10:45:52.829442",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "orange"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-12 10:46:10.090876",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-12 10:46:19.446237",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-12 10:46:29.417945",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-12 10:46:47.612653",
+  "player": {
+    "name": "Brown",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Black",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:01:22.558996",
+  "player": {
+    "name": "Brown",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:04:34.786594",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:09:39.270582",
+  "player": {
+    "name": "Green",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:11:28.432996",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:11:41.871341",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "whats good bro bro.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:11:46.100130",
+  "player": {
+    "name": "Yellow",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i didnt do it. thats all i know.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 11:12:15.720299",
+  "player": {
+    "name": "Purple",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-12 12:42:48.725871",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-12 12:43:15.552654",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "O2"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "O2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-12 12:43:29.642047",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-12 12:43:47.472104",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "O2"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Shields",
+    "to": "O2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-12 12:44:03.672828",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "O2",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-12 12:44:20.284848",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "O2"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "O2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 7,
+  "timestamp": "2026-04-12 12:44:32.022275",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Reactor"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Security",
+    "to": "Reactor"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-12 12:44:40.635264",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Reactor",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-12 12:44:57.097232",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "what happened",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:08.344223",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "what happened now.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:12.585322",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i didnt do it. thats all i know.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:21.183024",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "asd",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:26.682542",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i didnt do it. thats all i know.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:36.540464",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i didnt do it. thats all i know.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:41.027095",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i didnt do it. thats all i know.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:48.815072",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "none"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-04-12 12:45:49.856239",
+  "player": {
+    "name": "Black",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "none"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-13 12:58:06.833492",
+  "player": {
+    "name": "Red",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Empty Garbage",
+    "location": "Cafeteria",
+    "progress": "1/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-15 11:43:17.400103",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-15 11:43:44.488055",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Align Engine Output",
+    "location": "Upper Engine",
+    "progress": "1/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-04-15 11:44:02.857254",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-04-15 11:44:15.608810",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Shields"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Accept Diverted Power",
+    "location": "Shields",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-04-15 11:44:59.857532",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:45:10.092360",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:45:28.961335",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "What happened",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:45:37.351220",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "asdfasdf",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:45:52.559974",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "it was me!",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:45:56.474538",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "asdfasdf",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:46:08.672244",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i did it. vote me.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:46:13.123299",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "asdfasdf",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:46:23.170649",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "pink"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-04-15 11:46:24.652801",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "blue"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-04-15 11:47:45.316174",
+  "player": {
+    "name": "Pink",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-19 21:41:37.645130",
+  "player": {
+    "name": "Red",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-19 21:45:34.512785",
+  "player": {
+    "name": "Orange",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-04-19 21:45:50.386530",
+  "player": {
+    "name": "Orange",
+    "identity": "Impostor",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-19 21:46:02.667137",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Brown",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-04-19 21:46:19.877855",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "it was me!",
+    "phase": "meeting"
+  }
+}

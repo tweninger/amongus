@@ -38,17 +38,19 @@ class Map:
 skeld = Map()
 
 class WebPlayerAgent:
-    """The Human-to-Engine Bridge. Holds the 'brain' of the player."""
     def __init__(self, player):
         self.player = player
         self.model = "homosapiens/brain1.0"
         self.queued_action = None
+        self.waiting_for_action = False  # True while engine is blocking on this player's turn
+        self._prev_waiting = False       # Previous value, used to detect turn-start transitions
 
     async def choose_action(self, timestep):
-        # Blocking loop
-        # Pause until human has returned a response via API
+        # Blocking loop — pause until the human submits an action via API
+        self.waiting_for_action = True
         while self.queued_action is None:
             await asyncio.sleep(0.5)
+        self.waiting_for_action = False
         action = self.queued_action
         self.queued_action = None
         if action == "nudge":

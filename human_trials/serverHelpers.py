@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from models import WebPlayerAgent
 
 def setup_log_directory():
     log_dir = os.path.join(os.getcwd(), "logs")
@@ -45,7 +46,7 @@ def get_roster(agents):
             "id": i,
             "name": agent.player.name.split()[-1].lower().capitalize(),
             "color": agent.player.name.split()[-1].lower(),
-            "is_human": i == 0
+            "is_human": isinstance(agent, WebPlayerAgent)
         })
     return roster
 
@@ -62,11 +63,12 @@ def get_win_message(game_instance):
 
 
 # Scans activity logs and extracts meeting dialogue and actions
-def parse_meeting_messages(game_instance):
+# meeting_start_step: only include messages from this step onwards
+def parse_meeting_messages(game_instance, meeting_start_step=None):
     messages = []
-    colors = ["red", "blue", "green", "pink", "orange", "yellow", 
+    colors = ["red", "blue", "green", "pink", "orange", "yellow",
               "black", "white", "purple", "brown", "cyan", "lime"]
-    
+
     for record in game_instance.activity_log:
         if not isinstance(record, dict):
             continue
@@ -78,10 +80,20 @@ def parse_meeting_messages(game_instance):
 
         # Check phase and step
         log_phase = prompt_data.get("Phase", "") or record.get("phase", "")
-        log_step = record.get("step") or record.get("timestep") 
+        log_step = record.get("step") or record.get("timestep")
 
-        if "meeting" in str(log_phase).lower() and log_step == game_instance.timestep:
-            
+        # Did this log happen in the current meeting?
+        if meeting_start_step is None:
+            # If no meeting is active, we show everything
+            in_range = True
+        elif log_step is not None and log_step >= meeting_start_step:
+            # If a meeting is active, only show logs that happened after it started
+            in_range = True
+        else:
+            # This log is from a previous round
+            in_range = False
+        
+        if "meeting" in str(log_phase).lower() and in_range:    
             # Action is in "Thinking Process" block
             thinking_process = response_data.get("Thinking Process", {})
             action = str(thinking_process.get("action", "") or record.get("action", ""))
@@ -101,7 +113,7 @@ def parse_meeting_messages(game_instance):
                     player_name = player_data.get("name", "unknown").lower()
                 else:
                     player_name = getattr(player_data, "name", "unknown").lower()
-                    
+
                 player_color = next((color for color in colors if color in player_name), "white")
 
                 messages.append({

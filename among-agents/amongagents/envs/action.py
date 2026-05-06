@@ -104,10 +104,14 @@ class Vote(Action):
         self.other_player = other_player
 
     def __repr__(self):
-        return f"{self.name} {self.other_player.name}"
+        target = self.other_player.name if self.other_player else "none"
+        return f"{self.name} {target}"
 
     def execute(self, env, player):
         super().execute(env, player)
+        if self.other_player is None:
+            env.vote_info_one_round[player.name] = "none"
+            return
         env.vote_info_one_round[player.name] = self.other_player.name
         env.votes[self.other_player] = env.votes.get(self.other_player, 0) + 1
 

@@ -3,202 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web-Based Among Us</title>
+    <title>Among Us</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="container mt-5">
-        <header class="text-center mb-5">
-            <h1>Web-Based Among Us</h1>
-        </header>
 
+    <!-- Lobby Screen -->
+    <div class="container mt-5" id="lobby-screen-wrapper">
+        <header class="text-center mb-4">
+            <h2 class="text-light fw-bold">Among Us</h2>
+        </header>
         <section id="lobby-screen" class="config-panel">
             <div class="row justify-content-center">
-                <div class="col-md-6">
-                    <div class="option-group mb-4">
-                        <label class="d-block mb-2">Total Participants:</label>
-                        <div class="btn-group w-100" id="count-selector">
-                            <button class="btn btn-outline-primary" data-value="FIVE_MEMBER_GAME">5 Members</button>
-                            <button class="btn btn-outline-primary" data-value="SEVEN_MEMBER_GAME">7 Members</button>
+                <div class="col-md-5">
+
+                    <!-- Main Menu: Host or Join -->
+                    <div id="matchmaking-panel">
+                        <div class="option-group mb-3">
+                            <label class="d-block mb-2 text-muted small text-uppercase text-center">Game Size (host only)</label>
+                            <div class="btn-group w-100" id="count-selector">
+                                <button class="btn btn-outline-primary active" data-value="FIVE_MEMBER_GAME">5 Players</button>
+                                <button class="btn btn-outline-primary" data-value="SEVEN_MEMBER_GAME">7 Players</button>
+                            </div>
+                        </div>
+                        <button id="host-btn" class="btn btn-primary btn-lg w-100 mb-3">Host Game</button>
+                        <button id="browse-btn" class="btn btn-outline-secondary btn-lg w-100">Join Game</button>
+                    </div>
+
+                    <!-- Lobby Browser: List of Open Games -->
+                    <div id="browse-panel" class="d-none">
+                        <div class="d-flex align-items-center mb-3">
+                            <button id="back-btn" class="btn btn-sm btn-outline-secondary me-2">Back</button>
+                            <h5 class="mb-0 text-light">Open Lobbies</h5>
+                            <button id="refresh-btn" class="btn btn-sm btn-outline-info ms-auto">Refresh</button>
+                        </div>
+                        <div id="lobby-list">
+                            <p class="text-muted text-center small">Loading...</p>
                         </div>
                     </div>
-                    <div class="option-group mb-4 text-center">
-                        <p id="player-count-display" class="fw-bold text-info mt-2"> Current Setup: 5 Players</p>
+
+                    <!-- Waiting Room: Shown After Hosting or Joining -->
+                    <div id="waiting-panel" class="d-none">
+                        <h5 class="text-center text-light mb-3">Waiting for players...</h5>
+                        <ul id="ready-checklist" class="list-group list-group-flush mb-3"></ul>
+                        <button id="start-game-btn" class="btn btn-success btn-lg w-100 fw-bold d-none">Start Game</button>
+                        <p id="waiting-hint" class="text-muted text-center small mt-2 d-none">Waiting for host to start...</p>
                     </div>
-                    <button id="start-btn" class="btn btn-primary btn-lg w-100">Enter Lobby</button>
+
                 </div>
             </div>
         </section>
+    </div>
 
-        <section id="game-screen" class="d-none mt-4" style="position: relative;">
-            <div class="row mb-3">
-                <div class="col-12">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-uppercase fw-bold small text-success">Total Tasks Completed</span>
-                        <span id="task-percent-text" class="badge bg-success">0%</span>
+    <!-- Game Screen -->
+    <section id="game-screen" class="d-none" style="position: relative;">
+
+        <!-- Meeting Overlay (covers full viewport) -->
+        <div id="meeting-overlay" class="d-none">
+            <h2 class="text-danger fw-bold text-center mb-3">📢 EMERGENCY MEETING</h2>
+            <div class="row flex-grow-1 overflow-hidden g-3">
+
+                <!-- Discussion Chat -->
+                <div class="col-md-7 d-flex flex-column h-100">
+                    <div class="card bg-dark border-secondary flex-grow-1 mb-2 overflow-hidden">
+                        <div class="card-header text-info small fw-bold">CREW DISCUSSION</div>
+                        <div id="discussion-chat" class="card-body text-start" style="height: 100%; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; background: #050505;"></div>
                     </div>
-                    <div class="progress bg-dark border border-secondary" style="height: 20px; border-radius: 4px;">
-                        <div id="total-task-bar"
-                            class="progress-bar progress-bar-striped progress-bar-animated bg-success"
-                            role="progressbar"
-                            style="width: 0%; transition: width 0.6s ease;">
+                    <p id="turn-prompt" class="text-success fw-bold small text-center mb-1" style="display: none;"></p>
+                    <div id="chat-input-group" class="input-group" style="display: none;">
+                        <input type="text" id="chat-input" class="form-control bg-dark text-light border-secondary" placeholder="Defend yourself or accuse others...">
+                        <button class="btn btn-info fw-bold" id="send-chat-btn">SEND</button>
+                    </div>
+                </div>
+
+                <!-- Voting Roster -->
+                <div class="col-md-5 d-flex flex-column h-100">
+                    <div class="card bg-dark border-secondary flex-grow-1">
+                        <div class="card-header text-success small fw-bold">SELECT A TARGET</div>
+                        <div id="voting-roster-container" class="list-group list-group-flush p-2 overflow-auto flex-grow-1"></div>
+                        <div class="card-footer bg-transparent border-0">
+                            <button class="btn btn-outline-warning w-100 fw-bold" id="skip-vote-btn">SKIP VOTE</button>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div id="meeting-overlay" class="d-none" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; border-radius: 8px;">
-                <div class="p-4 text-center h-100 d-flex flex-column">
-                    <h2 class="text-danger fw-bold mb-3">📢 EMERGENCY MEETING</h2>
 
-                    <div class="row flex-grow-1 overflow-hidden">
-                        <div class="col-md-7 d-flex flex-column h-100">
-                                <div class="card bg-dark border-secondary flex-grow-1 mb-2 overflow-hidden">
-                                <div class="card-header text-info small fw-bold">CREW DISCUSSION</div>
-                                <div id="discussion-chat" class="card-body text-start scrollable" style="height: 300px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; background: #050505;">
-                            </div>
-                        </div>
-
-                <div id="chat-input-group" class="input-group" style="display: none;">
-                    <input type="text" id="chat-input" class="form-control bg-dark text-light border-secondary" placeholder="Defend yourself or accuse others...">
-                    <button class="btn btn-info fw-bold" id="send-chat-btn">SEND MESSAGE</button>
-                </div>
-            </div>
-                        <div class="col-md-5 h-100">
-                            <div class="card bg-dark border-secondary h-100">
-                                <div class="card-header text-success small fw-bold">SELECT A TARGET</div>
-                                <div id="voting-roster-container" class="list-group list-group-flush p-2 overflow-auto" style="max-height: 300px;">
-                                </div>
-                                <div class="card-footer bg-transparent border-0">
-                                    <button class="btn btn-outline-warning w-100 fw-bold" id="skip-vote-btn">SKIP VOTE</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        <div class="row g-2 align-items-center mb-4">
-
-            <div class="col-md-6">
-                <div id="minimap-container" style="position: relative; width: 100%; aspect-ratio: 16/9; border: 2px solid #fff; background: #000; border-radius: 8px; overflow: hidden;">
-                    <img src="/static/assets/skeld.png" alt="The Skeld" style="width: 100%; height: 100%; object-fit: contain; display: block;">
-                    <div id="skeld-player-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div id="room-view-wrapper">
-                    <h6 class="text-muted small text-uppercase mb-1 text-center">Location: <span id="location-header" class="text-info fw-bold">Cafeteria</span></h6>
-                    <div id="room-view" style="position: relative; width: 100%; aspect-ratio: 16/9; background-color: #111; border: 4px solid #444; border-radius: 8px; overflow: hidden; transition: background-image 0.4s ease-in-out;">
-                        <div id="room-player-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;"></div>
-                        <div id="room-interaction-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none;"></div>
-                    </div>
-                </div>
             </div>
         </div>
 
-            <div class="text-center mb-3">
-                <span class="badge text-dark fs-6 shadow-sm">
-                    Current Timestep: <span id="step-counter">0</span>
-                </span>
+        <!-- Task Progress Bar -->
+        <div id="task-bar-row">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-uppercase fw-bold" style="font-size:0.68rem; color:#6fcf97; letter-spacing:0.05em;">Task Progress</span>
+                <span id="task-percent-text" class="badge bg-success" style="font-size:0.7rem;">0%</span>
             </div>
+            <div class="progress bg-dark border border-secondary" style="height: 10px; border-radius: 4px;">
+                <div id="total-task-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;"></div>
+            </div>
+        </div>
 
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="card bg-dark text-white">
-                        <div class="card-header">Live Simulation Game Log</div>
-                        <div class="card-body">
-                            <div id="game-log"></div>
-                        </div>
-                    </div>
+        <!-- Status Strip -->
+        <div id="status-strip">
+            <span>You: <span id="user-display" class="status-val">—</span></span>
+            <span>Location: <span id="location-display" class="status-val">—</span></span>
+            <span>Step: <span id="step-counter" class="status-val">0</span></span>
+            <span id="current-phase" class="fw-bold">Initializing...</span>
+        </div>
+
+        <!-- Main Content: Map | Actions -->
+        <div class="row g-2" id="main-content-row">
+
+            <!-- Left: Minimap + Room View -->
+            <div class="col-md-5" id="map-col">
+                <div id="minimap-container">
+                    <img src="/static/assets/skeld.png" alt="The Skeld">
+                    <div id="skeld-player-layer"></div>
                 </div>
-
-                <div class="col-md-4">
-                    <div id="status-panel" class="card mb-3">
-                        <div class="card-body">
-                            <h5>Game Status</h5>
-                            <hr>
-                            <p>You: <span id="user-display" class="fw-bold text-primary">None</span></p>
-                            <p>Location: <span id="location-display" class="fw-bold text-success">Cafeteria</span></p>
-                            <p>Phase: <span id="current-phase">Initialzing...</span></p>
-                        </div>
-                        <div id="my-tasks-panel" class="card mt-3 border-success">
-                            <div class="card-body">
-                                <h5 class="text-success"> My Tasks</h5>
-                                <hr class="border-success">
-                                <ul id="personal-tasks" class="list-group list-group-flush small">
-                                    <li class="list-group-item text-muted bg-transparent"> Loading your tasks...</li>
-                                </ul>
-                            </div>
-                        </div>
+                <div id="room-view-wrapper">
+                    <div style="font-size:0.7rem; color:#6b7280; text-align:center; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.04em;">
+                        <span id="location-header" class="fw-bold" style="color:#67e8f9;">Cafeteria</span>
                     </div>
-
-                    <div id="staging-panel" class="card mb-3">
-                        <div class="card-body text-center">
-                            <h5 class="mb-3"> Pre-Game Lobby</h5>
-                            <ul id="ready-checklist" class="list-group list-group-flush mb-3 text-start"></ul>
-                            <button id="ready-up-btn" class="btn btn-primary btn-lg w-100 fw-bold">Ready Up</button>
-                        </div>
-                    </div>
-
-                    <div id="action-panel" class="d-none">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h6 class="text-uppercase small fw-bold">Other Players in Room</h6>
-                                <ul id="players-in-room-list" class="list-group list-group-flush">
-                                    <li class="list-group-item bg-dark text-muted small">Loading...</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="card mb-3 border-danger shadow-sm">
-                            <div class="card-body text-center">
-                                <button id="report-btn" class="btn btn-danger fw-bold disabled">
-                                    🚨 REPORT DEAD BODY 🚨
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h6 class="text-uppercase small fw-bold text-muted">Room Tasks</h6>
-                                <ul id="task-list" class="list-group list-group-flush"></ul>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div class="card-body">
-                                <h6>Move To:</h6>
-                                <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
-                            </div>
-                        </div>
-                        <div id="vent-panel" class="card mb-3 border-danger d-none" style="background: rgba(255, 0, 0, 0.05);">
-                            <div class="card-body">
-                                <h6 class="text-danger small fw-bold text-uppercase">Vent To:</h6>
-                                <div id="vent-options" class="d-flex flex-wrap gap-2"></div>
-                            </div>
-                        </div>
-                    </div> <div id="discussion-panel" class="card d-none border-danger mt-3">
-                        <div class="card-body text-center">
-                            <h4 class="text-danger"> Meeting Has Been Called</h4>
-                            <button id="proceed-to-vote-btn" class="btn btn-danger w-100 fw-bold">
-                                ENTER DISCUSSION
-                            </button>
-                        </div>
+                    <div id="room-view">
+                        <div id="room-player-layer"></div>
+                        <div id="room-interaction-layer"></div>
                     </div>
                 </div>
             </div>
-        </section>
-        <hr class="my-5">
-    </div>
 
+            <!-- Right: My Tasks + Action Panel -->
+            <div class="col-md-7" id="action-col">
+
+                <!-- My Tasks -->
+                <div id="my-tasks-panel">
+                    <h6>My Tasks</h6>
+                    <ul id="personal-tasks">
+                        <li class="list-group-item text-muted bg-transparent">Loading...</li>
+                    </ul>
+                </div>
+
+                <!-- Action Panel: shown during task phase -->
+                <div id="action-panel" class="d-none">
+
+                    <!-- Players in Room -->
+                    <div class="action-section">
+                        <div class="action-section-label">In This Room</div>
+                        <ul id="players-in-room-list"></ul>
+                    </div>
+
+                    <!-- Report -->
+                    <div class="action-section">
+                        <button id="report-btn" class="disabled">🚨 Report Dead Body</button>
+                    </div>
+
+                    <!-- Room Tasks -->
+                    <div class="action-section">
+                        <div class="action-section-label">Tasks Here</div>
+                        <div id="task-list" class="d-flex flex-column gap-1"></div>
+                    </div>
+
+                    <!-- Move -->
+                    <div class="action-section">
+                        <div class="action-section-label">Move To</div>
+                        <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- Vent (impostors only) -->
+                    <div id="vent-panel" class="action-section d-none" style="border-color: rgba(239,68,68,0.25); background: rgba(185,28,28,0.05);">
+                        <div class="action-section-label" style="color:#f87171;">Vent To</div>
+                        <div id="vent-options" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- Waiting -->
+                    <div id="waiting-indicator" class="d-none">Waiting for other players...</div>
+
+                </div>
+
+                <!-- Meeting Countdown Banner -->
+                <div id="discussion-panel" class="d-none">
+                    <h5 class="text-danger fw-bold mb-1">📢 EMERGENCY MEETING</h5>
+                    <p id="meeting-countdown-text" class="text-danger fw-bold mb-0" style="font-size:1rem;">Discussion starting in 10s...</p>
+                </div>
+
+                <!-- Game Log (fills remaining space in action column) -->
+                <div id="game-log-strip">
+                    <div class="log-label">Game Log</div>
+                    <div id="game-log"></div>
+                </div>
+
+            </div>
+        </div>
+
+    </section>
+
+    <!-- Role Reveal Modal -->
     <div id="role-reveal-modal" class="modal fade" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bg-dark text-white text-center border-secondary">
                 <div class="modal-body p-5">
-                    <h2 id="role-title" class="display-4 fw-bold mb-3"> Keep this a secret!</h2>
-                    <h4 class="mb-4"> Your role is: </h4>
-                    <h1 id="role-display" class="display-3 fw-bold text-uppercase mb-4">Loading...</h1> 
+                    <h2 id="role-title" class="display-4 fw-bold mb-3">Keep this a secret!</h2>
+                    <h4 class="mb-4">Your role is:</h4>
+                    <h1 id="role-display" class="display-3 fw-bold text-uppercase mb-4">Loading...</h1>
                     <h5 class="mb-5 text-light">You are playing as:
                         <span id="color-name-display" class="text-capitalize fw-bold"></span>
                         <img id="color-img-display" src="" style="width: 45px; margin-left: 10px; vertical-align: middle;">
@@ -210,6 +214,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script type = "module" src="/static/js/game.js"></script>
+    <script type="module" src="/static/js/game.js"></script>
 </body>
 </html>
