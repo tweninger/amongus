@@ -642,7 +642,7 @@ async function startPhaseWatcher() {
                     executeAiStep();
                 }
             } else if (gameStarted) {
-                const stateResponse = await fetch('/api/game-state');
+                const stateResponse = await fetch('/api/hud');
                 if (stateResponse.ok) {
                     const stateData = await stateResponse.json();
                     updateTaskProgressBar(stateData.task_progress);

@@ -12,14 +12,10 @@ html, body {
     overflow: hidden; /* No page scroll — game fits in viewport */
 }
 
-/* Lobby scrolls normally */
 body:has(#lobby-screen:not(.d-none)) {
     overflow: auto;
 }
 
-/* =============================================
-   LOBBY
-   ============================================= */
 .config-panel {
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.08);
@@ -27,9 +23,6 @@ body:has(#lobby-screen:not(.d-none)) {
     padding: 2rem;
 }
 
-/* =============================================
-   GAME SCREEN — fixed viewport layout
-   ============================================= */
 #game-screen {
     display: flex;
     flex-direction: column;
@@ -39,7 +32,6 @@ body:has(#lobby-screen:not(.d-none)) {
     overflow: hidden;
 }
 
-/* ---- Task bar ---- */
 #task-bar-row {
     flex-shrink: 0;
 }
@@ -48,7 +40,6 @@ body:has(#lobby-screen:not(.d-none)) {
     transition: width 0.6s ease;
 }
 
-/* ---- Status strip ---- */
 #status-strip {
     flex-shrink: 0;
     display: flex;
@@ -71,7 +62,6 @@ body:has(#lobby-screen:not(.d-none)) {
     margin-left: auto;
 }
 
-/* ---- Main content area ---- */
 #main-content-row {
     flex: 1;
     min-height: 0;
@@ -83,7 +73,6 @@ body:has(#lobby-screen:not(.d-none)) {
     overflow: hidden;
 }
 
-/* ---- Map column ---- */
 #map-col {
     display: flex;
     flex-direction: column;
@@ -139,7 +128,6 @@ body:has(#lobby-screen:not(.d-none)) {
 #room-player-layer { z-index: 5; }
 #room-interaction-layer { z-index: 10; pointer-events: none; }
 
-/* ---- Action column ---- */
 #action-col {
     display: flex;
     flex-direction: column;
@@ -152,7 +140,6 @@ body:has(#lobby-screen:not(.d-none)) {
 #action-col::-webkit-scrollbar-track { background: transparent; }
 #action-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
 
-/* ---- My tasks (compact) ---- */
 #my-tasks-panel {
     background: rgba(40,167,69,0.06);
     border: 1px solid rgba(40,167,69,0.2);
@@ -186,7 +173,6 @@ body:has(#lobby-screen:not(.d-none)) {
     background: transparent;
 }
 
-/* ---- Action panel cards ---- */
 .action-section {
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.08);
@@ -203,7 +189,6 @@ body:has(#lobby-screen:not(.d-none)) {
     font-weight: 600;
 }
 
-/* ---- Players in room list ---- */
 #players-in-room-list {
     list-style: none;
     padding: 0;
@@ -247,6 +232,32 @@ body:has(#lobby-screen:not(.d-none)) {
 }
 
 #report-btn.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+#emergency-btn {
+    width: 100%;
+    padding: 7px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: rgba(220, 38, 38, 0.18);
+    border: 1px solid rgba(220, 38, 38, 0.55);
+    color: #fca5a5;
+    border-radius: 8px;
+    transition: all 0.15s;
+    cursor: pointer;
+}
+
+#emergency-btn:hover {
+    background: rgba(220, 38, 38, 0.32);
+    border-color: rgba(220, 38, 38, 0.85);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(220, 38, 38, 0.35);
+}
+
+#emergency-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
 }
@@ -342,13 +353,67 @@ body:has(#lobby-screen:not(.d-none)) {
     box-shadow: 0 0 8px rgba(239,68,68,0.35);
 }
 
+/* ---- Disabled state (other buttons greyed when one is in flight) ---- */
+.btn-move:disabled,
+.btn-task:disabled,
+.btn-vent:disabled,
+.btn-kill:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
+
+/* ---- Submitted state (the specific button the player clicked) ---- */
+.btn-submitted,
+.btn-submitted:disabled {
+    opacity: 1 !important;
+    cursor: default;
+    animation: submittedPulse 1.4s ease-in-out infinite;
+}
+.btn-move.btn-submitted,
+.btn-move.btn-submitted:disabled {
+    background: rgba(99,179,237,0.22);
+    border-color: rgba(99,179,237,0.7);
+    color: #93c5fd;
+}
+.btn-task.btn-submitted,
+.btn-task.btn-submitted:disabled {
+    background: rgba(40,167,69,0.28);
+    border-color: rgba(40,167,69,0.7);
+    color: #a7f3d0;
+}
+.btn-vent.btn-submitted,
+.btn-vent.btn-submitted:disabled {
+    background: rgba(185,28,28,0.3);
+    border-color: rgba(239,68,68,0.7);
+    color: #fca5a5;
+}
+.btn-kill.btn-submitted,
+.btn-kill.btn-submitted:disabled {
+    background: rgba(185,28,28,0.4);
+    border-color: #ef4444;
+    color: #fff;
+}
+@keyframes submittedPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+}
+
 /* ---- Waiting indicator ---- */
 #waiting-indicator {
-    font-size: 0.78rem;
-    color: #60a5fa;
-    font-style: italic;
+    font-size: 0.82rem;
+    color: #93c5fd;
+    font-weight: 600;
     text-align: center;
-    padding: 4px 0;
+    padding: 8px 12px;
+    margin-top: 6px;
+    background: rgba(99,179,237,0.08);
+    border: 1px solid rgba(99,179,237,0.25);
+    border-radius: 6px;
+    animation: waitPulse 1.6s ease-in-out infinite;
+}
+@keyframes waitPulse {
+    0%, 100% { border-color: rgba(99,179,237,0.25); }
+    50%       { border-color: rgba(99,179,237,0.6); }
 }
 
 /* ---- Meeting countdown banner ---- */
@@ -399,6 +464,29 @@ body:has(#lobby-screen:not(.d-none)) {
     border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 
+/* ---- Floating action text ---- */
+.float-text-anim {
+    position: fixed;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    pointer-events: none;
+    z-index: 9999;
+    white-space: nowrap;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+    transform: translateX(-50%);
+    animation: floatUp 1.5s ease-out forwards;
+}
+
+@keyframes floatUp {
+    0%   { opacity: 1;   transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0;   transform: translateX(-50%) translateY(-60px); }
+}
+
+/* ---- Turn timer ---- */
+#turn-timer-strip { font-size: 0.82rem; color: #fff; }
+#turn-timer-meeting { font-size: 0.85rem; margin-top: 2px; }
+
 /* ---- Meeting overlay ---- */
 #meeting-overlay {
     position: fixed;
@@ -406,5 +494,7 @@ body:has(#lobby-screen:not(.d-none)) {
     background: rgba(0,0,0,0.96);
     z-index: 200;
     padding: 20px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }

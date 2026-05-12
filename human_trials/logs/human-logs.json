@@ -2382,3 +2382,1533 @@
     "phase": "meeting"
   }
 }
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-07 00:25:34.855361",
+  "player": {
+    "name": "Lime",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "KILL",
+    "target": "Brown",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:09:27.755878",
+  "player": {
+    "name": "Green",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Download Data",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:10:33.873668",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Download Data",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:13:14.973197",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:13:32.417958",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "What happened",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:14:05.143223",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "Wait what?? i didnt call the meeting",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:14:29.442389",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "okay, well i believe black.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:14:40.019304",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "yellow"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-10 17:15:05.902887",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-05-10 17:15:11.764014",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-10 17:15:18.057214",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Medbay",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-10 17:15:23.852545",
+  "player": {
+    "name": "White",
+    "identity": "Impostor",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-10 17:50:36.965673",
+  "player": {
+    "name": "Green",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Download Data",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-10 17:50:44.917995",
+  "player": {
+    "name": "Green",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:26:14.175535",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "CALL_MEETING",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:26:32.170028",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "I just wanted to say hi",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:26:58.137015",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i think it was fgunny",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:27:39.571271",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "yeah",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:27:57.979541",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "yellow"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 11:28:53.940570",
+  "player": {
+    "name": "Blue",
+    "identity": "Impostor",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:41:05.955869",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "CALL_MEETING",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:41:20.594429",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "hi",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:41:31.550931",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "cause it was funny",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:41:43.588652",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "dont vote me ahhh",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:42:17.845653",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "CALL_MEETING",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:44:23.707707",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "fat",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:44:35.128467",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "ur fat",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 11:44:47.907680",
+  "player": {
+    "name": "Lime",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "fat",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 0,
+  "timestamp": "2026-05-11 12:40:36.423445",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 0,
+  "timestamp": "2026-05-11 12:40:44.459231",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 12:41:45.467094",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 12:41:55.154137",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 0,
+  "timestamp": "2026-05-11 12:43:18.933458",
+  "player": {
+    "name": "Red",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 12:43:35.088284",
+  "player": {
+    "name": "Red",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 12:49:45.907246",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 12:50:00.339090",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:50:25.321739",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:51:25.322826",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-05-11 12:52:34.729039",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Medbay"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Medbay"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-11 12:52:55.766201",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "hello?",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-11 12:53:06.654251",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "hello?",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 12:53:31.897160",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 12:53:38.364558",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Download Data",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:53:42.140658",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "REPORT",
+    "body": "Brown",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:53:57.745777",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i saw brown dead.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:54:08.505716",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "In cafeteria.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:54:23.177856",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "Nope. i didnt see anyone nearby.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 12:54:32.600453",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "green"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-11 12:54:53.496423",
+  "player": {
+    "name": "White",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 13:01:23.060096",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Download Data",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 13:01:32.467033",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 13:02:32.468125",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 13:52:40.670371",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 13:52:52.469327",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Empty Garbage",
+    "location": "Cafeteria",
+    "progress": "1/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 13:53:01.172041",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Empty Garbage",
+    "location": "Cafeteria",
+    "progress": "2/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-05-11 13:53:08.638010",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Weapons"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Weapons"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-11 13:53:17.360846",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "O2"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Weapons",
+    "to": "O2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 13:53:24.330081",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Shields"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "O2",
+    "to": "Shields"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 7,
+  "timestamp": "2026-05-11 13:53:33.133976",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Storage"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Shields",
+    "to": "Storage"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-05-11 13:53:39.281712",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Admin"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Storage",
+    "to": "Admin"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-05-11 13:53:42.012868",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Admin"
+  },
+  "action": {
+    "type": "REPORT",
+    "body": "Pink",
+    "location": "Admin"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-05-11 13:54:06.747996",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i found pink i think dead in admin.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-05-11 13:54:20.930781",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "thats right. red. please explain.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-05-11 13:54:51.779776",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i just saw the body. i didnt do anything. we need to vote. plesae lock in.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-05-11 13:55:05.789724",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "green"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 11,
+  "timestamp": "2026-05-11 13:55:23.122172",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 11,
+  "timestamp": "2026-05-11 13:56:23.123284",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 12,
+  "timestamp": "2026-05-11 13:57:25.256022",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 13,
+  "timestamp": "2026-05-11 13:58:26.726163",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 14,
+  "timestamp": "2026-05-11 13:59:28.431411",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-05-11 14:00:30.006070",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 16,
+  "timestamp": "2026-05-11 14:01:36.613075",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 17,
+  "timestamp": "2026-05-11 14:02:38.241092",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 18,
+  "timestamp": "2026-05-11 14:03:40.157800",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 19,
+  "timestamp": "2026-05-11 14:04:41.549243",
+  "player": {
+    "name": "Blue",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 14:23:26.988501",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Download Data",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 14:23:37.902732",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 1,
+  "timestamp": "2026-05-11 14:23:52.714971",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Empty Garbage",
+    "location": "Cafeteria",
+    "progress": "1/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 14:24:01.279859",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Fix Wiring",
+    "location": "Cafeteria",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 14:24:10.958287",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Empty Garbage",
+    "location": "Cafeteria",
+    "progress": "2/2"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-05-11 14:24:26.433710",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-11 14:24:36.047777",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 2,
+  "timestamp": "2026-05-11 14:24:37.903476",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 14:24:38.148260",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "CALL_MEETING",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 14:25:02.238928",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "i just wanted to start the meeting.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 14:25:22.544782",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "okay i can vote purple.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 3,
+  "timestamp": "2026-05-11 14:25:41.997539",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 14:25:54.058313",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "SPEAK",
+    "message": "okay.",
+    "phase": "meeting"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 14:26:21.279813",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "VOTE",
+    "target": "blue"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 8,
+  "timestamp": "2026-05-11 14:26:44.423976",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Cafeteria",
+    "to": "Upper Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 4,
+  "timestamp": "2026-05-11 14:26:46.332246",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 9,
+  "timestamp": "2026-05-11 14:26:55.444794",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Upper Engine"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Accept Diverted Power",
+    "location": "Upper Engine",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 10,
+  "timestamp": "2026-05-11 14:27:03.116640",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Upper Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 11,
+  "timestamp": "2026-05-11 14:27:11.774723",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Lower Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Security",
+    "to": "Lower Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 12,
+  "timestamp": "2026-05-11 14:27:18.503520",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Electrical"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Lower Engine",
+    "to": "Electrical"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 13,
+  "timestamp": "2026-05-11 14:27:23.411582",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Electrical"
+  },
+  "action": {
+    "type": "COMPLETE_TASK",
+    "task": "Calibrate Distributor",
+    "location": "Electrical",
+    "progress": "1/1"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 14,
+  "timestamp": "2026-05-11 14:27:29.690471",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Lower Engine"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Electrical",
+    "to": "Lower Engine"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-05-11 14:27:37.006438",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Security"
+  },
+  "action": {
+    "type": "MOVE",
+    "from": "Lower Engine",
+    "to": "Security"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 5,
+  "timestamp": "2026-05-11 14:27:51.011018",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-05-11 14:28:41.511684",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_DISCUSS",
+    "message": "..."
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 6,
+  "timestamp": "2026-05-11 14:28:55.268668",
+  "player": {
+    "name": "Black",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_TASK",
+    "location": "Cafeteria"
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-05-11 14:29:32.566498",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_DISCUSS",
+    "message": "..."
+  }
+}
+{
+  "game_index": "Game 0",
+  "step": 15,
+  "timestamp": "2026-05-11 14:30:25.626008",
+  "player": {
+    "name": "Yellow",
+    "identity": "Crewmate",
+    "location": "Cafeteria"
+  },
+  "action": {
+    "type": "TIMEOUT_DISCUSS",
+    "message": "..."
+  }
+}

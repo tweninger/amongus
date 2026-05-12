@@ -68,9 +68,10 @@
                 <div class="col-md-7 d-flex flex-column h-100">
                     <div class="card bg-dark border-secondary flex-grow-1 mb-2 overflow-hidden">
                         <div class="card-header text-info small fw-bold">CREW DISCUSSION</div>
-                        <div id="discussion-chat" class="card-body text-start" style="height: 100%; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; background: #050505;"></div>
+                        <div id="discussion-chat" class="card-body text-start" style="min-height: 0; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; background: #050505;"></div>
                     </div>
                     <p id="turn-prompt" class="text-success fw-bold small text-center mb-1" style="display: none;"></p>
+                    <p id="turn-timer-meeting" class="fw-bold small text-center mb-1" style="display: none;"></p>
                     <div id="chat-input-group" class="input-group" style="display: none;">
                         <input type="text" id="chat-input" class="form-control bg-dark text-light border-secondary" placeholder="Defend yourself or accuse others...">
                         <button class="btn btn-info fw-bold" id="send-chat-btn">SEND</button>
@@ -107,6 +108,7 @@
             <span>You: <span id="user-display" class="status-val">—</span></span>
             <span>Location: <span id="location-display" class="status-val">—</span></span>
             <span>Step: <span id="step-counter" class="status-val">0</span></span>
+            <span id="turn-timer-strip" class="d-none">⏱ <span id="turn-timer-val" class="fw-bold">60</span>s</span>
             <span id="current-phase" class="fw-bold">Initializing...</span>
         </div>
 
@@ -116,7 +118,7 @@
             <!-- Left: Minimap + Room View -->
             <div class="col-md-5" id="map-col">
                 <div id="minimap-container">
-                    <img src="/static/assets/skeld.png" alt="The Skeld">
+                    <img src="/assets/map/skeld.png" alt="The Skeld">
                     <div id="skeld-player-layer"></div>
                 </div>
                 <div id="room-view-wrapper">
@@ -150,9 +152,10 @@
                         <ul id="players-in-room-list"></ul>
                     </div>
 
-                    <!-- Report -->
+                    <!-- Report / Emergency Meeting -->
                     <div class="action-section">
                         <button id="report-btn" class="disabled">🚨 Report Dead Body</button>
+                        <button id="emergency-btn" class="d-none mt-1">🚨 Emergency Meeting</button>
                     </div>
 
                     <!-- Room Tasks -->
@@ -174,7 +177,7 @@
                     </div>
 
                     <!-- Waiting -->
-                    <div id="waiting-indicator" class="d-none">Waiting for other players...</div>
+                    <div id="waiting-indicator" class="d-none">Action Submitted: Waiting for other players...</div>
 
                 </div>
 
