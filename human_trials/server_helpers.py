@@ -1,6 +1,7 @@
 import os
 import json
 from datetime import datetime
+from db import init_db, insert_human_action
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from models import WebPlayerAgent
@@ -30,6 +31,9 @@ def log_human_action(game_instance, player, action_type, details=None):
     }
     with open(log_path, "a") as f:
         f.write(json.dumps(entry, indent=2) + "\n")
+
+    # Log to sqlite db too
+    insert_human_action(entry)
 
 def get_game_config(game_size_str):
     config_map = {

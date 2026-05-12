@@ -1,6 +1,11 @@
 # environment file
 .env
 
+# game logs and database
+human_trials/logs/*.json
+human_trials/logs/*.db
+*.zip
+
 # deception-detection
 deception-detection/
 

@@ -116,8 +116,8 @@ async function updateMapUI() {
                     const miniJitterY = (Math.random() * 4) - 2;
                     miniImg.style.top = `${coords.top + miniJitterY}%`;
                     miniImg.style.left = `${coords.left + miniJitterX}%`;
-                    miniImg.style.width = '40px';
-                    miniImg.style.height = '40px';
+                    miniImg.style.width = '52px';
+                    miniImg.style.height = '52px';
                     miniImg.style.objectFit = 'contain';
                     miniImg.style.transform = 'translate(-50%, -50%)';
                     miniImg.style.zIndex = '10';
@@ -142,8 +142,8 @@ async function updateMapUI() {
                 img.style.position = 'absolute';
                 img.style.top = `${verticalPos}%`;
                 img.style.left = `${horizontalPos}%`;
-                img.style.width = '50px';
-                img.style.height = '50px';
+                img.style.width = '65px';
+                img.style.height = '65px';
                 img.style.objectFit = 'contain';
                 img.style.transform = 'translate(-50%, -50%)';
                 img.style.transition = 'all 0.5s ease';

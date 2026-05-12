@@ -38,9 +38,8 @@ function connectWebSocket() {
 }
 
 // --- TURN TIMER ---
-// Tracks last-seen values to detect when a genuine new timer period starts.
-// Only resets the countdown when the timestep, phase, turn sequence, or voting state changes —
-// NOT on every 1s meeting broadcast.
+// Tracks last-seen values to detect when new timer period starts.
+// Only resets the countdown when the timestep, phase, turn sequence, or voting state changes
 let _turnTimerInterval = null;
 let _timerLastTimestep = -1;
 let _timerLastPhase = null;
@@ -57,8 +56,8 @@ function _renderTimer(s) {
     if (meetingEl) { meetingEl.style.display = 'block'; meetingEl.innerText = `${s}s remaining`; meetingEl.className = `fw-bold small text-center mb-1 ${colorClass}`; }
 }
 
-// Called when the countdown hits 0. Keeps the element visible so the player sees feedback
-// while the server processes the auto-submit and the next WS message arrives.
+// Called when the countdown hits 0.
+// Later, the server processes the auto-submit and the next WS message arrives.
 function _renderTimerExpired() {
     const stripEl = document.getElementById('turn-timer-strip');
     const stripValEl = document.getElementById('turn-timer-val');
@@ -79,13 +78,14 @@ function _hideTimer() {
 function updateTurnTimer(data) {
     const isTask = data.phase === 'task';
     const isMeeting = data.phase === 'meeting';
-    // Task phase: show for everyone (alive AND dead — ghosts still need to track the step pace)
-    // Meeting phase: only show when it's your turn (is_my_turn already accounts for alive/dead)
+    // Task phase: show for everyone
+    // Meeting phase: only show when it's your turn
     const shouldShow = isTask || (isMeeting && data.is_my_turn);
 
     if (!shouldShow) { _hideTimer(); return; }
 
-    // Detect genuine timer resets — don't restart on every 1s meeting broadcast
+    // Detect genuine timer resets
+    // shouldReset if we enter a new timestep, phase, discussion turn, or voting state. 
     const newTimestep = data.timestep !== _timerLastTimestep;
     const newPhase = data.phase !== _timerLastPhase;
     const newTurnSeq = (data.discussion_turn_seq ?? -1) !== _timerLastTurnSeq;
@@ -97,20 +97,21 @@ function updateTurnTimer(data) {
     _timerLastTurnSeq = data.discussion_turn_seq ?? -1;
     _timerLastCanVote = data.can_vote;
 
-    if (!shouldReset) return; // Countdown is already ticking — leave it alone
+    if (!shouldReset) return;
 
+    // Reset timer
     if (_turnTimerInterval !== null) { clearInterval(_turnTimerInterval); _turnTimerInterval = null; }
-    // Server sends turn_seconds_left with a fresh value after each reset; fall back to 60/45
     let remaining = data.turn_seconds_left ?? (isTask ? 60 : 45);
 
     _renderTimer(remaining);
     _turnTimerInterval = setInterval(() => {
         remaining -= 1;
         if (remaining <= 0) {
-            _renderTimerExpired();          // Show "…" — server is processing the auto-submit
+            _renderTimerExpired();
             clearInterval(_turnTimerInterval);
             _turnTimerInterval = null;
-        } else {
+        }
+        else {
             _renderTimer(remaining);
         }
     }, 1000);
@@ -148,10 +149,11 @@ async function resolveStepIfReady(data) {
 
     // Emit deferred log entry now with the correct timestep.
     if (state.pendingActionLog) {
-        const { message, type, observations, ventObservations } = state.pendingActionLog;
-        addLogMessage(`[Step ${data.timestep}] ${message}`, type);
-        observations?.forEach(observation => addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info'));
-        ventObservations?.forEach(observation => addLogMessage(`[Step ${data.timestep}] ${observation}`, 'danger'));
+        const { step, message, type, observations, ventObservations } = state.pendingActionLog;
+        const logStep = step ?? data.timestep;
+        addLogMessage(`[Step ${logStep}] ${message}`, type);
+        observations?.forEach(observation => addLogMessage(`[Step ${logStep}] ${observation}`, 'warning'));
+        ventObservations?.forEach(observation => addLogMessage(`[Step ${logStep}] ${observation}`, 'danger'));
         state.pendingActionLog = null;
     }
 
@@ -176,6 +178,8 @@ async function handlePhaseUpdate(data) {
     }
 }
 
+// Main handler for incoming websocket messages of type 'state_update'
+// Handles the main game loop updates, including game over detection, HUD updates, turn timer management, step resolution, and phase transitions.
 async function handleWsStateUpdate(data) {
     if (!state.gameStarted) return;
     if (handleGameOver(data)) return;
@@ -204,7 +208,6 @@ async function handleGlobalPhaseTransition(data) {
             phaseDisplayEl.className = "text-danger fw-bold";
         }
         // Chat input visibility
-
         // Ghost observe only
         if (!is_alive) {
             if (chatInputGroupEl) chatInputGroupEl.style.display = 'none';

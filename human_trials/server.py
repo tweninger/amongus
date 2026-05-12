@@ -15,7 +15,7 @@ from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill, Speak, Vote, Vent
-from serverHelpers import *
+from human_trials.server_helpers import *
 from dotenv import load_dotenv
 
 # --- SETUP ---
@@ -377,6 +377,7 @@ async def host_game(request: Request) -> dict:
     data = await request.json()
 
     setup_log_directory()
+    init_db() # Okay to do this on every game startup
     selected_config = get_game_config(data.get("size"))
     total_slots = selected_config.get("num_players", 5) # Default to 5
     host_token = str(uuid4()) # Generate a random UUID

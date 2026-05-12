@@ -42,11 +42,12 @@ class WebPlayerAgent:
         self.player = player
         self.model = "homosapiens/brain1.0"
         self.queued_action = None
-        self.waiting_for_action = False  # True while engine is blocking on this player's turn
-        self._prev_waiting = False       # Previous value, used to detect turn-start transitions
+        self.waiting_for_action = False # True while engine is blocking on this player's turn
+        self._prev_waiting = False # Previous value, used to detect turn-start transitions
 
+    # Called by serverHelpers when human submits an action
     async def choose_action(self, timestep):
-        # Blocking loop — pause until the human submits an action via API
+        # Blocking loop. Pause until the human submits an action via API
         self.waiting_for_action = True
         while self.queued_action is None:
             await asyncio.sleep(0.5)

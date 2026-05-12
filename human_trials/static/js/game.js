@@ -1,4 +1,6 @@
 // game.js
+// Entry point for the game screen. 
+// Handles lobby flow, initializes game UI, and sets up WebSocket handlers for game events.
 
 import { state } from './state.js';
 import { apiFetch, addLogMessage, formatColorName, displayColor } from './helpers.js';
@@ -59,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.playerToken = data.token;
         state.myColor = data.color;
         state.myRole = data.role;
-        connectWebSocket(); // establish connection for the game
+        connectWebSocket(); // Connect WS after entering waiting room
 
         // Show user their color in the sidebar
         if (userDisplay){
@@ -147,7 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     hostBtn.disabled = false;
                     hostBtn.innerText = 'Host Game';
                 }
-            }catch (e) {
+            }
+            catch (e) {
                 console.error('Host error:', e);
                 hostBtn.disabled = false;
                 hostBtn.innerText = 'Host Game';
@@ -220,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyList.innerHTML = '<p class="text-danger text-center small">Failed to load lobbies.</p>';
         }
     }
-
+    // Load lobbies immediately if user clicks browse before hosting or joining
     if (browseBtn){
         browseBtn.addEventListener('click', () => {
         matchmakingPanel.classList.add('d-none');
@@ -228,14 +231,14 @@ document.addEventListener('DOMContentLoaded', () => {
         loadLobbies();
         });
     }
-
+    // Back to the main matchmaking panel
     if (backBtn){
         backBtn.addEventListener('click', () => {
         browsePanel.classList.add('d-none');
         matchmakingPanel.classList.remove('d-none');
     });
     }
-
+    // Refresh lobby list if user is on the browse panel
     if (refreshBtn){
         refreshBtn.addEventListener('click', loadLobbies);
     }

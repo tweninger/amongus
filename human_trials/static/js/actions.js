@@ -1,4 +1,6 @@
 // actions.js
+// This file contains functions for all player actions (move, vent, kill, report, call meeting, do task) and the main function to refresh room context and update UI based on server responses.
+// Each action function follows a similar pattern of locking actions, sending request to server, handling pending states, logging results, refreshing UI, and unlocking actions.
 import { state } from './state.js';
 import { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName, floatText } from './helpers.js';
 import { updateMapUI } from './ui.js';
@@ -27,7 +29,7 @@ async function refreshRoomContext() {
             phaseDisplayEl.className = "text-danger fw-bold";
         }
     }
-    // Normal gameplay
+    // Normal gameplay, task phase
     else{
         if (phaseDisplayEl) {
             phaseDisplayEl.innerText = isAlive ? "Active" : "Spectating as Ghost";
@@ -62,9 +64,9 @@ async function refreshRoomContext() {
         data.tasks_in_room.forEach(taskName => {
             const btn = document.createElement('button');
             // Check if task is in player's personal task list and render accordingly
-            const taskInfo = data.personal_tasks.find(t => t.name === taskName);
+            const taskInfo = data.personal_tasks.find(task => task.name === taskName);
             if (taskInfo) {
-                const progress = taskInfo.max_duration > 1 ? ` (${taskInfo.steps_done}/${taskInfo.max_duration})` : '';
+                const progress = taskInfo.max_duration > 1 ? ` (${taskInfo.steps_done}/${taskInfo.max_duration})` : ''; // Progress on long tasks
                 btn.className = 'btn-task';
                 btn.innerText = `${taskName}${progress}`;
                 btn.disabled = state.actionLocked;
@@ -82,7 +84,7 @@ async function refreshRoomContext() {
         });
     }
 
-    // --- IMPOSTOR MECHANICS ---
+    // --- IMPOSTOR MECHANICS (Venting) ---
     const ventPanel = document.getElementById('vent-panel');
     const ventContainer = document.getElementById('vent-options');
     const roleDisplayEl = document.getElementById('role-display');
@@ -116,14 +118,14 @@ async function refreshRoomContext() {
             }
         }
 
-        // Cannot Vent - No Targets
+        // Cannot Vent. No Targets
         else{
             if (ventPanel) ventPanel.classList.add('d-none');
             
         }
     }
 
-    // Cannot Vent - Dead or Crewmate
+    // Cannot Vent. Dead or Crewmate
     else{
         if (ventPanel) ventPanel.classList.add('d-none');
     }
@@ -138,7 +140,7 @@ async function refreshRoomContext() {
             const btn = document.createElement('button');
             btn.className = 'btn-move';
             btn.innerText = room.replace(/_/g, ' ');
-            btn.disabled = state.actionLocked;
+            btn.disabled = state.actionLocked; // Disable if locked to prevent repeated presses
             btn.onclick = () => {
                 btn.classList.add('btn-submitted');
                 performMove(room);
@@ -147,7 +149,7 @@ async function refreshRoomContext() {
         });
     }
 
-    // --- LOCAL PLAYER LIST ---
+    // --- PLAYERS IN ROOM LIST ---
     const playersInRoomList = document.getElementById('players-in-room-list');
     const reportBtn = document.getElementById('report-btn');
     const humanRole = roleDisplayEl ? roleDisplayEl.innerText.toLowerCase() : "";
@@ -163,7 +165,6 @@ async function refreshRoomContext() {
                 const li = document.createElement('li');
                 li.className = 'list-group-item bg-dark border-secondary d-flex align-items-center';
                 if (player.is_alive){
-
                     // Reveal fellow impostors
                     const impostorTag = (humanRole === 'impostor' && player.identity === 'Impostor')
                         ? '<span class="text-danger small fw-bold ms-2">(Impostor)</span>' : '';
@@ -221,7 +222,8 @@ async function refreshRoomContext() {
                 emergencyBtn.classList.add('btn-submitted');
                 triggerEmergencyMeeting();
             };
-        } else {
+        } 
+        else {
             emergencyBtn.classList.add('d-none');
         }
     }
@@ -233,13 +235,14 @@ async function refreshRoomContext() {
 // 2) Send action request to server and await response
 // 3) If response indicates "pending", show waiting indicator and queue the action log until step resolves
 // 4) If response is successful, log the action and any observations, then refresh room context and map UI
-// 5) Unlock actions unless we're waiting for a step to resolve, in which case unlock when the new state arrives from the server
+// 5) Unlock actions unless we're waiting for a step to resolve, in which case unlock when new state arrives from the server
 
 async function performMove(destination) {
     const source = document.getElementById('location-display')?.innerText || 'Unknown';
     if (!lockActions()){
         return;
     }
+    document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/move', {
             method: 'POST',
@@ -252,16 +255,17 @@ async function performMove(destination) {
             // Waiting for other players to act
             if (data.status === "pending") {
                 state.waitingForStep = true;
-                state.pendingActionLog = { message: `You moved from ${source} to ${destination}`, type: 'info', observations: [], ventObservations: [] };
-                document.getElementById('waiting-indicator')?.classList.remove('d-none');
+                state.pendingActionLog = { step: data.timestep, message: `You moved from ${source} to ${destination}`, type: 'info', observations: [], ventObservations: [] };
                 return;
             }
+            document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
             addLogMessage(`[Step ${data.timestep}] You moved from ${source} to ${destination}`, 'info');
+
             // Log who was seen leaving the room
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info');
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             // Log who was seen venting from room
@@ -291,6 +295,7 @@ async function performVent(destination) {
         return;
     }
     floatText('Vented', '#fca5a5');
+    document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/vent', {
             method: 'POST',
@@ -302,15 +307,15 @@ async function performVent(destination) {
             const data = await response.json();
             if (data.status === "pending") {
                 state.waitingForStep = true;
-                state.pendingActionLog = { message: `You vented to ${destination}`, type: 'danger', observations: [], ventObservations: [] };
-                document.getElementById('waiting-indicator')?.classList.remove('d-none');
+                state.pendingActionLog = { step: data.timestep, message: `You vented to ${destination}`, type: 'danger', observations: [], ventObservations: [] };
                 return;
             }
+            document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
             addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info');
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
@@ -338,6 +343,7 @@ async function completeTask(taskName) {
         return;
     }
     floatText('Task Complete', '#6fcf97');
+    document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/do-task', {
             method: 'POST',
@@ -349,10 +355,10 @@ async function completeTask(taskName) {
             const data = await response.json();
             if (data.status === "pending") {
                 state.waitingForStep = true;
-                state.pendingActionLog = { message: `Working on ${taskName}...`, type: 'success', observations: [], ventObservations: [] };
-                document.getElementById('waiting-indicator')?.classList.remove('d-none');
+                state.pendingActionLog = { step: data.timestep, message: `Working on ${taskName}...`, type: 'success', observations: [], ventObservations: [] };
                 return;
             }
+            document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
             addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'success');
             if (data.observations && data.observations.length > 0){
@@ -423,6 +429,7 @@ async function performKill(targetColor){
         return;
     }
     floatText(`Eliminated ${formatColorName(targetColor)}`, '#ef4444');
+    document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/kill', {
             method: 'POST',
@@ -434,15 +441,15 @@ async function performKill(targetColor){
             const data = await response.json();
             if (data.status === "pending") {
                 state.waitingForStep = true;
-                state.pendingActionLog = { message: `You killed ${formatColorName(targetColor)}`, type: 'danger', observations: [], ventObservations: [] };
-                document.getElementById('waiting-indicator')?.classList.remove('d-none');
+                state.pendingActionLog = { step: data.timestep, message: `You killed ${formatColorName(targetColor)}`, type: 'danger', observations: [], ventObservations: [] };
                 return;
             }
+            document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
             addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'info');
+                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){

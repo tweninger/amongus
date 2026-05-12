@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import sqlite3
 from datetime import datetime
 from typing import Any, List, Dict, Tuple
 import aiohttp
@@ -12,6 +13,27 @@ import requests
 import asyncio
 import http.client
 from amongagents.agent.neutral_prompts import *
+
+# Write one agent turn to the db
+def _log_interaction_to_db(interaction: dict):
+    db_path = os.path.join(os.getenv("EXPERIMENT_PATH", "logs"), "game_data.db")
+    player = interaction.get("player", {})
+    interaction = interaction.get("interaction", {})
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO agent_interactions VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                interaction.get("game_index"), interaction.get("step"), interaction.get("timestamp"),
+                player.get("name"), player.get("identity"), player.get("personality"), player.get("model"), player.get("location"),
+                interaction.get("system_prompt"), json.dumps(interaction.get("prompt")),
+                json.dumps(interaction.get("response")), interaction.get("full_response"),
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"error inserting interaction to db: {e}")
 
 # Set Flask environment variable to True by default
 if "FLASK" not in os.environ:
@@ -162,6 +184,7 @@ class LLMAgent(Agent):
             json.dump(interaction, f, separators=(",", ": "))
             f.write("\n")
             f.flush()
+        _log_interaction_to_db(interaction)
 
         print(".", end="", flush=True)
 
@@ -763,6 +786,7 @@ class HumanAgent(Agent):
                 f.flush()
         except Exception as e:
             print(f"Error writing to log file: {e}") # Add error logging
+        _log_interaction_to_db(interaction)
 
         print(".", end="", flush=True)
 

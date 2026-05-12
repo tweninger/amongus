@@ -1,4 +1,6 @@
 // meeting.js
+// Handles UI updates and interactions during meetings, including chat rendering, voting roster, and ejection announcements.
+
 import { state } from './state.js';
 import { apiFetch, displayColor } from './helpers.js';
 

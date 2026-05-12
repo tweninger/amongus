@@ -9,7 +9,7 @@ html, body {
     background: #0a0a0f;
     color: #d4d4d8;
     font-family: 'Segoe UI', system-ui, sans-serif;
-    overflow: hidden; /* No page scroll — game fits in viewport */
+    overflow: hidden;
 }
 
 body:has(#lobby-screen:not(.d-none)) {
