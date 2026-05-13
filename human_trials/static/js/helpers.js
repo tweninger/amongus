@@ -1,7 +1,7 @@
 // helpers.js
 import { state } from './state.js';
 
-// Wrapper around fetch that gives session token for authentication
+// Wrapper around fetch that gives session token for authentication so we don't have to manually add every time.
 function apiFetch(url, options = {}) {
 
     // Set default headers and merge with custom headers if provided
@@ -73,10 +73,11 @@ function displayColor(color){
 }
 
 // Spawn a floating text label anchored to the center of the room view
+// Just for UX flair to provide feedback on ations
 function floatText(text, color) {
-    const anchor = document.getElementById('room-view');
-    if (!anchor) return;
-    const rect = anchor.getBoundingClientRect();
+    const box = document.getElementById('room-view');
+    if (!box) return;
+    const rect = box.getBoundingClientRect();
     const el = document.createElement('div');
     el.textContent = text;
     el.className = 'float-text-anim';
