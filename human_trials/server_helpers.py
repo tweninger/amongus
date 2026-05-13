@@ -16,7 +16,7 @@ def log_human_action(game_instance, player, action_type, details=None):
     log_dir = os.environ.get("EXPERIMENT_PATH", "logs")
     log_path = os.path.join(log_dir, "human-logs.json")
     entry = {
-        "game_index": f"Game {game_instance.game_index}",
+        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
         "step": game_instance.timestep,
         "timestamp": str(datetime.now()),
         "player": {
