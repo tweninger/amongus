@@ -15,11 +15,15 @@ from amongagents.envs.game import AmongUs
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill, Speak, Vote, Vent
-from human_trials.server_helpers import *
+from server_helpers import *
 from dotenv import load_dotenv
 
 # --- SETUP ---
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+# Unique ID stamped on every log entry so entries from different server sessions
+# can be distinguished even when game_index resets to 0 after a restart.
+os.environ['SESSION_ID'] = time.strftime("%Y%m%d_%H%M%S")
 
 # Each GameRoom holds one game's engine, sessions, and WebSocket connections.
 class GameRoom:
@@ -71,7 +75,7 @@ app.mount("/static", StaticFiles(directory=static_path), name="static")
 app.mount("/assets", StaticFiles(directory=os.path.join(current_dir, "assets")), name="assets")
 
 # --- Global HELPER ---
-# More helpers in serverHelpers.py
+# More helpers in server_helpers.py
 
 # Get GameRoom given session token
 # GameRoom is the main object that holds the game instance, sessions, and connections for a particular game
@@ -365,6 +369,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
     # Handles leavers
     except WebSocketDisconnect:
         room.connections.pop(token, None)
+        gi = room.game_instance
+        if gi and room.status == "active":
+            idx = room.sessions.get(token)
+            if idx is not None:
+                agent = gi.agents[idx]
+                log_human_action(gi, agent.player, "disconnect")
 
 # Index
 @app.get("/")
