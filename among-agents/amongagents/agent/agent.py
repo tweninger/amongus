@@ -324,6 +324,8 @@ class LLMAgent(Agent):
             phase = "Meeting phase - Voting Round. You MUST cast a VOTE. Do NOT SPEAK."
         elif any(action.name == "SPEAK" for action in available_actions):
             phase = "Meeting phase - Discussion Round. You MUST SPEAK. Do NOT VOTE yet."
+            # Artificially delay response during discussion phase for AI
+            await asyncio.sleep(random.uniform(6, 14))
         else:
             phase = "Task phase"
 
