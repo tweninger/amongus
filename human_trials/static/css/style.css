@@ -487,6 +487,30 @@ body:has(#lobby-screen:not(.d-none)) {
 #turn-timer-strip { font-size: 0.82rem; color: #fff; }
 #turn-timer-meeting { font-size: 0.85rem; margin-top: 2px; }
 
+/* ---- Game over overlay ---- */
+#gameover-overlay {
+    position: fixed; inset: 0; z-index: 400;
+    background: rgba(0,0,0,0.97);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px;
+}
+#gameover-players {
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%; min-width: 340px; max-width: 500px;
+}
+.gameover-player-row {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 8px; padding: 8px 14px;
+}
+.gameover-player-row img { width: 38px; height: 38px; object-fit: contain; flex-shrink: 0; }
+.gameover-player-name { font-size: 0.95rem; font-weight: 600; color: #e4e4e7; flex: 1; }
+.gameover-badge { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.04em; }
+.gameover-badge.impostor { background: rgba(220,38,38,0.2);  color: #f87171; border: 1px solid rgba(220,38,38,0.4); }
+.gameover-badge.crewmate { background: rgba(40,167,69,0.15); color: #6fcf97; border: 1px solid rgba(40,167,69,0.35); }
+.gameover-badge.alive    { background: rgba(99,179,237,0.1); color: #93c5fd; border: 1px solid rgba(99,179,237,0.3); }
+.gameover-badge.dead     { background: rgba(0,0,0,0.3);      color: #6b7280; border: 1px solid rgba(255,255,255,0.1); }
+
 /* ---- Meeting overlay ---- */
 #meeting-overlay {
     position: fixed;
