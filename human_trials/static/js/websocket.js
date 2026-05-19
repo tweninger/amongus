@@ -116,14 +116,53 @@ function updateTurnTimer(data) {
         }
     }, 1000);
 }
-
-// Check if server sent winner string
-// Basic win alert.
-// TODO - Add more detailed end game screen with stats, voting records, etc.
+// Display game over screen with winner and player statuses.
 function handleGameOver(data) {
-    if (!data.winner) return false;
-    alert("GAME OVER: " + data.winner);
-    window.location.reload();
+    if (!data.winner){
+        return false;
+    }
+    const overlay = document.getElementById('gameover-overlay');
+    const title = document.getElementById('gameover-title');
+    const winnerText = document.getElementById('gameover-winner-text');
+    const playersDiv = document.getElementById('gameover-players');
+
+    const impostorWin = data.winner.toLowerCase().includes('impostor');
+    title.className = `fw bold mb-1 ${impostorWin ? 'text-danger' : 'text-success'}`;
+    winnerText.innerText = `${data.winner}`;
+    winnerText.className = impostorWin ? 'text-danger' : 'text-success';
+    
+    playersDiv.innerHTML = '';
+    // For each player, show their name, color, alive/dead status, and role (impostor or crewmate)
+    data.players.forEach(player => {
+        const isImpostor = player.identity.toLowerCase() === 'impostor';
+
+        const img = document.createElement('img');
+        img.src = player.is_alive
+            ? `/assets/player_sprites/alive/player_${player.color}.png`
+            : `/assets/player_sprites/dead/${player.color}_body.png`;
+        img.alt = player.name;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'gameover-player-name';
+        nameSpan.textContent = player.name;
+
+        const roleBadge = document.createElement('span');
+        roleBadge.className = `gameover-badge ${isImpostor ? 'impostor' : 'crewmate'}`;
+        roleBadge.textContent = isImpostor ? 'IMPOSTOR' : 'CREWMATE';
+
+        const statusBadge = document.createElement('span');
+        statusBadge.className = `gameover-badge ${player.is_alive ? 'alive' : 'dead'}`;
+        statusBadge.textContent = player.is_alive ? 'ALIVE' : 'DEAD';
+
+        const row = document.createElement('div');
+        row.className = 'gameover-player-row';
+        row.append(img, nameSpan, roleBadge, statusBadge);
+        playersDiv.appendChild(row);
+    })
+
+    if (overlay){
+        overlay.classList.remove('d-none');
+    }
     return true;
 }
 
@@ -139,26 +178,28 @@ function updateHUD(data) {
 // Multiplayer sync. Wait for every player to put in an action.
 // The server only runs game_step() once ALL alive humans have queued an action, so we are locked until so.
 async function resolveStepIfReady(data) {
-    if (!state.waitingForStep || data.timestep <= state.lastTimestep) return; // Rising timestamp means the pending step has resolved
-
-    // Update state. No longer waiting.
-    state.waitingForStep = false;
+    if (data.timestep <= state.lastTimestep) return;
     state.lastTimestep = data.timestep;
-    document.getElementById('waiting-indicator')?.classList.add('d-none');
-    unlockActions();
 
-    // Emit deferred log entry now with the correct timestep.
-    if (state.pendingActionLog) {
-        const { step, message, type, observations, ventObservations } = state.pendingActionLog;
-        const logStep = step ?? data.timestep;
-        addLogMessage(`[Step ${logStep}] ${message}`, type);
-        observations?.forEach(observation => addLogMessage(`[Step ${logStep}] ${observation}`, 'warning'));
-        ventObservations?.forEach(observation => addLogMessage(`[Step ${logStep}] ${observation}`, 'danger'));
-        state.pendingActionLog = null;
+    // If this player had submitted an action, resolve their pending state.
+    if (state.waitingForStep) {
+        state.waitingForStep = false;
+        document.getElementById('waiting-indicator')?.classList.add('d-none');
+        unlockActions();
+
+        // Emit deferred log entry
+        if (state.pendingActionLog) {
+            const { step, message, type, observations, ventObservations } = state.pendingActionLog;
+            const logStep = step ?? data.timestep;
+            addLogMessage(`[Step ${logStep}] ${message}`, type);
+            observations?.forEach(o => addLogMessage(`[Step ${logStep}] ${o}`, 'warning'));
+            ventObservations?.forEach(o => addLogMessage(`[Step ${logStep}] ${o}`, 'danger'));
+            state.pendingActionLog = null;
+        }
     }
 
-    // Refresh room state unless we just entered a meeting
-    // Meeting state is handled separately in the meeting UI and doesn't need to be refreshed with the general room context
+    // Always refresh the room view when step advances
+    // Covers both normal and timeout cases
     if (data.phase !== "meeting") {
         await refreshRoomContext();
         await updateMapUI();
