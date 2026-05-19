@@ -59,7 +59,15 @@
     <!-- Game Screen -->
     <section id="game-screen" class="d-none" style="position: relative;">
 
-        <!-- Meeting Overlay (covers full viewport) -->
+        <!-- Game Over Overlay -->
+        <div id="gameover-overlay" class="d-none">
+            <h1 id="gameover-title" class="fw-bold mb-1">GAME OVER</h1>
+            <p id="gameover-winner-text" class="fs-5 fw-semibold mb-4"></p>
+            <div id="gameover-players" class="mb-4"></div>
+            <button class="btn btn-outline-light px-5 py-2 fw-bold" onclick="window.location.reload()">Return to Menu</button>
+        </div>
+
+        <!-- Meeting Overlay -->
         <div id="meeting-overlay" class="d-none">
             <h2 class="text-danger fw-bold text-center mb-2">📢 EMERGENCY MEETING</h2>
             <div class="row flex-grow-1 overflow-hidden gx-3">
@@ -107,7 +115,7 @@
         <div id="status-strip">
             <span>You: <span id="user-display" class="status-val">—</span></span>
             <span>Location: <span id="location-display" class="status-val">—</span></span>
-            <span>Step: <span id="step-counter" class="status-val">0</span></span>
+            <span>Turn: <span id="step-counter" class="status-val">0</span></span>
             <span id="turn-timer-strip" class="d-none">⏱ <span id="turn-timer-val" class="fw-bold">60</span>s</span>
             <span id="current-phase" class="fw-bold">Initializing...</span>
         </div>
