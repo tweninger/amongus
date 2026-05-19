@@ -43,7 +43,7 @@ async function refreshRoomContext() {
     if (personalTasksList){
         personalTasksList.innerHTML = '';
         if (data.personal_tasks.length === 0){
-            personalTasksList.innerHTML= '<li class="list-group-item text-dark bg-transparent">No tasks left!</li>';
+            personalTasksList.innerHTML= '<li class="list-group-item text-white bg-transparent">No tasks left!</li>';
         }
         else{
             data.personal_tasks.forEach(task => {
