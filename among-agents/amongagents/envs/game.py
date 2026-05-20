@@ -287,7 +287,7 @@ class AmongUs:
             if is_human:
                 action = await agent.choose_action(self.timestep)
             else:
-                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=10.0) 
+                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=20.0) 
         except asyncio.TimeoutError:
             available = agent.player.available_actions
             # If timed out, return silently
