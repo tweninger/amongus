@@ -118,12 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2) game_started: host pressed start -> setup game
     window._wsLobbyHandler = async (msg) => {
         if (msg.type === 'lobby_update') {
-            // New player joined. Rerender roster
             renderWaitingRoster(msg.roster, state.myColor);
         }
         else if (msg.type === 'game_started') {
-            // Host pressed start, call enterGame
             await enterGame(state.myColor);
+        }
+        else if (msg.type === 'room_closed') {
+            alert('The host left. This room is closed.');
+            window.location.reload();
         }
     };
 
