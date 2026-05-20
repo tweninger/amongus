@@ -49,6 +49,9 @@ function renderMeetingChat(messages) {
 
     // Append each new msg to chat box with sender name and color styling 
     newMessages.forEach(msg => {
+        const text = msg.text;
+        // Strips quotes added by the backend for messages that are purely talking strings
+        msg.text = (text.startsWith('"') && text.endsWith('"') && text.length > 1) ? text.slice(1, -1) : text;
         const msgDiv = document.createElement('div');
         msgDiv.className = "d-flex align-items-start mb-3 p-2 animate__animated animate__fadeInUp";
         msgDiv.style.cssText = `background-color: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid ${displayColor(msg.sender_color)};`;
@@ -87,9 +90,11 @@ function updateMeetingUI(data) {
             state.chatInputLocked = false;
         }
 
-        // Voting turn. Only show voting roster if player is alive.
+        // Voting turn. Only show voting roster and skip button if player is alive.
         if (data.can_vote && data.is_alive) {
             if (chatInputGroup) chatInputGroup.style.display = 'none';
+            const skipBtn = document.getElementById('skip-vote-btn');
+            if (skipBtn) skipBtn.style.display = 'block';
             // Populate voting roster if not already populated for this meeting
             if (votingRoster && votingRoster.innerHTML.trim() === '') {
                 populateVotingRoster();
@@ -121,7 +126,17 @@ function updateMeetingUI(data) {
     // Not your turn.
     else {
         const turnPrompt = document.getElementById('turn-prompt');
-        if (turnPrompt) turnPrompt.style.display = 'none';
+        if (turnPrompt) {
+            // Small reminder text to indicate it's not the player's turn
+            if (!data.can_vote && data.is_alive) {
+                turnPrompt.style.display = 'block';
+                turnPrompt.innerText = 'It is currently another player\'s turn to speak';
+                turnPrompt.className = 'text-success fw-bold small text-center mb-1';
+            } 
+            else {
+                turnPrompt.style.display = 'none';
+            }
+        }
         if (chatInputGroup) chatInputGroup.style.display = 'none';
     }
 
