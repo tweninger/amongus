@@ -37,6 +37,15 @@ def init_db():
             response TEXT,
             full_response TEXT
         );
+        CREATE TABLE IF NOT EXISTS game_outcomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_index TEXT,
+            timestamp TEXT,
+            winner TEXT,
+            win_condition TEXT,
+            total_steps INTEGER,
+            players TEXT
+        );
     """)
     conn.commit()
     conn.close()
@@ -67,6 +76,25 @@ def insert_human_action(entry: dict):
     except Exception as e:
         print(f"[DB] human_actions insert error: {e}")
 
+def insert_game_outcome(entry: dict):
+    try:
+        conn = sqlite3.connect(_db_file())
+        conn.execute(
+            "INSERT INTO game_outcomes VALUES (NULL,?,?,?,?,?,?)",
+            (
+                entry.get("game_index"),
+                entry.get("timestamp"),
+                entry.get("winner"),
+                entry.get("win_condition"),
+                entry.get("total_steps"),
+                json.dumps(entry.get("players", [])),
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[DB] game_outcomes insert error: {e}")
+
 def insert_agent_interaction(interaction: dict):
     # Mirrors agent-logs.json entry structure.
     player = interaction.get("player", {})
@@ -87,7 +115,7 @@ def insert_agent_interaction(interaction: dict):
                 interaction.get("system_prompt"),
                 json.dumps(interaction.get("prompt")),
                 json.dumps(interaction.get("response")),
-                interaction.get("full_response"),
+                interaction.get("full_response") if isinstance(interaction.get("full_response"), str) else json.dumps(interaction.get("full_response")),
             ),
         )
         conn.commit()
