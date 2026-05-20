@@ -44,6 +44,7 @@ class GameRoom:
         self.turn_deadline: float = 0.0 # Unix timestamp when current turn expires
         self.task_timeout_task: asyncio.Task | None = None # Background sleep task for task-phase auto-submit
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
+        self.game_outcome_logged: bool = False
 
 # All active rooms keyed by 4 letter code
 games: dict[str, GameRoom] = {}
@@ -131,7 +132,7 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
                 now_waiting = getattr(agent, 'waiting_for_action', False)
                 if now_waiting and not agent._prev_waiting:
                     room.discussion_turn_seq += 1
-                    room.turn_deadline = time.time() + 45  # 45s discussion turn
+                    room.turn_deadline = time.time() + 60  # 60s discussion turn
                 agent._prev_waiting = now_waiting
 
 # Is it a specific player's turn given the current meeting state?
@@ -172,6 +173,10 @@ async def broadcast_state(room: GameRoom):
         "turn_seconds_left": turn_seconds_left,
     }
 
+    if payload["winner"] and not room.game_outcome_logged:
+        room.game_outcome_logged = True
+        log_game_outcome(gi)
+
     dead = []
 
     # Iterate through connections and send the current state.
@@ -181,7 +186,8 @@ async def broadcast_state(room: GameRoom):
             agent = gi.agents[idx] if idx is not None else None
             is_alive = getattr(agent.player, 'is_alive', True) if agent else True
             is_my_turn = _is_player_turn(agent, is_alive, current_phase, can_vote)
-            await ws.send_json({**payload, "is_alive": is_alive, "is_my_turn": is_my_turn})
+            killed_by = get_killer_of(gi, agent.player.name) if agent and not is_alive else None
+            await ws.send_json({**payload, "is_alive": is_alive, "is_my_turn": is_my_turn, "killed_by": killed_by})
         except Exception:
             # Mark for removal if send fails (client disconnected)
             dead.append(token)
@@ -250,19 +256,19 @@ async def step_and_broadcast(room: GameRoom) -> None:
     await broadcast_state(room)
 
 
-# 60 seconds per task-phase turn
-# Start (or restart) the 60s task-phase turn timer.
+# 90 seconds per task-phase turn
+# Start (or restart) the 90s task-phase turn timer.
 # Cancels any running timer and starts a new one.
 def start_task_timer(room: GameRoom) -> None:
     if room.task_timeout_task and not room.task_timeout_task.done():
         room.task_timeout_task.cancel()
-    room.turn_deadline = time.time() + 60
+    room.turn_deadline = time.time() + 90
     room.task_timeout_task = asyncio.create_task(task_phase_timeout(room))
 
-# Auto-submits a null MoveTo (stay in place) for any alive human who hasn't acted after 60s.
+# Auto-submits a null MoveTo (stay in place) for any alive human who hasn't acted after 90s.
 async def task_phase_timeout(room: GameRoom) -> None:
     try:
-        await asyncio.sleep(60)
+        await asyncio.sleep(90)
     except asyncio.CancelledError:
         return
     gi = room.game_instance
@@ -292,9 +298,9 @@ async def run_meeting_step(room: GameRoom) -> None:
             gi = room.game_instance
             can_vote = getattr(gi, 'discussion_rounds_left', 0) <= 0
 
-            # 45 second deadline when meeting opens
+            # 60 second deadline when voting opens
             if can_vote and not room.voting_deadline_set:
-                room.turn_deadline = time.time() + 45
+                room.turn_deadline = time.time() + 60
                 room.voting_deadline_set = True
 
             # Handle afk voting
@@ -349,7 +355,8 @@ async def run_meeting_step(room: GameRoom) -> None:
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> None:
     room = get_room(token)
     if not room:
-        await websocket.close()
+        await websocket.accept()
+        await websocket.close(code=4003)  # 4003 = stale/invalid session
         return
 
     # Validated, accept the connection and save websocket object in dict    
@@ -375,6 +382,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
             if idx is not None:
                 agent = gi.agents[idx]
                 log_human_action(gi, agent.player, "disconnect")
+        elif room.status == "open" and token == room.host_token:
+            room_code = token_to_room.get(token)
+            for t in list(room.sessions.keys()):
+                token_to_room.pop(t, None)
+            games.pop(room_code, None)
+            await broadcast_lobby(room, event="room_closed")
 
 # Index
 @app.get("/")
@@ -398,8 +411,10 @@ async def host_game(request: Request) -> dict:
         agent_config={
             "Impostor": "LLM",
             "Crewmate": "LLM",
-            "IMPOSTOR_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
-            "CREWMATE_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
+            #"IMPOSTOR_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
+            #"CREWMATE_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
+            "IMPOSTOR_LLM_CHOICES": ["google/gemini-3.5-flash"],
+            "CREWMATE_LLM_CHOICES": ["google/gemini-3.5-flash"],    
         }
     )
 
@@ -705,6 +720,7 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     # Generate movement observations (X was seen leaving towards Y)
     observations = generate_room_observations(gi, initial_neighbors, old_room) if is_alive else []
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room) if is_alive else []
+    vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors) if is_alive else []
     log_human_action(gi, player, "MOVE", {"from": old_room, "to": new_room})
     return {
         "status": "success",
@@ -759,6 +775,7 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
 
     observations = generate_room_observations(gi, initial_neighbors, player.location) if is_alive else []
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, task_room) if is_alive else []
+    vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors) if is_alive else []
     log_human_action(gi, player, "COMPLETE_TASK", {"task": task_name, "location": task_room, "progress": f"{steps_done}/{max_dur}"})
 
     return {
@@ -893,6 +910,7 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
 
         observations = generate_room_observations(gi, initial_neighbors, kill_room)
         vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, kill_room)
+        vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors)
 
         log_human_action(gi, human_player, "KILL", {"target": target_color.capitalize(), "location": human_player.location})
 
@@ -1070,6 +1088,7 @@ async def perform_vent(request: Request, x_player_token: str = Header(...)):
 
     observations = generate_room_observations(gi, initial_neighbors, old_room)
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room)
+    vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors)
     log_human_action(gi, player, "VENT", {"from": old_room, "to": target_room})
 
     return {
