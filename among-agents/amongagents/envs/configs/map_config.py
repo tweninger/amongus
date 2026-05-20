@@ -96,6 +96,8 @@ room_data = {
     },
 }
 
+# Since we're defining a simple undirected graph, we don't need to specify directions for connections.
+# Defining the connections (edges) between rooms manually as per the images.
 vent_connections = [
     ("Reactor", "Lower Engine"),
     ("Upper Engine", "Reactor"),
@@ -115,17 +117,16 @@ connections = [
     ("Cafeteria", "Medbay"),
     ("Weapons", "Navigation"),
     ("Weapons", "O2"),
-    ("Weapons", "Shields"), # Added this in
     ("Navigation", "Shields"),
     ("O2", "Shields"),
-    # ("O2", "Admin"), 
+    ("O2", "Admin"),
     ("Shields", "Communications"),
     ("Shields", "Storage"),
     ("Communications", "Storage"),
     ("Storage", "Admin"),
     ("Storage", "Electrical"),
     ("Storage", "Lower Engine"),
-    # ("Admin", "Electrical"),
+    ("Admin", "Electrical"),
     ("Electrical", "Lower Engine"),
     ("Lower Engine", "Security"),
     ("Lower Engine", "Reactor"),
@@ -139,7 +140,24 @@ connections = [
 
 map_coords = {
     "Cafeteria": {
-        "coords": (405, 50, 447, 7, 582, 7, 647, 70, 647, 195, 589, 250, 458, 250, 405, 198),
+        "coords": (
+            405,
+            50,
+            447,
+            7,
+            582,
+            7,
+            647,
+            70,
+            647,
+            195,
+            589,
+            250,
+            458,
+            250,
+            405,
+            198,
+        ),
     },
     "Weapons": {
         "coords": (705, 107, 797, 107, 797, 163, 726, 163, 705, 147),
