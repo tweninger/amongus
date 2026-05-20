@@ -31,9 +31,14 @@ function connectWebSocket() {
         }
     };
 
-    state.ws.onclose = () => {
+    state.ws.onclose = (event) => {
+        if (event.code === 4003) {
+            console.log('[WS] Stale session: Reloading');
+            window.location.reload();
+            return;
+        }
         console.log('[WS] Disconnected - Attempting to reconnect in 2 seconds');
-        setTimeout(connectWebSocket, 2000); // Try to reconnect every 2 seconds if connection is lost
+        setTimeout(connectWebSocket, 2000);
     };
 }
 
@@ -82,7 +87,16 @@ function updateTurnTimer(data) {
     // Meeting phase: only show when it's your turn
     const shouldShow = isTask || (isMeeting && data.is_my_turn);
 
-    if (!shouldShow) { _hideTimer(); return; }
+    if (!shouldShow) {_hideTimer(); return;}
+
+    // Pause timer after submitting an action.
+    if (isTask && state.waitingForStep) {
+        if (_turnTimerInterval !== null){
+            clearInterval(_turnTimerInterval);
+            _turnTimerInterval = null;
+        }
+        return;
+    }
 
     // Detect genuine timer resets
     // shouldReset if we enter a new timestep, phase, discussion turn, or voting state. 
@@ -101,7 +115,7 @@ function updateTurnTimer(data) {
 
     // Reset timer
     if (_turnTimerInterval !== null) { clearInterval(_turnTimerInterval); _turnTimerInterval = null; }
-    let remaining = data.turn_seconds_left ?? (isTask ? 60 : 45);
+    let remaining = data.turn_seconds_left ?? (isTask ? 90 : 60);
 
     _renderTimer(remaining);
     _turnTimerInterval = setInterval(() => {
@@ -198,6 +212,14 @@ async function resolveStepIfReady(data) {
         }
     }
 
+    if (state.wasAlive && !data.is_alive) {
+        const killer = data.killed_by
+            ? data.killed_by.charAt(0).toUpperCase() + data.killed_by.slice(1)
+            : 'an Impostor';
+        addLogMessage(`YOU WERE KILLED BY ${killer.toUpperCase()}`, 'danger');
+    }
+    state.wasAlive = data.is_alive;
+
     // Always refresh the room view when step advances
     // Covers both normal and timeout cases
     if (data.phase !== "meeting") {
@@ -252,12 +274,11 @@ async function handleGlobalPhaseTransition(data) {
         // Ghost observe only
         if (!is_alive) {
             if (chatInputGroupEl) chatInputGroupEl.style.display = 'none';
-            if (skipBtnEl) skipBtnEl.style.display = 'none';
         }
         else {
             if (chatInputGroupEl) chatInputGroupEl.style.display = 'flex';
-            if (skipBtnEl) skipBtnEl.style.display = 'block';
         }
+        if (skipBtnEl) skipBtnEl.style.display = 'none';
         // Hide action panel, show countdown banner
         if (actionPanelEl){
             actionPanelEl.classList.add('d-none');
