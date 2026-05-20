@@ -25,7 +25,12 @@ function showRoleReveal(role, color){
     if (userDisplay){
         userDisplay.innerText = formatColorName(color);
     }
-    const roleModal = new bootstrap.Modal(document.getElementById('role-reveal-modal'));
+    const roleModalEl = document.getElementById('role-reveal-modal');
+    const roleModal = new bootstrap.Modal(roleModalEl);
+
+    roleModalEl.addEventListener('hidden.bs.modal', () => {
+        new bootstrap.Modal(document.getElementById('how-to-play-modal')).show();
+    }, { once: true });
 
     roleModal.show();
 }
