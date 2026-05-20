@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime
-from db import init_db, insert_human_action
+from db import init_db, insert_human_action, insert_game_outcome
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
 from models import WebPlayerAgent
@@ -34,6 +34,46 @@ def log_human_action(game_instance, player, action_type, details=None):
 
     # Log to sqlite db too
     insert_human_action(entry)
+
+def get_killer_of(gi, victim_name):
+    for killer_name, action in gi.camera_record.items():
+        if str(action).startswith("KILL") and victim_name.lower() in str(action).lower():
+            return killer_name.split()[-1].lower()
+    return None
+
+def log_game_outcome(game_instance):
+    log_dir = os.environ.get("EXPERIMENT_PATH", "logs")
+    log_path = os.path.join(log_dir, "game-outcomes.json")
+
+    win_code = game_instance.check_game_over()
+    win_map = {
+        1: ("Impostors", "crewmates_outnumbered"),
+        2: ("Crewmates", "impostors_eliminated"),
+        3: ("Crewmates", "tasks_completed"),
+        4: ("Impostors", "time_limit_reached"),
+    }
+    winner, win_condition = win_map.get(win_code, ("Unknown", "unknown"))
+
+    entry = {
+        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
+        "timestamp": str(datetime.now()),
+        "winner": winner,
+        "win_condition": win_condition,
+        "total_steps": game_instance.timestep,
+        "players": [
+            {
+                "name": p.name.split()[-1].capitalize(),
+                "identity": p.__class__.__name__,
+                "is_alive": getattr(p, "is_alive", True),
+            }
+            for p in game_instance.players
+        ],
+    }
+
+    with open(log_path, "a") as f:
+        f.write(json.dumps(entry, indent=2) + "\n")
+
+    insert_game_outcome(entry)
 
 def get_game_config(game_size_str):
     config_map = {
@@ -171,7 +211,18 @@ def get_clean_name(player_obj):
     name = raw_name.split(":")[-1].strip() if ":" in raw_name else raw_name
     return name.capitalize()
 
-# Check camera_record for actual VENT actions taken by players who were in the room
+# Check camera_record for KILL actions taken by players who were in the room
+def generate_kill_observations(camera_record, players_initially_here):
+    observations = []
+    for player in players_initially_here:
+        action = camera_record.get(player.name)
+        if action is not None and str(action).startswith("KILL"):
+            killer_color = player.name.split()[-1].capitalize()
+            victim_color = str(action).split()[-1].split(":")[-1].capitalize()
+            observations.append(f"Observation: {killer_color} was seen killing {victim_color}!")
+    return observations
+
+# Check camera_record for VENT actions taken by players who were in the room
 def generate_vent_observations(camera_record, players_initially_here, room):
     observations = []
     for player in players_initially_here:
