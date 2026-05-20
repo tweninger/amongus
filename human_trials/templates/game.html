@@ -118,6 +118,7 @@
             <span>Turn: <span id="step-counter" class="status-val">0</span></span>
             <span id="turn-timer-strip" class="d-none">⏱ <span id="turn-timer-val" class="fw-bold">60</span>s</span>
             <span id="current-phase" class="fw-bold">Initializing...</span>
+            <button id="help-btn" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.75rem;" data-bs-toggle="modal" data-bs-target="#how-to-play-modal">? Help</button>
         </div>
 
         <!-- Main Content: Map | Actions -->
@@ -205,6 +206,74 @@
         </div>
 
     </section>
+
+    <!-- How to Play Modal -->
+    <div id="how-to-play-modal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title fw-bold">How to Play</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="font-size:0.9rem;">
+
+                    <div class="row gx-4">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-success fw-bold text-uppercase">Crewmates</h6>
+                            <ul class="text-light ps-3">
+                                <li>Complete all your assigned tasks, <strong>or</strong></li>
+                                <li>Vote out all Impostors in meetings</li>
+                            </ul>
+                            <h6 class="text-danger fw-bold text-uppercase mt-3">Impostors</h6>
+                            <ul class="text-light ps-3">
+                                <li>Kill Crewmates until they are outnumbered, <strong>or</strong></li>
+                                <li>Survive until the time limit runs out (Turn Count > 10)</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-info fw-bold text-uppercase">On Each Turn (90s)</h6>
+                            <ul class="text-light ps-3">
+                                <li><strong>Move</strong>: Travel to an adjacent room</li>
+                                <li><strong>Do Task</strong>: Complete a task in your room (Crewmates)</li>
+                                <li><strong>Report</strong>: Report a dead body to call a meeting</li>
+                                <li><strong>Emergency Meeting</strong>: Call a meeting from the Cafeteria</li>
+                                <li><strong>Kill</strong>: Eliminate a nearby Crewmate (Impostors only) </li>
+                                <li><strong>Vent</strong>: Teleport between vent-connected rooms (Impostors only)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary">
+
+                    <div class="row gx-4">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-warning fw-bold text-uppercase">Emergency Meetings</h6>
+                            <ul class="text-light ps-3">
+                                <li>Discuss who you think the Impostor is</li>
+                                <li>Each player speaks once per discussion round</li>
+                                <li>Then everyone votes. Player with most votes gets ejected</li>
+                                <li>Ties result in no ejection</li>
+                                <li>Dead players must observe (pass turn) but cannot vote or speak</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-light fw-bold text-uppercase">Tips</h6>
+                            <ul class="text-muted ps-3">
+                                <li>You can only see players who are in the same room as you</li>
+                                <li>Watch the game log carefully. It records when players leave your room</li>
+                                <li>Be careful using Impostor actions like killing and venting - Witnesses in the same room will see it and reveal you</li>
+                                <li>If you go fail to submit an action on time, a null action is submitted automatically</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">Got it</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Role Reveal Modal -->
     <div id="role-reveal-modal" class="modal fade" tabindex="-1" data-bs-backdrop="static">
