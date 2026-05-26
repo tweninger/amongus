@@ -72,20 +72,4 @@ function displayColor(color){
     return color.toLowerCase() === 'black' ? 'grey' : color;
 }
 
-// Spawn a floating text label anchored to the center of the room view
-// Just for UX flair to provide feedback on ations
-function floatText(text, color) {
-    const box = document.getElementById('room-view');
-    if (!box) return;
-    const rect = box.getBoundingClientRect();
-    const el = document.createElement('div');
-    el.textContent = text;
-    el.className = 'float-text-anim';
-    el.style.color = color;
-    el.style.left = `${rect.left + rect.width / 2}px`;
-    el.style.top = `${rect.top + rect.height / 2}px`;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 1500);
-}
-
-export { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName, displayColor, floatText };
+export { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName, displayColor };
