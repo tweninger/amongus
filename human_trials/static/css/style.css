@@ -464,25 +464,6 @@ body:has(#lobby-screen:not(.d-none)) {
     border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 
-/* ---- Floating action text ---- */
-.float-text-anim {
-    position: fixed;
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    pointer-events: none;
-    z-index: 9999;
-    white-space: nowrap;
-    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
-    transform: translateX(-50%);
-    animation: floatUp 1.5s ease-out forwards;
-}
-
-@keyframes floatUp {
-    0%   { opacity: 1;   transform: translateX(-50%) translateY(0); }
-    100% { opacity: 0;   transform: translateX(-50%) translateY(-60px); }
-}
-
 /* ---- Turn timer ---- */
 #turn-timer-strip { font-size: 0.82rem; color: #fff; }
 #turn-timer-meeting { font-size: 0.85rem; margin-top: 2px; }

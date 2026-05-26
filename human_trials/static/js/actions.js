@@ -2,7 +2,7 @@
 // This file contains functions for all player actions (move, vent, kill, report, call meeting, do task) and the main function to refresh room context and update UI based on server responses.
 // Each action function follows a similar pattern of locking actions, sending request to server, handling pending states, logging results, refreshing UI, and unlocking actions.
 import { state } from './state.js';
-import { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName, floatText } from './helpers.js';
+import { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName } from './helpers.js';
 import { updateMapUI } from './ui.js';
 
 // Fetch and update ROOM CONTEXT
@@ -12,8 +12,7 @@ async function refreshRoomContext() {
     const data = await response.json();
     const isAlive = data.is_alive;
 
-    // Show action panel if game has started and we're not in a meeting
-    if (state.gameStarted && state.lastPhase !== "meeting") {
+    if (state.gameStarted && data.phase.toLowerCase() !== "meeting") {
         if (state.actionPanel) state.actionPanel.classList.remove('d-none');
     }
 
@@ -222,11 +221,13 @@ async function refreshRoomContext() {
                 emergencyBtn.classList.add('btn-submitted');
                 triggerEmergencyMeeting();
             };
-        } 
+        }
         else {
             emergencyBtn.classList.add('d-none');
         }
     }
+
+    return data;
 }
 
 // --- PLAYER ACTIONS ---
@@ -294,7 +295,6 @@ async function performVent(destination) {
     if (!lockActions()){
         return;
     }
-    floatText('Vented', '#fca5a5');
     document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/vent', {
@@ -342,7 +342,6 @@ async function completeTask(taskName) {
     if (!lockActions()){
         return;
     }
-    floatText('Task Complete', '#6fcf97');
     document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/do-task', {
@@ -355,7 +354,7 @@ async function completeTask(taskName) {
             const data = await response.json();
             if (data.status === "pending") {
                 state.waitingForStep = true;
-                state.pendingActionLog = { step: data.timestep, message: `Working on ${taskName}...`, type: 'success', observations: [], ventObservations: [] };
+                state.pendingActionLog = { step: data.timestep, message: `Working on ${taskName}...`, type: 'success', observations: [], ventObservations: [], taskName };
                 return;
             }
             document.getElementById('waiting-indicator')?.classList.add('d-none');
@@ -428,7 +427,6 @@ async function performKill(targetColor){
     if (!lockActions()){
         return;
     }
-    floatText(`Eliminated ${formatColorName(targetColor)}`, '#ef4444');
     document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
         const response = await apiFetch('/api/kill', {
