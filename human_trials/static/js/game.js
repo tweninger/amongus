@@ -30,14 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const waitingHint = document.getElementById('waiting-hint');
 
     // --- Game Size selector (host only) ---
-    const sizeButtons = document.querySelectorAll('#count-selector .btn');
-    sizeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            sizeButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
-    });
-
     // --- Render Waiting Room Roster ---
     function renderWaitingRoster(roster, myColor) {
         if (!readyChecklist){
@@ -133,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hostBtn = document.getElementById('host-btn');
     if (hostBtn) {
         hostBtn.addEventListener('click', async () => {
-            const activeSize = document.querySelector('#count-selector .btn.active').dataset.value;
+            const activeSize = 'FIVE_MEMBER_GAME';
             hostBtn.disabled = true;
             hostBtn.innerText = 'Creating...';
             try {
@@ -248,5 +240,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Chat Handler ---
     if (state.sendChatBtn) {
         state.sendChatBtn.onclick = handleSendChat;
+    }
+    if (state.chatInput) {
+        state.chatInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter'){
+                handleSendChat();
+            }
+        });
     }
 });

@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from db import init_db, insert_human_action, insert_game_outcome
 from amongagents.envs.configs.map_config import room_data
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
 from models import WebPlayerAgent
 
 def setup_log_directory():
@@ -76,11 +76,7 @@ def log_game_outcome(game_instance):
     insert_game_outcome(entry)
 
 def get_game_config(game_size_str):
-    config_map = {
-        "FIVE_MEMBER_GAME": FIVE_MEMBER_GAME,
-        "SEVEN_MEMBER_GAME": SEVEN_MEMBER_GAME
-    }
-    return config_map.get(game_size_str, FIVE_MEMBER_GAME)
+    return FIVE_MEMBER_GAME
 
 # Convert agent list into roster w/ id, name, color, human status
 def get_roster(agents):
@@ -175,6 +171,7 @@ def format_player_data(player):
         "name": color.capitalize(),
         "color": color,
         "location": player.location,
+        "body_location": getattr(player, 'body_location', None),
         "is_alive": getattr(player, 'is_alive', True),
         "reported_death": getattr(player, 'reported_death', False),
         "identity": getattr(player, 'identity', 'Crewmate')
