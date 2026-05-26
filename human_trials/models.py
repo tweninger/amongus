@@ -20,11 +20,11 @@ class Map:
         for room_name, details in room_data.items():
             self.ship_map.add_node(room_name, **details)
 
-        for room1, room2 in connections:
-            self.ship_map.add_edge(room1, room2, connection_type="corridor")
-
         for room1, room2 in vent_connections:
             self.ship_map.add_edge(room1, room2, connection_type="vent")
+
+        for room1, room2 in connections:
+            self.ship_map.add_edge(room1, room2, connection_type="corridor")
 
     def get_adjacent_rooms(self, room_name):
         if room_name not in self.ship_map:
