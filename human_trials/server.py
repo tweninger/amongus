@@ -132,7 +132,8 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
                 now_waiting = getattr(agent, 'waiting_for_action', False)
                 if now_waiting and not agent._prev_waiting:
                     room.discussion_turn_seq += 1
-                    room.turn_deadline = time.time() + 60  # 60s discussion turn
+                    is_ghost = not getattr(agent.player, 'is_alive', True)
+                    room.turn_deadline = time.time() + (15 if is_ghost else 60)
                 agent._prev_waiting = now_waiting
 
 # Is it a specific player's turn given the current meeting state?
@@ -657,12 +658,29 @@ async def get_room_context(x_player_token: str = Header(...)):
     # Map each task name to the locations where it can be completed
     task_locations = get_task_location_map([t["name"] for t in personal_tasks])
 
-    # Everyone in the same room except the human player themselves
-    others_in_room = [
-        format_player_data(a.player)
-        for a in gi.agents
-        if a.player.location == current_room and a != agent
-    ]
+    # Build player list visible in this room from the viewer's perspective
+    is_viewer_alive = getattr(player, 'is_alive', True)
+    if is_viewer_alive:
+        # Alive players see only alive players + unreported bodies at their body_location
+        others_in_room = [
+            format_player_data(a.player)
+            for a in gi.agents
+            if a.player.location == current_room and a != agent and a.player.is_alive
+        ]
+        # Add unreported bodies in room
+        for a in gi.agents:
+            body_loc = getattr(a.player, 'body_location', None)
+            if (not a.player.is_alive
+                    and not getattr(a.player, 'reported_death', False)
+                    and body_loc == current_room):
+                others_in_room.append(format_player_data(a.player))
+    else:
+        # Ghosts see all players at their actual location
+        others_in_room = [
+            format_player_data(a.player)
+            for a in gi.agents
+            if a.player.location == current_room and a != agent
+        ]
 
     # Check if the player can call an emergency meeting: alive, in cafeteria, during task phase, and meetings remaining
     is_alive = getattr(player, 'is_alive', True)
@@ -713,10 +731,6 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     if not step_ran:
         return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
 
-    if not is_alive:
-        player.location = new_room
-        await broadcast_state(room)
-
     # Generate movement observations (X was seen leaving towards Y)
     observations = generate_room_observations(gi, initial_neighbors, old_room) if is_alive else []
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room) if is_alive else []
@@ -757,10 +771,6 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
 
     if not step_ran:
         return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
-
-    if not is_alive:
-        task_to_complete.do_task()
-        await broadcast_state(room)
 
     # Build progress message for multi-step tasks.
     # If task is complete, just say completed. If not, show steps done out of total.
