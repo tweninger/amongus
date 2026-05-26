@@ -1,6 +1,7 @@
 // ui.js
 import { apiFetch, formatColorName, displayColor } from './helpers.js';
 import { roomCoordinates } from './config.js';
+import { state } from './state.js';
 
 // --- GAME UI ---
 
@@ -97,25 +98,53 @@ async function updateMapUI() {
 
         // Render player images over minimap and room map with jitter
         data.players.forEach(player => {
-            const playerLoc = player.location.toLowerCase();
+            const isSelf = player.color === myColor;
+            const isAlivePlayer = player.is_alive;
+            const isReported = player.reported_death;
+            const bodyLoc = player.body_location ? player.body_location.toLowerCase() : null;
 
-            const isStaleCorpse = !player.is_alive && player.reported_death && player.color !== myColor;
-            if (isStaleCorpse) return;
+            // Determine render location and sprite for this player
+            // Alive viewers: dead players render as bodies at body_location (not ghost location)
+            // Ghost viewers: see everyone at actual location
+            let renderLoc, renderSrc, renderFilter;
 
-            // FOR MASTER VIEW OR GHOST MODE - Delete master view later
+            if (isAlivePlayer) {
+                renderLoc = player.location.toLowerCase();
+                renderSrc = `/assets/player_sprites/alive/player_${player.color}.png`;
+                renderFilter = null;
+            }
+            else if (isSelf) {
+                // Its you. Render as ghost in your actual location.
+                renderLoc = player.location.toLowerCase();
+                renderSrc = `/assets/player_sprites/alive/player_${player.color}.png`;
+                renderFilter = 'grayscale(80%) opacity(0.5)';
+            }
+            // For other dead players
+            else if (!state.isAlive) {
+                // Ghost viewer sees other ghosts at their actual location
+                if (isReported){
+                    return;
+                }
+                renderLoc = player.location.toLowerCase();
+                renderSrc = `/assets/player_sprites/dead/${player.color}_body.png`;
+                renderFilter = null;
+            }
+            else {
+                // Alive viewer: dead players shown as body at body_location only
+                if (isReported || !bodyLoc){
+                    return;
+                }
+                renderLoc = bodyLoc;
+                renderSrc = `/assets/player_sprites/dead/${player.color}_body.png`;
+                renderFilter = null;
+            }
+
             if (skeldLayer){
-                const coords = roomCoordinates[playerLoc];
+                const coords = roomCoordinates[renderLoc];
                 if (coords){
                     const miniImg = document.createElement('img');
-                    if (!player.is_alive && player.color === myColor) {
-                        miniImg.src = `/assets/player_sprites/alive/player_${player.color}.png`;
-                        miniImg.style.filter = 'grayscale(80%) opacity(0.5)';
-                    }
-                    else {
-                        miniImg.src = player.is_alive
-                            ? `/assets/player_sprites/alive/player_${player.color}.png`
-                            : `/assets/player_sprites/dead/${player.color}_body.png`;
-                    }
+                    miniImg.src = renderSrc;
+                    if (renderFilter) miniImg.style.filter = renderFilter;
                     miniImg.style.position = 'absolute';
                     const miniJitterX = (Math.random() * 4) - 2;
                     const miniJitterY = (Math.random() * 4) - 2;
@@ -130,17 +159,10 @@ async function updateMapUI() {
                 }
             }
 
-            if (playerLoc === currentRoomStr && roomPlayerLayer) {
+            if (renderLoc === currentRoomStr && roomPlayerLayer) {
                 const img = document.createElement('img');
-                if (!player.is_alive && player.color === myColor) {
-                    img.src = `/assets/player_sprites/alive/player_${player.color}.png`;
-                    img.style.filter = 'grayscale(80%) opacity(0.5)';
-                }
-                else {
-                    img.src = player.is_alive
-                        ? `/assets/player_sprites/alive/player_${player.color}.png`
-                        : `/assets/player_sprites/dead/${player.color}_body.png`;
-                }
+                img.src = renderSrc;
+                if (renderFilter) img.style.filter = renderFilter;
                 img.className = 'player-sprite';
                 const horizontalPos = 20 + (Math.random() * 60);
                 const verticalPos = 40 + (Math.random() * 40);
