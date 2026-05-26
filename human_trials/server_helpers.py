@@ -2,7 +2,6 @@ import os
 import json
 from datetime import datetime
 from db import init_db, insert_human_action, insert_game_outcome
-from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
 from models import WebPlayerAgent
 
@@ -133,16 +132,19 @@ def parse_meeting_messages(game_instance, meeting_start_step=None):
             # This log is from a previous round
             in_range = False
         
-        if "meeting" in str(log_phase).lower() and in_range:    
-            # Action is in "Thinking Process" block
-            thinking_process = response_data.get("Thinking Process", {})
-            action = str(thinking_process.get("action", "") or record.get("action", ""))
+        thinking_process = response_data.get("Thinking Process", {})
+        action = str(thinking_process.get("action", "") or record.get("action", ""))
+        is_meeting_trigger = "CALL MEETING" in action or "REPORT DEAD BODY" in action
+
+        if ("meeting" in str(log_phase).lower() or is_meeting_trigger) and in_range:
             
             text = ""
             if "SPEAK:" in action:
                 text = action.split("SPEAK:")[-1].strip()
             elif "CALL MEETING" in action:
                 text = "Called an Emergency Meeting!"
+            elif "REPORT DEAD BODY" in action:
+                text = f"Reported a dead body at {action.split('at ')[-1]}!"
             elif "VOTE" in action:
                 text = action
 
@@ -177,13 +179,6 @@ def format_player_data(player):
         "identity": getattr(player, 'identity', 'Crewmate')
     }
 
-# Map list of tasks to their room names
-def get_task_location_map(task_names):
-    mapping = {}
-    for task in task_names:
-        found_rooms = [room for room, data in room_data.items() if task in data.get("tasks", [])]
-        mapping[task] = " or ".join(found_rooms) if found_rooms else "Unknown"
-    return mapping
 
 # Check who left the room during the turn and logs it
 # X was seen leaving towards Y
@@ -232,13 +227,6 @@ def generate_vent_observations(camera_record, players_initially_here, room):
             destination = player.location.replace("_", " ")
             observations.append(f"Observation: {player_color} was seen venting from {source} to {destination}.")
     return observations
-
-# Identify unreported dead body in a list of players
-def get_fresh_corpse_name(room_players):
-    for player in room_players:
-        if not getattr(player, 'is_alive', True) and not getattr(player, 'reported_death', False):
-            return get_clean_name(player)
-    return "Unknown"
 
 # Returns the most recent vote result as {ejected: "blue"} or {ejected: None}
 def get_latest_vote_result(game_instance):

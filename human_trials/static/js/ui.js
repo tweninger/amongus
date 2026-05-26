@@ -97,6 +97,24 @@ async function updateMapUI() {
         const myColor = userDisplayEl ? userDisplayEl.innerText.toLowerCase() : "";
 
         // Render player images over minimap and room map with jitter
+        // Task markers on minimap for rooms with personal tasks (exclamation mark icon)
+        if (skeldLayer && contextData.personal_tasks) {
+            const taskRooms = new Set();
+            contextData.personal_tasks.forEach(t => {
+                if (t.location) taskRooms.add(t.location.trim().toLowerCase());
+            });
+            taskRooms.forEach(room => {
+                const coords = roomCoordinates[room];
+                if (!coords){
+                    return;
+                }
+                const marker = document.createElement('img');
+                marker.src = '/assets/map/task_marker.png';
+                marker.style.cssText = `position:absolute; top:${coords.top}%; left:${coords.left}%; width:30px; height:30px; object-fit:contain; transform:translate(-50%,-120%); z-index:20; pointer-events:none;`;
+                skeldLayer.appendChild(marker);
+            });
+        }
+
         data.players.forEach(player => {
             const isSelf = player.color === myColor;
             const isAlivePlayer = player.is_alive;

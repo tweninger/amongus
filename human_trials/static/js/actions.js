@@ -48,7 +48,7 @@ async function refreshRoomContext() {
             data.personal_tasks.forEach(task => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item py-1 text-white fw-bold';
-                const location = data.task_locations[task.name] || "Unknown";
+                const location = task.location || "Unknown";
                 const progress = task.max_duration > 1 ? ` (${task.steps_done}/${task.max_duration})` : ''; // Some tasks have duration > 1
                 li.innerText = `${task.name}${progress} - ${location}`;
                 personalTasksList.appendChild(li);
@@ -62,8 +62,7 @@ async function refreshRoomContext() {
         tasksInRoom.innerHTML = '';
         data.tasks_in_room.forEach(taskName => {
             const btn = document.createElement('button');
-            // Check if task is in player's personal task list and render accordingly
-            const taskInfo = data.personal_tasks.find(task => task.name === taskName);
+            const taskInfo = data.personal_tasks.find(task => task.name === taskName && task.location === data.current_room);
             if (taskInfo) {
                 const progress = taskInfo.max_duration > 1 ? ` (${taskInfo.steps_done}/${taskInfo.max_duration})` : ''; // Progress on long tasks
                 btn.className = 'btn-task';
@@ -261,18 +260,18 @@ async function performMove(destination) {
             }
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Step ${data.timestep}] You moved from ${source} to ${destination}`, 'info');
+            addLogMessage(`[Turn ${data.timestep}] You moved from ${source} to ${destination}`, 'info');
 
             // Log who was seen leaving the room
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             // Log who was seen venting from room
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'danger');
+                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'danger');
                 });
             }
 
@@ -312,15 +311,15 @@ async function performVent(destination) {
             }
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(obs => {
-                    addLogMessage(`[Step ${data.timestep}] ${obs}`, 'danger');
+                    addLogMessage(`[Turn ${data.timestep}] ${obs}`, 'danger');
                 });
             }
 
@@ -359,15 +358,15 @@ async function completeTask(taskName) {
             }
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'success');
+            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'success');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(obs => {
-                    addLogMessage(`[Step ${data.timestep}] ${obs}`, 'danger');
+                    addLogMessage(`[Turn ${data.timestep}] ${obs}`, 'danger');
                 });
             }
 
@@ -393,7 +392,7 @@ async function triggerReport() {
         const response = await apiFetch('/api/report', { method: 'POST' });
         if (response.ok) {
             const data = await response.json();
-            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
         }
     }
     catch (e) {
@@ -412,7 +411,7 @@ async function triggerEmergencyMeeting() {
         const response = await apiFetch('/api/call-meeting', { method: 'POST' });
         if (response.ok) {
             const data = await response.json();
-            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
         }
     }
     catch (e) {
@@ -444,15 +443,15 @@ async function performKill(targetColor){
             }
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Step ${data.timestep}] ${data.message}`, 'danger');
+            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Step ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(obs => {
-                    addLogMessage(`[Step ${data.timestep}] ${obs}`, 'danger');
+                    addLogMessage(`[Turn ${data.timestep}] ${obs}`, 'danger');
                 });
             }
 

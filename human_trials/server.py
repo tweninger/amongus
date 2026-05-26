@@ -160,13 +160,18 @@ async def broadcast_state(room: GameRoom):
     _update_meeting_tracking(room, gi, current_phase)
 
     turn_seconds_left = max(0, int(room.turn_deadline - time.time())) if room.turn_deadline > 0 else None
+    winner = get_win_message(gi)
+    players_data = [format_player_data(agent.player) for agent in gi.agents]
+    if not winner:
+        for p in players_data:
+            p.pop("identity", None)
     payload = {
         "type": "state_update",
-        "players": [format_player_data(agent.player) for agent in gi.agents],
+        "players": players_data,
         "timestep": gi.timestep,
         "phase": current_phase,
         "task_progress": gi.task_assignment.check_task_completion(),
-        "winner": get_win_message(gi),
+        "winner": winner,
         "vote_result": get_latest_vote_result(gi),
         "meeting_messages": parse_meeting_messages(gi, room.meeting_start_step) if current_phase == "meeting" else [],
         "can_vote": can_vote,
@@ -412,23 +417,12 @@ async def host_game(request: Request) -> dict:
         agent_config={
             "Impostor": "LLM",
             "Crewmate": "LLM",
-            #"IMPOSTOR_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
-            #"CREWMATE_LLM_CHOICES": ["google/gemini-2.0-flash-001"],
             "IMPOSTOR_LLM_CHOICES": ["google/gemini-3.5-flash"],
             "CREWMATE_LLM_CHOICES": ["google/gemini-3.5-flash"],    
         }
     )
 
     gi.initialize_game()
-
-    # DEBUG
-    # --- INITIAL ASSIGNMENT PRINT ---
-    print("\n=== INITIAL TASK ROSTER ===")
-    for p in gi.players:
-        p_color = p.name.split()[-1]
-        task_list = [t.name for t in p.tasks]
-        print(f"{p_color.upper()}: {task_list}")
-    print("===========================\n")
 
     # Convert Agent 0 (Host) to the human and retrieve attributes
     gi.agents[0] = WebPlayerAgent(gi.players[0])
@@ -550,69 +544,6 @@ async def start_game(x_player_token: str = Header(...)) -> dict:
 
     return {"status": "success", "phase": room.game_instance.game_phase}
 
-# HUD data: phase, timestep, win status, task progress
-@app.get("/api/hud")
-async def get_hud(x_player_token: str = Header(None)) -> dict:
-    room = get_room(x_player_token) if x_player_token else None
-    # If no game, send null stats
-    if not room or not room.game_instance:
-        return {
-            "phase": "lobby",
-            "timestep": 0,
-            "winner": None,
-            "task_progress": 0
-        }
-    gi = room.game_instance
-    task_progress = gi.task_assignment.check_task_completion() # is a decimal
-
-    return {
-        "phase": str(gi.current_phase).lower(),
-        "timestep": gi.timestep,
-        "winner": get_win_message(gi),
-        "task_progress": task_progress
-    }
-
-
-# Retrieves current game state and meeting context for the human player
-# Helps in determining phase transitions, turn availability, and discussion history
-@app.get("/api/meeting-context")
-async def get_meeting_context(x_player_token: str = Header(...)):
-    room = get_room(x_player_token)
-    if not room or not room.game_instance:
-        return {"phase": "lobby"}
-    gi = room.game_instance
-
-    try:
-        agent = get_human_agent(x_player_token)
-
-        current_phase = str(getattr(gi, 'current_phase', 'active')).lower()
-
-        # Is it time for the human to vote?
-        can_vote = (current_phase == "meeting" and getattr(gi, 'discussion_rounds_left', 0) <= 0)
-
-        # Get meeting msgs for front end
-        meeting_messages = parse_meeting_messages(gi) if current_phase == "meeting" else []
-
-        # Turn management
-        is_alive = getattr(agent.player, 'is_alive', True)
-
-        # Are we in a meeting and its our turn according to game_instance backend?
-        is_my_turn = (current_phase == "meeting" and getattr(gi, 'is_human_turn', False))
-        return {
-            "status": "online",
-            "phase": current_phase,
-            "timestep": gi.timestep,
-            "is_alive": is_alive,
-            "is_my_turn": is_my_turn,
-            "can_vote": can_vote,
-            "meeting_messages": meeting_messages,
-            "winner": get_win_message(gi),
-            "vote_result": get_latest_vote_result(gi),
-        }
-
-    except Exception as e:
-        return {"phase": "error", "details": str(e)}
-
 # Iterates through all agents and returns list of various stats for frontend UI rendering
 @app.get("/api/player-states")
 async def get_map_state(x_player_token: str = Header(...)):
@@ -645,18 +576,19 @@ async def get_room_context(x_player_token: str = Header(...)):
     # Has progress fraction for multi-step tasks
     all_incomplete = [task for task in player.tasks if not task.check_completion()]
 
-    # Tasks left to do
+    # Tasks left to do. Each task has a specific assigned location
     personal_tasks = [
         {
             "name": task.name,
+            "location": task.location,
             "max_duration": task.max_duration,
             "steps_done": task.max_duration - task.duration,
         }
         for task in all_incomplete
     ]
 
-    # Map each task name to the locations where it can be completed
-    task_locations = get_task_location_map([t["name"] for t in personal_tasks])
+    # Map each task name to its specific assigned room
+    task_locations = {task["name"]: task["location"] for task in personal_tasks}
 
     # Build player list visible in this room from the viewer's perspective
     is_viewer_alive = getattr(player, 'is_alive', True)
@@ -758,10 +690,10 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
     is_alive = getattr(human_agent.player, 'is_alive', True)
 
     initial_neighbors = get_players_in_room_except_human(gi, player.location, player)
-    task_to_complete = next((t for t in player.tasks if t.name == task_name and not t.check_completion()), None)
+    task_to_complete = next((t for t in player.tasks if t.name == task_name and not t.check_completion() and t.location == player.location), None)
 
     if not task_to_complete:
-        return {"status": "error", "message": "Task not found or completed", "observations": []}
+        return {"status": "error", "message": "Error completing task", "observations": []}
 
     task_room = player.location
 
@@ -820,9 +752,9 @@ async def report_body(request: Request, x_player_token: str = Header(...)) -> di
             "is_alive": is_alive
         }
 
-    # Check who is dead in the room
-    players_here = gi.map.get_players_in_room(player.location, include_new_deaths=True)
-    dead_name = get_fresh_corpse_name(players_here)
+    # Find unreported corpse at this location using body_location
+    dead_player = next((p for p in gi.players if not p.is_alive and not getattr(p, 'reported_death', False) and getattr(p, 'body_location', None) == player.location), None)
+    dead_name = get_clean_name(dead_player) if dead_player else "Unknown"
 
     # Tell engine to call meeting
     human_agent.queued_action = CallMeeting(current_location=player.location)
@@ -1029,11 +961,8 @@ async def handle_vote(request: Request, x_player_token: str = Header(...)) -> di
     if getattr(gi, 'meeting_in_progress', False):
         return {"status": "success", "new_phase": "meeting"}
 
-    print(f"DEBUG: Human voting for {target_player.name if target_player else 'none (skip)'}")
-
     # Return new phase to JS to hide discussion screen UI
     new_phase = str(gi.current_phase).lower()
-    print(f"DEBUG: Meeting ended. New Phase: {new_phase}")
 
     return {
         "status": "success",
