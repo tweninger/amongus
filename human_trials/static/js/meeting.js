@@ -33,6 +33,7 @@ function showEjectionBanner(voteResult) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
+
 // Render new chat messages in the meeting discussion panel.
 // Called each time the meeting-context poll returns updated messages.
 function renderMeetingChat(messages) {
@@ -47,7 +48,7 @@ function renderMeetingChat(messages) {
     // Get the new messages that haven't been rendered yet
     const newMessages = messages.slice(state.processedMessageCount);
 
-    // Append each new msg to chat box with sender name and color styling 
+    // Append each new msg to chat box with sender name and color styling
     newMessages.forEach(msg => {
         const text = msg.text;
         // Strips quotes added by the backend for messages that are purely talking strings
