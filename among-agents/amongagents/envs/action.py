@@ -257,6 +257,7 @@ class Kill(Action):
     def execute(self, env, player):
         super().execute(env, player)
         self.other_player.is_alive = False
+        self.other_player.body_location = self.other_player.location
         player.kill_cooldown = env.game_config["kill_cooldown"]
 
     @staticmethod

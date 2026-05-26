@@ -44,6 +44,7 @@ class Player:
         self.is_alive = True
         self.tasks = []
         self.reported_death = False
+        self.body_location = None # Represents location at death (static)
 
     def __repr__(self) -> str:
         return f"{self.name} ({self.identity})"
@@ -67,7 +68,8 @@ class Player:
         if self.is_alive:
             return self.available_actions
         else:
-            return []
+            # Ghosts can only move or complete tasks
+            return [action for action in self.available_actions if action.name in ("MOVE", "COMPLETE TASK")]
 
     def make_action(self, env, action, choose_location="Cafeteria"):
         if action.name == "ViewMonitor":

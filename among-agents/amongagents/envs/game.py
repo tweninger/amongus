@@ -268,8 +268,8 @@ class AmongUs:
 
         is_human = 'homosapiens' in getattr(agent, 'model', '')
 
-        # Disregard dead AI players
-        if not agent.player.is_alive and not is_human:
+        # Dead AI skip meetings
+        if not agent.player.is_alive and not is_human and self.current_phase != "task":
             return
 
         # kill cooldown
@@ -287,7 +287,7 @@ class AmongUs:
             if is_human:
                 action = await agent.choose_action(self.timestep)
             else:
-                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=20.0) 
+                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=20.0)
         except asyncio.TimeoutError:
             available = agent.player.available_actions
             # If timed out, return silently
@@ -302,9 +302,12 @@ class AmongUs:
                     action.target = "none"
                     break
 
-        # Dead humans are ghost observers, consume the action to advance the turn
-        # but don't record or execute it, so AI agents don't see ghosts speaking
+        # Ghosts: execute move/task, discard meeting actions so ghosts don't speak
         if not agent.player.is_alive and is_human:
+            if action and action.name in ("MOVE", "COMPLETE TASK"):
+                self.camera_record[agent.player.name] = action
+                self.record_activity(agent.player, action)
+                agent.player.make_action(self, action)
             self.update_map()
             return
 
