@@ -205,13 +205,13 @@ async function resolveStepIfReady(data) {
         state.pendingActionLog = null;
     }
 
-    // Differentiate between being killed vs ejected
+    // Differentiate between being killed vs ejected: killed_by is null for ejections
     if (state.wasAlive && !data.is_alive) {
-        if (data.phase === 'meeting') {
+        if (!data.killed_by) {
             addLogMessage('YOU WERE EJECTED', 'danger');
         }
         else {
-            const killer = data.killed_by ? data.killed_by.charAt(0).toUpperCase() + data.killed_by.slice(1) : 'an Impostor';
+            const killer = data.killed_by.charAt(0).toUpperCase() + data.killed_by.slice(1);
             addLogMessage(`YOU WERE KILLED BY ${killer.toUpperCase()}`, 'danger');
         }
     }
@@ -231,19 +231,19 @@ async function resolveStepIfReady(data) {
         if (taskName && roomData) {
             const stillIncomplete = roomData.personal_tasks?.some(task => task.name === taskName);
             if (!stillIncomplete) {
-                addLogMessage(`[Step ${logStep}] You completed ${taskName}!`, type);
+                addLogMessage(`[Turn ${logStep}] You completed ${taskName}!`, type);
             }
             else {
                 const taskInfo = roomData.personal_tasks.find(task => task.name === taskName);
                 const progress = taskInfo && taskInfo.max_duration > 1 ? ` (${taskInfo.steps_done}/${taskInfo.max_duration})` : '';
-                addLogMessage(`[Step ${logStep}] Working on ${taskName}...${progress}`, type);
+                addLogMessage(`[Turn ${logStep}] Working on ${taskName}...${progress}`, type);
             }
         }
         else {
-            addLogMessage(`[Step ${logStep}] ${message}`, type);
+            addLogMessage(`[Turn ${logStep}] ${message}`, type);
         }
-        observations?.forEach(observation => addLogMessage(`[Step ${logStep}] ${observation}`, 'warning'));
-        ventObservations?.forEach(ventObservation => addLogMessage(`[Step ${logStep}] ${ventObservation}`, 'danger'));
+        observations?.forEach(observation => addLogMessage(`[Turn ${logStep}] ${observation}`, 'warning'));
+        ventObservations?.forEach(ventObservation => addLogMessage(`[Turn ${logStep}] ${ventObservation}`, 'danger'));
     }
 }
 
