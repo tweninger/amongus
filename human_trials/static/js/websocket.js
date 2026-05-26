@@ -195,36 +195,55 @@ async function resolveStepIfReady(data) {
     if (data.timestep <= state.lastTimestep) return;
     state.lastTimestep = data.timestep;
 
-    // If this player had submitted an action, resolve their pending state.
+    // Save pending log but emit after refreshRoomContext so we have latest room context for accurate msgs.
+    let savedPendingLog = null;
     if (state.waitingForStep) {
         state.waitingForStep = false;
         document.getElementById('waiting-indicator')?.classList.add('d-none');
         unlockActions();
+        savedPendingLog = state.pendingActionLog;
+        state.pendingActionLog = null;
+    }
 
-        // Emit deferred log entry
-        if (state.pendingActionLog) {
-            const { step, message, type, observations, ventObservations } = state.pendingActionLog;
-            const logStep = step ?? data.timestep;
-            addLogMessage(`[Step ${logStep}] ${message}`, type);
-            observations?.forEach(o => addLogMessage(`[Step ${logStep}] ${o}`, 'warning'));
-            ventObservations?.forEach(o => addLogMessage(`[Step ${logStep}] ${o}`, 'danger'));
-            state.pendingActionLog = null;
+    // Differentiate between being killed vs ejected
+    if (state.wasAlive && !data.is_alive) {
+        if (data.phase === 'meeting') {
+            addLogMessage('YOU WERE EJECTED', 'danger');
+        }
+        else {
+            const killer = data.killed_by ? data.killed_by.charAt(0).toUpperCase() + data.killed_by.slice(1) : 'an Impostor';
+            addLogMessage(`YOU WERE KILLED BY ${killer.toUpperCase()}`, 'danger');
         }
     }
-
-    if (state.wasAlive && !data.is_alive) {
-        const killer = data.killed_by
-            ? data.killed_by.charAt(0).toUpperCase() + data.killed_by.slice(1)
-            : 'an Impostor';
-        addLogMessage(`YOU WERE KILLED BY ${killer.toUpperCase()}`, 'danger');
-    }
     state.wasAlive = data.is_alive;
+    state.isAlive = data.is_alive;
 
-    // Always refresh the room view when step advances
-    // Covers both normal and timeout cases
-    if (data.phase !== "meeting") {
-        await refreshRoomContext();
-        await updateMapUI();
+    // Always refresh room context when step advances
+    let roomData = await refreshRoomContext();
+    await updateMapUI();
+
+    // Emit deferred log entry now that we have the post-step room context.
+    // For task actions, use the actual completion status to pick the right message.
+    if (savedPendingLog) {
+        const { step, message, type, observations, ventObservations, taskName } = savedPendingLog;
+        const logStep = step ?? data.timestep;
+
+        if (taskName && roomData) {
+            const stillIncomplete = roomData.personal_tasks?.some(task => task.name === taskName);
+            if (!stillIncomplete) {
+                addLogMessage(`[Step ${logStep}] You completed ${taskName}!`, type);
+            }
+            else {
+                const taskInfo = roomData.personal_tasks.find(task => task.name === taskName);
+                const progress = taskInfo && taskInfo.max_duration > 1 ? ` (${taskInfo.steps_done}/${taskInfo.max_duration})` : '';
+                addLogMessage(`[Step ${logStep}] Working on ${taskName}...${progress}`, type);
+            }
+        }
+        else {
+            addLogMessage(`[Step ${logStep}] ${message}`, type);
+        }
+        observations?.forEach(observation => addLogMessage(`[Step ${logStep}] ${observation}`, 'warning'));
+        ventObservations?.forEach(ventObservation => addLogMessage(`[Step ${logStep}] ${ventObservation}`, 'danger'));
     }
 }
 
