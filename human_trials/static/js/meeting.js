@@ -93,6 +93,9 @@ function updateMeetingUI(data) {
         // Voting turn. Only show voting roster and skip button if player is alive.
         if (data.can_vote && data.is_alive) {
             if (chatInputGroup) chatInputGroup.style.display = 'none';
+            // Hide turn prompt during voting
+            const turnPromptV = document.getElementById('turn-prompt');
+            if (turnPromptV) turnPromptV.style.display = 'none';
             const skipBtn = document.getElementById('skip-vote-btn');
             if (skipBtn) skipBtn.style.display = 'block';
             // Populate voting roster if not already populated for this meeting
@@ -132,7 +135,7 @@ function updateMeetingUI(data) {
                 turnPrompt.style.display = 'block';
                 turnPrompt.innerText = 'It is currently another player\'s turn to speak';
                 turnPrompt.className = 'text-success fw-bold small text-center mb-1';
-            } 
+            }
             else {
                 turnPrompt.style.display = 'none';
             }
