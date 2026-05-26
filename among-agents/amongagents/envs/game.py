@@ -340,6 +340,7 @@ class AmongUs:
         # import pdb; pdb.set_trace() # waiting after each timestep
 
     async def task_phase_step(self):
+        self.camera_record = {p.name: "stand quietly and do nothing" for p in self.players}
         for agent in self.agents:
             if 'homosapiens' in agent.model:
                 self.is_human_turn = True
@@ -378,9 +379,15 @@ class AmongUs:
                 if is_human:
                     self.is_human_turn = True
                     await self.agent_step(agent)
+                    await asyncio.sleep(3) # Temp workaround to delay not occurring after human player
                 else:
                     self.is_human_turn = False
                     await self.agent_step(agent)
+                    # Delay proportional to message length before prompting the next agent
+                    if self.activity_log:
+                        last_action = self.activity_log[-1].get('action')
+                        if last_action and getattr(last_action, 'name', '') == 'SPEAK':
+                            await asyncio.sleep(0.05 * len(last_action.message)) # 0.05s per char
 
             self.discussion_rounds_left -= 1
             # Update game state after each round
@@ -442,6 +449,7 @@ class AmongUs:
                 "action": f"{player.name} was voted out! Detailed vote info:{vote_info}",
                 "player": "all players",
             }
+            ejection_broadcast = f"MEETING RESULT: {player.name} was ejected by vote. They are no longer in the game."
             print(f"== {player.name} was voted out ==")
         else:
             import_event = {
@@ -451,8 +459,13 @@ class AmongUs:
                 "action": f"No one was voted out. Detailed vote info:{vote_info}",
                 "player": "all players",
             }
+            ejection_broadcast = "MEETING RESULT: No one was ejected."
             print("== No one was voted out ==")
         self.important_activity_log.append(import_event)
+        # Push ejection result to every surviving player's observation history
+        for p in self.players:
+            if p.is_alive:
+                p.observation_history.append(ejection_broadcast)
         self.current_phase = "task"
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
         self.votes = {}

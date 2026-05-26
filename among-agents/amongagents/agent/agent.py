@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import json
 import os
 import random
@@ -323,7 +324,7 @@ class LLMAgent(Agent):
         if all(action.name == "VOTE" for action in available_actions) and available_actions:
             phase = "Meeting phase - Voting Round. You MUST cast a VOTE. Do NOT SPEAK."
         elif any(action.name == "SPEAK" for action in available_actions):
-            phase = "Meeting phase - Discussion Round. You MUST SPEAK. Do NOT VOTE yet."
+            phase = "Meeting phase - Discussion Round. You MUST SPEAK. Do NOT VOTE yet. Keep your spoken message to 1-3 sentences, conversational and direct."
         else:
             phase = "Task phase"
 

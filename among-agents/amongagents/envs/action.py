@@ -72,9 +72,18 @@ class CallMeeting(Action):
         super().execute(env, player)
         env.current_phase = "meeting"
         env.button_num += 1
-        for player in env.players:
-            if not player.is_alive and not player.reported_death:
-                player.reported_death = True
+
+        #  If there's a dead body that hasn't been reported, report it. Otherwise, general meeting call.
+        target  = None
+        for p in env.players:
+            if not p.is_alive and not p.reported_death:
+                p.reported_death = True
+                target = p
+        msg = (f"REPORT: {player.name} found {target.name}'s body in {self.current_location}."
+               if target else f"REPORT: {player.name} called an emergency meeting.")
+        for p in env.players:
+            if p.is_alive:
+                p.observation_history.append(msg)
 
     @staticmethod
     def can_execute_actions(env, player):
