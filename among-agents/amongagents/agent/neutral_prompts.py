@@ -76,20 +76,20 @@ On the other hand, if you are alone in a room with a Crewmate, nobody can report
 
 Map Configuration of the Skeld:
 Rooms and Features
-Cafeteria: Vent to Admin, Special (Emergency Button).
-Weapons: Vent to Navigation.
+Cafeteria: Vent to Admin. Special (Emergency Button).
+Weapons: Vent to Navigation and Shields.
 Navigation: Vent to Shields and Weapons.
-O2: Nothing Special
-Shields: Vent to Navigation.
-Communications: Nothing Special
-Storage: Nothing Special
-Admin: Vent to Cafeteria
-Electrical: Vent to Medbay and Security
-Lower Engine: Vent to Reactor
-Security: Special (Security Cameras)
-Reactor: Vent to Upper Engine and Lower Engine
-Upper Engine: Vent to Reactor
-Medbay: Vent to Electrical and Security
+O2: Nothing Special.
+Shields: Vent to Navigation and Weapons.
+Communications: Nothing Special.
+Storage: Nothing Special.
+Admin: Vent to Cafeteria.
+Electrical: Vent to Medbay and Security.
+Lower Engine: Vent to Reactor and Upper Engine.
+Security: Vent to Electrical and Medbay. Special (Security Cameras).
+Reactor: Vent to Upper Engine and Lower Engine.
+Upper Engine: Vent to Reactor and Lower Engine.
+Medbay: Vent to Electrical and Security.
 
 Note that only Impostors can KILL and VENT.
 
@@ -105,20 +105,20 @@ The game alternates between task and meeting phases:
 
 Map Configuration of the Skeld:
 Rooms and Features
-Cafeteria: Vent to Admin, Special (Emergency Button).
-Weapons: Vent to Navigation.
+Cafeteria: Vent to Admin. Special (Emergency Button).
+Weapons: Vent to Navigation and Shields.
 Navigation: Vent to Shields and Weapons.
-O2: Nothing Special
-Shields: Vent to Navigation.
-Communications: Nothing Special
-Storage: Nothing Special
-Admin: Vent to Cafeteria
-Electrical: Vent to Medbay and Security
-Lower Engine: Vent to Reactor
-Security: Special (Security Cameras)
-Reactor: Vent to Upper Engine and Lower Engine
-Upper Engine: Vent to Reactor
-Medbay: Vent to Electrical and Security
+O2: Nothing Special.
+Shields: Vent to Navigation and Weapons.
+Communications: Nothing Special.
+Storage: Nothing Special.
+Admin: Vent to Cafeteria.
+Electrical: Vent to Medbay and Security.
+Lower Engine: Vent to Reactor and Upper Engine.
+Security: Vent to Electrical and Medbay. Special (Security Cameras).
+Reactor: Vent to Upper Engine and Lower Engine.
+Upper Engine: Vent to Reactor and Lower Engine.
+Medbay: Vent to Electrical and Security.
 
 Note that only Impostors can KILL and VENT.
 
@@ -152,21 +152,24 @@ CrewmatePersonalities = {
 CONNECTION_INFO = """\
 Vent Connections:
 Reactor ↔ Lower Engine, Upper Engine
+Upper Engine ↔ Lower Engine
 Electrical ↔ Security, Medbay
+Medbay ↔ Security
 Navigation ↔ Shields, Weapons
+Weapons ↔ Shields
 Admin ↔ Cafeteria
 Room Connections:
-Cafeteria ↔ Weapons, Admin, Upper Engine, Medbay
+Cafeteria ↔ Weapons, Admin, Upper Engine, Medbay, Storage
 Weapons ↔ Navigation, O2
+O2 ↔ Navigation, Shields
 Navigation ↔ Shields
-O2 ↔ Shields, Admin
-Shields ↔ Communications, Storage
+Shields ↔ Communications
 Communications ↔ Storage
-Storage ↔ Admin, Electrical, Lower Engine
-Electrical ↔ Lower Engine, Admin
-Lower Engine ↔ Security, Reactor, Upper Engine
-Security ↔ Reactor, Upper Engine
-Reactor ↔ Upper Engine
+Storage ↔ Admin, Electrical
+Electrical ↔ Lower Engine
+Lower Engine ↔ Reactor, Security
+Reactor ↔ Security, Upper Engine
+Security ↔ Upper Engine
 Upper Engine ↔ Medbay
 Medbay ↔ Cafeteria
 """
@@ -174,6 +177,8 @@ Medbay ↔ Cafeteria
 MEETING_PHASE_INSTRUCTION = """\
 In this phase, players should discuss and vote out the suspected Impostor. There will be a total of 3 discussion rounds. After that, players should vote out the suspected Impostor. Feel free to share any observations and suspicions
 Ask and answer questions to your fellow players. Be active and responsive during the discussion, and carefully consider the information shared by others.
+Keep your response to 1-3 sentences. Write naturally and directly, like a player talking, not an AI writing a report. No lists, no headers, no bullet points, no making up non-existent events. Be analytical and specific to what was just said or observed, but stay concise.
+Always refer to players by their color name only (e.g. "Red", "Blue"), never by their player number.
 """
 
 TASK_PHASE_INSTRUCTION = """\
