@@ -46,7 +46,7 @@ class GameRoom:
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
         self.game_outcome_logged: bool = False
 
-QUEUE_WINDOW = 30  # 5-minute matchmaking window
+QUEUE_WINDOW = 300  # 5-minute matchmaking window
 
 # All active rooms keyed by 4 letter code
 games: dict[str, GameRoom] = {}
