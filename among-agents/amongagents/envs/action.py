@@ -265,6 +265,8 @@ class Kill(Action):
 
     def execute(self, env, player):
         super().execute(env, player)
+        if self.other_player.location != player.location:
+            return  # Handles case where target moves away before kill. Return silently. No kill.
         self.other_player.is_alive = False
         self.other_player.body_location = self.other_player.location
         player.kill_cooldown = env.game_config["kill_cooldown"]
