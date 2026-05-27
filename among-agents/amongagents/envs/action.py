@@ -113,7 +113,7 @@ class Vote(Action):
         self.other_player = other_player
 
     def __repr__(self):
-        target = self.other_player.name if self.other_player else "none"
+        target = self.other_player.color.capitalize() if self.other_player else "none"
         return f"{self.name} {target}"
 
     def execute(self, env, player):
