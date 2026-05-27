@@ -354,6 +354,9 @@ async def run_meeting_step(room: GameRoom) -> None:
                 if ejected_color in player.name.lower() and not getattr(player, 'is_alive', True):
                     player.reported_death = True
     if room.game_instance and str(room.game_instance.current_phase).lower() == "task":
+        # Clear any stale queued actions from the turn the meeting interrupted
+        for idx in room.sessions.values():
+            room.game_instance.agents[idx].queued_action = None
         start_task_timer(room)
     await broadcast_state(room)  # Final broadcast after meeting ends
 
