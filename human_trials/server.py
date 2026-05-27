@@ -463,6 +463,9 @@ async def join_queue(request: Request) -> dict:
 
         room = GameRoom(size_config=selected_config, total_slots=total_slots)
         room.game_instance = gi
+        gi.room_code = code
+        for agent in gi.agents:
+            agent.game_index = code
         room.queue_deadline = time.time() + QUEUE_WINDOW
         games[code] = room
         open_room_code = code

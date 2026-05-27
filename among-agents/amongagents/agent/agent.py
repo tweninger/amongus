@@ -169,7 +169,7 @@ class LLMAgent(Agent):
 
         # Create the interaction object with proper nesting
         interaction = {
-            'game_index': f"{os.environ.get('SESSION_ID', 'unknown')}_Game {self.game_index}",
+            'game_index': f"{os.environ.get('SESSION_ID', 'unknown')}_{self.game_index}",
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
@@ -764,7 +764,7 @@ class HumanAgent(Agent):
 
         # Create the interaction object with proper nesting
         interaction = {
-            'game_index': f"{os.environ.get('SESSION_ID', 'unknown')}_Game {self.game_index}",
+            'game_index': f"{os.environ.get('SESSION_ID', 'unknown')}_{self.game_index}",
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},

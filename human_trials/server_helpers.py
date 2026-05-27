@@ -15,7 +15,7 @@ def log_human_action(game_instance, player, action_type, details=None):
     log_dir = os.environ.get("EXPERIMENT_PATH", "logs")
     log_path = os.path.join(log_dir, "human-logs.json")
     entry = {
-        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
+        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_{getattr(game_instance, 'room_code', game_instance.game_index)}",
         "step": game_instance.timestep,
         "timestamp": str(datetime.now()),
         "player": {
@@ -54,7 +54,7 @@ def log_game_outcome(game_instance):
     winner, win_condition = win_map.get(win_code, ("Unknown", "unknown"))
 
     entry = {
-        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
+        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_{getattr(game_instance, 'room_code', game_instance.game_index)}",
         "timestamp": str(datetime.now()),
         "winner": winner,
         "win_condition": win_condition,
