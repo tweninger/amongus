@@ -157,26 +157,6 @@ async function updateMapUI() {
                 renderFilter = null;
             }
 
-            if (skeldLayer){
-                const coords = roomCoordinates[renderLoc];
-                if (coords){
-                    const miniImg = document.createElement('img');
-                    miniImg.src = renderSrc;
-                    if (renderFilter) miniImg.style.filter = renderFilter;
-                    miniImg.style.position = 'absolute';
-                    const miniJitterX = (Math.random() * 4) - 2;
-                    const miniJitterY = (Math.random() * 4) - 2;
-                    miniImg.style.top = `${coords.top + miniJitterY}%`;
-                    miniImg.style.left = `${coords.left + miniJitterX}%`;
-                    miniImg.style.width = '52px';
-                    miniImg.style.height = '52px';
-                    miniImg.style.objectFit = 'contain';
-                    miniImg.style.transform = 'translate(-50%, -50%)';
-                    miniImg.style.zIndex = '10';
-                    skeldLayer.appendChild(miniImg);
-                }
-            }
-
             if (renderLoc === currentRoomStr && roomPlayerLayer) {
                 const img = document.createElement('img');
                 img.src = renderSrc;
