@@ -86,8 +86,13 @@ class TaskAssignment:
 
         self.reset_task_assignments()
         num_common_tasks = self.game_config["num_common_tasks"]
+        seen_names = {}
+        for task in self.common_tasks:
+            if task.name not in seen_names:
+                seen_names[task.name] = task
+        unique_common_tasks = list(seen_names.values())
         selected_common_tasks = np.random.choice(
-            self.common_tasks, size=(num_common_tasks,)
+            unique_common_tasks, size=(num_common_tasks,), replace=False
         )
         common_tasks_for_players = [
             copy.deepcopy(selected_common_tasks) for _ in players
