@@ -171,6 +171,46 @@ function createMapArrow({ destination, point, currentRoom, variant = 'move', eve
     return button;
 }
 
+function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'room-player-sprite-wrap';
+    const horizontalPos = 20 + (Math.random() * 60);
+    const verticalPos = 40 + (Math.random() * 40);
+    wrapper.style.position = 'absolute';
+    wrapper.style.top = `${verticalPos}%`;
+    wrapper.style.left = `${horizontalPos}%`;
+    wrapper.style.transform = 'translate(-50%, -50%)';
+
+    const img = document.createElement('img');
+    img.src = renderSrc;
+    if (renderFilter) img.style.filter = renderFilter;
+    img.className = 'player-sprite';
+    img.style.width = '65px';
+    img.style.height = '65px';
+    img.style.objectFit = 'contain';
+    img.style.transition = 'all 0.5s ease';
+    img.title = player.name;
+    wrapper.appendChild(img);
+
+    if (actionConfig) {
+        const actionBtn = document.createElement('button');
+        actionBtn.type = 'button';
+        actionBtn.className = `room-hover-action-button ${actionConfig.className}`;
+        actionBtn.textContent = actionConfig.label;
+        actionBtn.disabled = state.actionLocked || state.waitingForStep;
+        actionBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            document.dispatchEvent(new CustomEvent(actionConfig.eventName, {
+                detail: actionConfig.detail || {},
+            }));
+        });
+        wrapper.appendChild(actionBtn);
+    }
+
+    return wrapper;
+}
+
 function renderMovementArrows(contextData, roomView, interactionLayer) {
     if (!interactionLayer || !roomView || !contextData?.adjacent?.length) {
         return;
@@ -327,6 +367,7 @@ async function updateMapUI() {
         const currentRoomStr = contextData.current_room.toLowerCase();
         const userDisplayEl = document.getElementById('user-display');
         const myColor = userDisplayEl ? userDisplayEl.innerText.toLowerCase() : "";
+        const isHumanImpostor = state.myRole && state.myRole.toLowerCase() === 'impostor' && state.isAlive;
 
         // Render player images over minimap and room map with jitter
         // Task markers on minimap for rooms with personal tasks (exclamation mark icon)
@@ -410,22 +451,24 @@ async function updateMapUI() {
             }
 
             if (renderLoc === currentRoomStr && roomPlayerLayer) {
-                const img = document.createElement('img');
-                img.src = renderSrc;
-                if (renderFilter) img.style.filter = renderFilter;
-                img.className = 'player-sprite';
-                const horizontalPos = 20 + (Math.random() * 60);
-                const verticalPos = 40 + (Math.random() * 40);
-                img.style.position = 'absolute';
-                img.style.top = `${verticalPos}%`;
-                img.style.left = `${horizontalPos}%`;
-                img.style.width = '65px';
-                img.style.height = '65px';
-                img.style.objectFit = 'contain';
-                img.style.transform = 'translate(-50%, -50%)';
-                img.style.transition = 'all 0.5s ease';
-                img.title = player.name;
-                roomPlayerLayer.appendChild(img);
+                let actionConfig = null;
+                if (isHumanImpostor && player.is_alive && !isSelf) {
+                    actionConfig = {
+                        className: 'room-kill-button',
+                        label: 'KILL',
+                        eventName: 'amongus:kill-request',
+                        detail: { targetColor: player.color },
+                    };
+                } else if (!player.is_alive && !player.reported_death && state.isAlive) {
+                    actionConfig = {
+                        className: 'room-report-button',
+                        label: 'REPORT',
+                        eventName: 'amongus:report-request',
+                    };
+                }
+                roomPlayerLayer.appendChild(
+                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig),
+                );
             }
         });
 

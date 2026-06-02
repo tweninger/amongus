@@ -199,7 +199,71 @@ body:has(#lobby-screen:not(.d-none)) {
 }
 
 #room-player-layer { z-index: 5; }
-#room-interaction-layer { z-index: 10; pointer-events: auto; }
+#room-interaction-layer { z-index: 10; pointer-events: none; }
+
+.room-player-sprite-wrap {
+    position: absolute;
+    z-index: 6;
+}
+
+.room-player-sprite-wrap .player-sprite {
+    transition: filter 0.18s ease, transform 0.18s ease, brightness 0.18s ease;
+}
+
+.room-player-sprite-wrap:hover .player-sprite,
+.room-player-sprite-wrap:focus-within .player-sprite {
+    filter: brightness(1.18) drop-shadow(0 0 10px rgba(255,255,255,0.18));
+    transform: scale(1.05);
+}
+
+.room-hover-action-button {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(18px, -50%);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    white-space: nowrap;
+}
+
+.room-player-sprite-wrap:hover .room-hover-action-button,
+.room-player-sprite-wrap:focus-within .room-hover-action-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(12px, -50%);
+}
+
+.room-kill-button {
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    background: rgba(127, 29, 29, 0.18);
+    color: #fecaca;
+}
+
+.room-kill-button:hover,
+.room-kill-button:focus-visible {
+    background: rgba(220, 38, 38, 0.92);
+    color: #fff1f2;
+    outline: none;
+}
+
+.room-report-button {
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    background: rgba(120, 53, 15, 0.2);
+    color: #fde68a;
+}
+
+.room-report-button:hover,
+.room-report-button:focus-visible {
+    background: rgba(245, 158, 11, 0.92);
+    color: #fff7ed;
+    outline: none;
+}
 
 .map-action-hotspot {
     position: absolute;
@@ -211,6 +275,7 @@ body:has(#lobby-screen:not(.d-none)) {
     background: rgba(103, 232, 249, 0.1);
     color: rgba(236, 254, 255, 0.42);
     cursor: pointer;
+    pointer-events: auto;
     transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.08);
 }

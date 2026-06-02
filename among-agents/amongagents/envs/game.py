@@ -259,6 +259,15 @@ class AmongUs:
         if self.UI:
             self.UI.draw_map(self)
 
+    def filter_recently_killed_action(self, player, action):
+        if self.current_phase != "task" or action is None:
+            return action
+        if not player.killed_this_step:
+            return action
+        if getattr(action, "name", None) == "COMPLETE TASK":
+            return action
+        return None
+
     async def agent_step(self, agent):
         self.check_actions()
 
@@ -297,6 +306,11 @@ class AmongUs:
                     action = a
                     action.target = "none"
                     break
+
+        action = self.filter_recently_killed_action(agent.player, action)
+        if action is None:
+            self.update_map()
+            return
 
         # Ghosts: execute move/task, discard meeting actions so ghosts don't speak
         if not agent.player.is_alive and is_human:
@@ -337,6 +351,8 @@ class AmongUs:
 
     async def task_phase_step(self):
         self.camera_record = {p.name: "stand quietly and do nothing" for p in self.players}
+        for player in self.players:
+            player.killed_this_step = False
         for agent in self.agents:
             if 'homosapiens' in agent.model:
                 self.is_human_turn = True

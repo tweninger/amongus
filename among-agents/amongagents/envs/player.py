@@ -45,6 +45,7 @@ class Player:
         self.tasks = []
         self.reported_death = False
         self.body_location = None # Represents location at death (static)
+        self.killed_this_step = False
 
     def __repr__(self) -> str:
         return f"{self.name} ({self.identity})"

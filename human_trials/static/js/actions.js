@@ -29,6 +29,18 @@ document.addEventListener('amongus:task-request', (event) => {
     completeTask(taskName);
 });
 
+document.addEventListener('amongus:kill-request', (event) => {
+    const targetColor = event.detail?.targetColor;
+    if (!targetColor) {
+        return;
+    }
+    performKill(targetColor);
+});
+
+document.addEventListener('amongus:report-request', () => {
+    triggerReport();
+});
+
 // Fetch and update ROOM CONTEXT
 //movement options, tasks available, and who is in the room with you
 async function refreshRoomContext() {

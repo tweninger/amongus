@@ -30,6 +30,9 @@ function lockActions() {
     document.querySelectorAll('.map-action-hotspot').forEach((btn) => {
         btn.disabled = true;
     });
+    document.querySelectorAll('.room-hover-action-button').forEach((btn) => {
+        btn.disabled = true;
+    });
     document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
         btn.disabled = true;
     });
@@ -46,6 +49,9 @@ function unlockActions() {
     document.querySelectorAll('.map-action-hotspot').forEach((btn) => {
         btn.disabled = false;
         btn.classList.remove('committed');
+    });
+    document.querySelectorAll('.room-hover-action-button').forEach((btn) => {
+        btn.disabled = false;
     });
     document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
         btn.disabled = false;
