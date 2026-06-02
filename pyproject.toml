@@ -16,6 +16,7 @@ dependencies = [
   "python-dotenv",
   "requests",
   "uvicorn",
+  "websockets",
 ]
 
 [project.optional-dependencies]
