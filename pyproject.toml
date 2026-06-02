@@ -56,7 +56,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "human_trials/models.py" = ["E402"]
-"human_trials/server.py" = ["F403", "F405"]
 "among-agents/amongagents/agent/agent.py" = ["F403", "F405"]
 "among-agents/amongagents/envs/configs/experiment_config.py" = ["F403", "F405"]
 "among-agents/amongagents/envs/game.py" = ["F403", "F405"]
