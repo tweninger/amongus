@@ -1,47 +1,22 @@
-# Among Us: A Sandbox for Agentic Deception
+# Human Trials Server
 
-This project implements a web-based version of the popular game "Among Us" as a sandbox for studying agentic deception in human-AI interactions.
+This directory contains the active FastAPI game server implementation and its
+browser assets.
 
-## Project Structure
+The Python project is configured at the repository root in `pyproject.toml`.
+Install and run the app from the repo root:
 
-- `app.py`: Main Flask application
-- `templates/`: HTML templates
-  - `index.html`: Main game interface
-- `static/`: Static assets
-  - `map.png`: Game map image
-
-## Setup
-
-1. Create a virtual environment:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e ./among-agents
+pip install -e ".[dev]"
+uvicorn amongus_server.main:app --host 127.0.0.1 --port 8011 --reload
 ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
+The stable ASGI target is:
+
+```text
+amongus_server.main:app
 ```
 
-3. Run the application:
-```bash
-python app.py
-```
-
-4. Open a web browser and navigate to `http://localhost:5000`
-
-## Game Rules
-
-- Players are randomly assigned roles as either Crewmates or Impostors
-- Crewmates must complete tasks while avoiding the Impostor
-- Impostor must eliminate Crewmates without being discovered
-- Players can report dead bodies and call emergency meetings
-- During meetings, players vote to eject someone they suspect is the Impostor
-
-## Development
-
-This project is built with:
-- Flask: Web framework
-- Flask-SocketIO: Real-time communication
-- Bootstrap: UI styling
-- JavaScript: Client-side game logic 
+See the root `README.md` for local development and `DEPLOYMENT.md` for the
+`dsg7` Apache/systemd setup.

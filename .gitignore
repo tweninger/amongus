@@ -2,8 +2,7 @@
 .env
 
 # game logs and database
-human_trials/logs/*.json
-human_trials/logs/*.db
+human_trials/logs/
 *.zip
 
 # deception-detection

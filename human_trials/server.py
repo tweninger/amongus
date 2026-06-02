@@ -155,12 +155,14 @@ app.add_middleware(
 )
 
 # File Paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-static_path = os.path.join(current_dir, "static")
+current_dir = Path(__file__).resolve().parent
+static_path = current_dir / "static"
+assets_path = current_dir / "assets"
+game_template_path = current_dir / "templates" / "game.html"
 
 # Serve static and asset files 
 app.mount("/static", StaticFiles(directory=static_path), name="static")
-app.mount("/assets", StaticFiles(directory=os.path.join(current_dir, "assets")), name="assets")
+app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
 # --- Global HELPER ---
 # More helpers in server_helpers.py
