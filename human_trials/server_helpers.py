@@ -79,15 +79,19 @@ def log_game_outcome(game_instance):
 def get_game_config(game_size_str):
     return FIVE_MEMBER_GAME
 
-# Convert agent list into roster w/ id, name, color, human status
-def get_roster(agents):
+# Convert agent list into roster with slot status for the waiting room.
+def get_roster(agents, ai_filled_slots=None):
+    ai_filled_slots = ai_filled_slots or set()
     roster = []
     for i, agent in enumerate(agents):
+        is_human = isinstance(agent, WebPlayerAgent)
+        slot_status = "human" if is_human else ("ai" if i in ai_filled_slots else "open")
         roster.append({
             "id": i,
             "name": agent.player.name.split()[-1].lower().capitalize(),
             "color": agent.player.name.split()[-1].lower(),
-            "is_human": isinstance(agent, WebPlayerAgent)
+            "is_human": is_human,
+            "slot_status": slot_status,
         })
     return roster
 

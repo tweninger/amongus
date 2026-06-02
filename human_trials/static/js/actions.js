@@ -5,6 +5,30 @@ import { state } from './state.js';
 import { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName } from './helpers.js';
 import { updateMapUI } from './ui.js';
 
+document.addEventListener('amongus:move-request', (event) => {
+    const destination = event.detail?.destination;
+    if (!destination) {
+        return;
+    }
+    performMove(destination);
+});
+
+document.addEventListener('amongus:vent-request', (event) => {
+    const destination = event.detail?.destination;
+    if (!destination) {
+        return;
+    }
+    performVent(destination);
+});
+
+document.addEventListener('amongus:task-request', (event) => {
+    const taskName = event.detail?.taskName;
+    if (!taskName) {
+        return;
+    }
+    completeTask(taskName);
+});
+
 // Fetch and update ROOM CONTEXT
 //movement options, tasks available, and who is in the room with you
 async function refreshRoomContext() {

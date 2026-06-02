@@ -125,8 +125,139 @@ body:has(#lobby-screen:not(.d-none)) {
     inset: 0;
 }
 
+#room-task-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 6px;
+    z-index: 12;
+    pointer-events: none;
+}
+
+.room-task-chip {
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(24, 24, 27, 0.78);
+    color: rgba(212, 212, 216, 0.55);
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+}
+
+.room-task-chip.room-task-unassigned {
+    color: rgba(212, 212, 216, 0.48);
+    border-color: rgba(161, 161, 170, 0.16);
+}
+
+.room-task-chip.room-task-complete {
+    color: #dcfce7;
+    background: rgba(22, 101, 52, 0.72);
+    border-color: rgba(74, 222, 128, 0.42);
+}
+
+.room-task-chip.room-task-active {
+    color: #fef9c3;
+    background: rgba(133, 77, 14, 0.76);
+    border-color: rgba(250, 204, 21, 0.52);
+    animation: room-task-pulse 1.35s ease-in-out infinite;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.room-task-chip.room-task-active:hover,
+.room-task-chip.room-task-active:focus-visible {
+    background: rgba(202, 138, 4, 0.92);
+    color: #fff7ae;
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.7), 0 10px 24px rgba(250, 204, 21, 0.18);
+    outline: none;
+}
+
+.room-task-chip.room-task-active:disabled {
+    opacity: 0.72;
+    cursor: default;
+}
+
+@keyframes room-task-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.15);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.12);
+        transform: scale(1.03);
+    }
+}
+
 #room-player-layer { z-index: 5; }
-#room-interaction-layer { z-index: 10; pointer-events: none; }
+#room-interaction-layer { z-index: 10; pointer-events: auto; }
+
+.map-action-hotspot {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    background: rgba(103, 232, 249, 0.1);
+    color: rgba(236, 254, 255, 0.42);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.08);
+}
+
+.map-action-hotspot:hover,
+.map-action-hotspot:focus-visible {
+    background: rgba(103, 232, 249, 0.24);
+    color: rgba(236, 254, 255, 0.95);
+    box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.45), 0 10px 24px rgba(34, 211, 238, 0.2);
+    outline: none;
+}
+
+.map-action-hotspot.committed {
+    background: rgba(34, 197, 94, 0.32);
+    color: rgba(240, 253, 244, 0.96);
+    box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.55), 0 10px 24px rgba(34, 197, 94, 0.26);
+}
+
+.map-action-hotspot:disabled {
+    cursor: default;
+}
+
+.vent-arrow-hotspot {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.16);
+    color: transparent;
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.28);
+}
+
+.vent-arrow-hotspot:hover,
+.vent-arrow-hotspot:focus-visible {
+    background: rgba(239, 68, 68, 0.42);
+    color: transparent;
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.6);
+}
+
+.move-arrow-glyph {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    font-size: 1.7rem;
+    line-height: 1;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.24);
+    pointer-events: none;
+}
 
 #action-col {
     display: flex;

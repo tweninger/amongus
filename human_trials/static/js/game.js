@@ -10,7 +10,6 @@ import { refreshRoomContext } from './actions.js';
 import { connectWebSocket } from './websocket.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-
     // --- DOM Refs ---
     state.actionPanel = document.getElementById('action-panel');
     state.phaseDisplay = document.getElementById('current-phase');
@@ -28,6 +27,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const readyChecklist = document.getElementById('ready-checklist');
     const startGameBtn = document.getElementById('start-game-btn');
     const waitingHint = document.getElementById('waiting-hint');
+    const lobbyTimer = document.getElementById('lobby-timer');
+    const matchmakingStatus = document.getElementById('matchmaking-status');
+
+    function stopLobbyCountdown() {
+        if (state.lobbyCountdownTimer) {
+            clearInterval(state.lobbyCountdownTimer);
+            state.lobbyCountdownTimer = null;
+        }
+    }
+
+    function setLobbyCountdown(secondsLeft) {
+        stopLobbyCountdown();
+        if (!lobbyTimer) {
+            return;
+        }
+        if (secondsLeft == null) {
+            lobbyTimer.classList.add('d-none');
+            return;
+        }
+
+        let remaining = Math.max(0, Number(secondsLeft));
+        lobbyTimer.classList.remove('d-none');
+
+        const render = () => {
+            lobbyTimer.innerText = remaining > 0
+                ? `Game Starts In ${remaining}s`
+                : 'Game Starts In 0s';
+        };
+
+        render();
+        state.lobbyCountdownTimer = setInterval(() => {
+            remaining = Math.max(0, remaining - 1);
+            render();
+            if (remaining <= 0) {
+                stopLobbyCountdown();
+            }
+        }, 1000);
+    }
 
     // --- Game Size selector (host only) ---
     // --- Render Waiting Room Roster ---
@@ -42,18 +79,22 @@ document.addEventListener('DOMContentLoaded', () => {
             li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
             const isMe = player.color === myColor;
             const label = isMe ? `${player.name} (you)` : player.name;
-            const badge = player.is_human ? `<span class="badge bg-success">Joined</span>` : `<span class="badge bg-secondary">Waiting...</span>`;
+            let badge = '<span class="badge bg-secondary">Waiting...</span>';
+            if (player.slot_status !== 'open') {
+                badge = '<span class="badge bg-success">Joined</span>';
+            }
             li.innerHTML = `<span style="color:${displayColor(player.color)};font-weight:bold;">${label}</span>${badge}`;
             readyChecklist.appendChild(li);
         });
     }
 
     // --- Waiting Room after Joining or Hosting ---
-    function enterWaitingRoom(data) {
+    async function enterWaitingRoom(data) {
         state.playerToken = data.token;
         state.myColor = data.color;
         state.myRole = data.role;
         connectWebSocket(); // Connect WS after entering waiting room
+        setLobbyCountdown(data.lobby_seconds_left);
 
         // Show user their color in the sidebar
         if (userDisplay){
@@ -69,19 +110,16 @@ document.addEventListener('DOMContentLoaded', () => {
         matchmakingPanel.classList.add('d-none');
         browsePanel.classList.add('d-none');
         waitingPanel.classList.remove('d-none');
-
-        // Host sees Start Game button
-        // Non-hosts see "waiting for host"
-        if (data.is_host) {
-            startGameBtn.classList.remove('d-none');
-            startGameBtn.onclick = async () => {
-                startGameBtn.disabled = true;
-                startGameBtn.innerText = 'Starting...';
-                await apiFetch('/api/start', { method: 'POST' });
-            };
+        if (startGameBtn) {
+            startGameBtn.classList.add('d-none');
         }
-        else {
+        if (waitingHint) {
             waitingHint.classList.remove('d-none');
+        }
+
+        if (data.room_status === 'active') {
+            stopLobbyCountdown();
+            await enterGame(state.myColor);
         }
     }
 
@@ -111,131 +149,41 @@ document.addEventListener('DOMContentLoaded', () => {
     window._wsLobbyHandler = async (msg) => {
         if (msg.type === 'lobby_update') {
             renderWaitingRoster(msg.roster, state.myColor);
+            setLobbyCountdown(msg.lobby_seconds_left);
         }
         else if (msg.type === 'game_started') {
+            stopLobbyCountdown();
             await enterGame(state.myColor);
         }
         else if (msg.type === 'room_closed') {
+            stopLobbyCountdown();
             alert('The host left. This room is closed.');
             window.location.reload();
         }
     };
 
-    // --- HOST GAME button ---
-    const hostBtn = document.getElementById('host-btn');
-    if (hostBtn) {
-        hostBtn.addEventListener('click', async () => {
-            const activeSize = 'FIVE_MEMBER_GAME';
-            hostBtn.disabled = true;
-            hostBtn.innerText = 'Creating...';
-            try {
-                const response = await fetch('/api/host', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ size: activeSize }),
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    enterWaitingRoom(data);
-                }
-                // Re-enable if things break
-                else {
-                    hostBtn.disabled = false;
-                    hostBtn.innerText = 'Host Game';
-                }
-            }
-            catch (e) {
-                console.error('Host error:', e);
-                hostBtn.disabled = false;
-                hostBtn.innerText = 'Host Game';
-            }
-        });
-    }
-
-    // --- BROWSE and BACK buttons ---
-    // Browse switches to the lobby list panel and finds open games.
-    const browseBtn = document.getElementById('browse-btn');
-    const backBtn = document.getElementById('back-btn');
-    const refreshBtn = document.getElementById('refresh-btn');
-
-    async function loadLobbies() {
-        const lobbyList = document.getElementById('lobby-list');
-        if (!lobbyList){
-            return;
-        }
-        lobbyList.innerHTML = '<p class="text-muted text-center small">Loading...</p>';
+    async function autoMatchmake() {
         try {
-            const res = await fetch('/api/lobbies');
-            const data = await res.json();
-            lobbyList.innerHTML = '';
-            if (data.lobbies.length === 0) {
-                lobbyList.innerHTML = '<p class="text-muted text-center small">No open games.</p>';
-                return;
+            const response = await fetch('/api/matchmake', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ size: 'FIVE_MEMBER_GAME' }),
+            });
+            if (!response.ok) {
+                throw new Error('Failed to matchmake');
             }
-            // Host color, slot count, Join button
-            data.lobbies.forEach(lobby => {
-                const div = document.createElement('div');
-                div.className = 'd-flex align-items-center justify-content-between p-2 mb-2 border border-secondary rounded';
-                div.innerHTML = `
-                    <div class="d-flex align-items-center gap-2">
-                        <img src="/assets/player_sprites/alive/player_${lobby.host_color}.png" style="width:30px;">
-                        <span style="color:${displayColor(lobby.host_color)};font-weight:bold;">${formatColorName(lobby.host_color)}'s game</span>
-                        <span class="text-muted small">${lobby.human_count}/${lobby.total_slots} players</span>
-                    </div>
-                    <button class="btn btn-sm btn-success fw-bold join-lobby-btn" data-code="${lobby.code}">Join</button>`;
-                lobbyList.appendChild(div);
-            });
-
-            // Handle each join btn
-            lobbyList.querySelectorAll('.join-lobby-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    btn.disabled = true;
-                    btn.innerText = 'Joining...';
-                    try {
-                        const res = await fetch('/api/join', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ code: btn.dataset.code }),
-                        });
-                        const data = await res.json();
-                        if (data.status === 'error') {
-                            btn.disabled = false;
-                            btn.innerText = 'Join';
-                            return;
-                        }
-                        enterWaitingRoom(data);
-                    }
-                    catch (e) {
-                        console.error('Join error:', e);
-                        btn.disabled = false;
-                        btn.innerText = 'Join';
-                    }
-                });
-            });
+            const data = await response.json();
+            await enterWaitingRoom(data);
         }
         catch (e) {
-            lobbyList.innerHTML = '<p class="text-danger text-center small">Failed to load lobbies.</p>';
+            console.error('Matchmake error:', e);
+            if (matchmakingStatus) {
+                matchmakingStatus.innerText = 'Unable to find a game right now. Refresh to retry.';
+            }
         }
     }
-    // Load lobbies immediately if user clicks browse before hosting or joining
-    if (browseBtn){
-        browseBtn.addEventListener('click', () => {
-        matchmakingPanel.classList.add('d-none');
-        browsePanel.classList.remove('d-none');
-        loadLobbies();
-        });
-    }
-    // Back to the main matchmaking panel
-    if (backBtn){
-        backBtn.addEventListener('click', () => {
-        browsePanel.classList.add('d-none');
-        matchmakingPanel.classList.remove('d-none');
-    });
-    }
-    // Refresh lobby list if user is on the browse panel
-    if (refreshBtn){
-        refreshBtn.addEventListener('click', loadLobbies);
-    }
+
+    autoMatchmake();
 
     // --- Chat Handler ---
     if (state.sendChatBtn) {

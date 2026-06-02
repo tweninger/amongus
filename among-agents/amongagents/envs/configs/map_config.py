@@ -96,6 +96,42 @@ room_data = {
         "special_actions": ["Medbay Scan"],
         "players": [],
     },
+    "Hallway 1": {
+        "tasks": [],
+        "vent": [],
+        "special_actions": [],
+        "players": [],
+    },
+    "Hallway 2": {
+        "tasks": [],
+        "vent": [],
+        "special_actions": [],
+        "players": [],
+    },
+    "Hallway 3": {
+        "tasks": [],
+        "vent": [],
+        "special_actions": [],
+        "players": [],
+    },
+    "Hallway 4": {
+        "tasks": [],
+        "vent": [],
+        "special_actions": [],
+        "players": [],
+    },
+    "Hallway 5": {
+        "tasks": [],
+        "vent": [],
+        "special_actions": [],
+        "players": [],
+    },
+    "Hallway 6": {
+        "tasks": [],
+        "vent": [],
+        "special_actions": [],
+        "players": [],
+    },
 }
 
 # Since we're defining a simple undirected graph, we don't need to specify directions for connections.
@@ -115,86 +151,96 @@ vent_connections = [
 
 connections = [
     ("Cafeteria", "Weapons"),
-    ("Cafeteria", "Admin"),
-    ("Cafeteria", "Upper Engine"),
-    ("Cafeteria", "Medbay"),
-    ("Cafeteria", "Storage"),
-    ("Weapons", "Navigation"),
-    ("Weapons", "O2"),
-    ("O2", "Navigation"),
-    ("O2", "Shields"),
-    ("Navigation", "Shields"),
-    ("Shields", "Communications"),
-    ("Communications", "Storage"),
-    ("Storage", "Admin"),
-    ("Storage", "Electrical"),
-    ("Electrical", "Lower Engine"),
-    ("Lower Engine", "Reactor"),
-    ("Lower Engine", "Security"),
-    ("Reactor", "Security"),
-    ("Reactor", "Upper Engine"),
-    ("Security", "Upper Engine"),
-    ("Upper Engine", "Medbay"),
+    ("Cafeteria", "Hallway 1"),
+    ("Upper Engine", "Hallway 1"),
+    ("Medbay", "Hallway 1"),
+    ("Upper Engine", "Hallway 2"),
+    ("Reactor", "Hallway 2"),
+    ("Security", "Hallway 2"),
+    ("Lower Engine", "Hallway 2"),
+    ("Lower Engine", "Hallway 3"),
+    ("Electrical", "Hallway 3"),
+    ("Storage", "Hallway 3"),
+    ("Cafeteria", "Hallway 4"),
+    ("Admin", "Hallway 4"),
+    ("Storage", "Hallway 4"),
+    ("Storage", "Hallway 5"),
+    ("Communications", "Hallway 5"),
+    ("Shields", "Hallway 5"),
+    ("Weapons", "Hallway 6"),
+    ("O2", "Hallway 6"),
+    ("Navigation", "Hallway 6"),
+    ("Shields", "Hallway 6"),
 ]
 
 map_coords = {
     "Cafeteria": {
         "coords": (
-            405,
-            50,
-            447,
-            7,
-            582,
-            7,
-            647,
-            70,
-            647,
-            195,
-            589,
-            250,
-            458,
-            250,
-            405,
-            198,
+            432,
+            1,
+            716,
+            1,
+            716,
+            253,
+            432,
+            253,
         ),
     },
     "Weapons": {
-        "coords": (705, 107, 797, 107, 797, 163, 726, 163, 705, 147),
+        "coords": (703, 48, 835, 48, 835, 180, 703, 180),
     },
     "Navigation": {
-        "coords": (902, 214, 936, 214, 966, 238, 966, 268, 932, 298, 902, 298),
+        "coords": (892, 188, 995, 188, 995, 297, 892, 297),
     },
     "O2": {
-        "coords": (672, 212, 710, 212, 710, 262, 639, 262, 639, 240),
+        "coords": (660, 177, 754, 177, 754, 261, 660, 261),
     },
     "Shields": {
-        "coords": (719, 397, 796, 397, 796, 438, 756, 474, 719, 474),
+        "coords": (711, 345, 832, 345, 832, 463, 711, 463),
     },
     "Communications": {
-        "coords": (583, 481, 677, 481, 677, 526, 583, 526),
+        "coords": (605, 424, 724, 424, 724, 517, 605, 517),
     },
     "Storage": {
-        "coords": (433, 386, 463, 363, 546, 363, 546, 536, 475, 536, 433, 499),
+        "coords": (462, 319, 614, 319, 614, 519, 462, 519),
     },
     "Admin": {
-        "coords": (593, 304, 689, 304, 689, 365, 593, 365),
+        "coords": (615, 260, 736, 260, 736, 369, 615, 369),
     },
     "Electrical": {
-        "coords": (311, 326, 378, 326, 378, 412, 311, 412),
+        "coords": (357, 283, 479, 283, 479, 442, 357, 442),
     },
     "Lower Engine": {
-        "coords": (100, 367, 195, 367, 195, 460, 127, 460, 100, 442),
+        "coords": (165, 323, 281, 323, 281, 446, 165, 446),
     },
     "Security": {
-        "coords": (215, 229, 262, 229, 262, 315, 215, 315),
+        "coords": (267, 182, 337, 182, 337, 307, 267, 307),
     },
     "Reactor": {
-        "coords": (10, 225, 96, 225, 96, 311, 10, 311),
+        "coords": (70, 163, 189, 163, 189, 340, 70, 340),
     },
     "Upper Engine": {
-        "coords": (100, 108, 127, 90, 195, 90, 195, 170, 100, 170),
+        "coords": (163, 59, 278, 59, 278, 192, 163, 192),
     },
     "Medbay": {
-        "coords": (305, 181, 367, 181, 367, 270, 305, 270),
+        "coords": (340, 145, 480, 145, 480, 274, 340, 274),
+    },
+    "Hallway 1": {
+        "coords": (260, 87, 455, 87, 455, 169, 260, 169),
+    },
+    "Hallway 2": {
+        "coords": (173, 171, 281, 171, 281, 342, 173, 342),
+    },
+    "Hallway 3": {
+        "coords": (264, 361, 480, 361, 480, 473, 264, 473),
+    },
+    "Hallway 4": {
+        "coords": (545, 235, 631, 235, 631, 341, 545, 341),
+    },
+    "Hallway 5": {
+        "coords": (594, 368, 733, 368, 733, 441, 594, 441),
+    },
+    "Hallway 6": {
+        "coords": (733, 160, 907, 160, 907, 372, 733, 372),
     },
 }

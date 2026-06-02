@@ -27,6 +27,12 @@ function lockActions() {
     if (panel){
         panel.querySelectorAll('button').forEach(btn => btn.disabled = true);
     }
+    document.querySelectorAll('.map-action-hotspot').forEach((btn) => {
+        btn.disabled = true;
+    });
+    document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
+        btn.disabled = true;
+    });
     return true;
 }
 
@@ -37,6 +43,13 @@ function unlockActions() {
     if (panel){
         panel.querySelectorAll('button').forEach(btn => btn.disabled = false);
     }
+    document.querySelectorAll('.map-action-hotspot').forEach((btn) => {
+        btn.disabled = false;
+        btn.classList.remove('committed');
+    });
+    document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
+        btn.disabled = false;
+    });
 }
 
 // Send a message to the game log with optional type for color styling ('info', 'success', 'danger')

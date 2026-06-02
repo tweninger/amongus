@@ -10,6 +10,7 @@ import uvicorn
 from amongagents.envs.action import CallMeeting, CompleteTask, Kill, MoveTo, Speak, Vent, Vote
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.game import AmongUs
+from db import init_db
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,9 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 # Unique ID stamped on every log entry so entries from different server sessions
 # can be distinguished even when game_index resets to 0 after a restart.
 os.environ['SESSION_ID'] = time.strftime("%Y%m%d_%H%M%S")
+LOBBY_COUNTDOWN_SECONDS = int(os.getenv("LOBBY_COUNTDOWN_SECONDS", "60"))
+LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
+LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
 
 # Each GameRoom holds one game's engine, sessions, and WebSocket connections.
 class GameRoom:
@@ -34,6 +38,9 @@ class GameRoom:
         self.total_slots = total_slots # max num players
         self.host_token = host_token # Only the host can start the game
         self.host_color = host_color # For show in the lobby list
+        self.lobby_deadline: float = 0.0 # Unix timestamp when lobby countdown expires
+        self.ai_filled_slots: set[int] = set()
+        self.lobby_fill_task: asyncio.Task | None = None
         self.sessions = {} # token -> agent index
         self.connections = {} # token -> WebSocket
         self.step_lock = asyncio.Lock() # To prevent concurrent game_step() calls
@@ -55,6 +62,86 @@ token_to_room: dict[str, str] = {}
 # Generates 4 letter random key code
 def generate_room_code():
     return ''.join(random.choices(string.ascii_uppercase, k=4))
+
+
+def get_lobby_seconds_left(room: GameRoom) -> int:
+    if room.status != "open" or room.lobby_deadline <= 0:
+        return 0
+    return max(0, int(room.lobby_deadline - time.time()))
+
+
+def get_open_slots(room: GameRoom) -> list[int]:
+    taken = set(room.sessions.values()) | room.ai_filled_slots
+    return [i for i in range(room.total_slots) if i not in taken]
+
+
+def get_filled_slot_count(room: GameRoom) -> int:
+    return len(room.sessions) + len(room.ai_filled_slots)
+
+
+def is_room_full(room: GameRoom) -> bool:
+    return get_filled_slot_count(room) >= room.total_slots
+
+
+async def activate_room(room: GameRoom, reason: str) -> None:
+    if not room.game_instance or room.status != "open" or not is_room_full(room):
+        return
+
+    if room.lobby_fill_task and room.lobby_fill_task is not asyncio.current_task():
+        room.lobby_fill_task.cancel()
+    room.lobby_fill_task = None
+    room.lobby_deadline = 0
+    room.status = "active"
+    room.game_instance.game_phase = "active"
+    room.game_instance.activity_log.append(reason)
+
+    await broadcast_lobby(room, event="game_started")
+    start_task_timer(room)
+    await broadcast_state(room)
+
+
+async def run_lobby_countdown(room: GameRoom) -> None:
+    fill_phase_start = room.lobby_deadline - (LOBBY_COUNTDOWN_SECONDS * (1.0 - LOBBY_HUMAN_PRIORITY_FRACTION))
+    fill_phase_end = room.lobby_deadline - (LOBBY_COUNTDOWN_SECONDS * (1.0 - LOBBY_AI_FILL_COMPLETE_FRACTION))
+    fill_window_seconds = max(0.5, fill_phase_end - fill_phase_start)
+
+    try:
+        delay = max(0.0, fill_phase_start - time.time())
+        if delay > 0:
+            await asyncio.sleep(delay)
+
+        while room.status == "open":
+            open_slots = get_open_slots(room)
+            if not open_slots:
+                await activate_room(room, "Lobby filled. Starting game.")
+                return
+
+            if time.time() >= fill_phase_end:
+                room.ai_filled_slots.update(open_slots)
+                await broadcast_lobby(room)
+                await activate_room(room, "Lobby filled with AI. Starting game.")
+                return
+
+            remaining_fill_window = max(0.1, fill_phase_end - time.time())
+            average_delay = max(0.25, min(fill_window_seconds, remaining_fill_window) / len(open_slots))
+            sleep_for = min(remaining_fill_window, max(0.25, average_delay * random.uniform(0.6, 1.4)))
+            await asyncio.sleep(sleep_for)
+
+            if room.status != "open":
+                return
+
+            open_slots = get_open_slots(room)
+            if not open_slots:
+                await activate_room(room, "Lobby filled. Starting game.")
+                return
+
+            room.ai_filled_slots.add(random.choice(open_slots))
+            await broadcast_lobby(room)
+
+        if room.status == "open" and is_room_full(room):
+            await activate_room(room, "Lobby filled. Starting game.")
+    except asyncio.CancelledError:
+        return
 
 app = FastAPI()
 
@@ -101,7 +188,7 @@ def get_human_agent(token: str) -> WebPlayerAgent | None:
 # Take the next agent slot not yet claimed by a human player
 # An index i
 def get_next_open_slot(room: GameRoom) -> int | None:
-    taken = set(room.sessions.values()) # set of taken human player indices
+    taken = set(room.sessions.values()) | room.ai_filled_slots
     for i, agent in enumerate(room.game_instance.agents):
         if i not in taken and not isinstance(agent, WebPlayerAgent):
             return i
@@ -204,7 +291,13 @@ async def broadcast_state(room: GameRoom):
 async def broadcast_lobby(room: GameRoom, event: str = "lobby_update") -> None:
     if not room.game_instance:
         return
-    payload = {"type": event, "roster": get_roster(room.game_instance.agents)}
+    payload = {
+        "type": event,
+        "roster": get_roster(room.game_instance.agents, room.ai_filled_slots),
+        "lobby_seconds_left": get_lobby_seconds_left(room),
+        "filled_slots": get_filled_slot_count(room),
+        "total_slots": room.total_slots,
+    }
     dead = []
     for token, ws in room.connections.items():
         try:
@@ -382,14 +475,20 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
     # Handles leavers
     except WebSocketDisconnect:
         room.connections.pop(token, None)
+        token_to_room.pop(token, None)
         gi = room.game_instance
         if gi and room.status == "active":
             idx = room.sessions.get(token)
             if idx is not None:
                 agent = gi.agents[idx]
                 log_human_action(gi, agent.player, "disconnect")
+        elif room.status == "open" and token != room.host_token:
+            room.sessions.pop(token, None)
+            await broadcast_lobby(room)
         elif room.status == "open" and token == room.host_token:
-            room_code = token_to_room.get(token)
+            room_code = next((code for code, candidate in games.items() if candidate is room), None)
+            if room.lobby_fill_task and not room.lobby_fill_task.done():
+                room.lobby_fill_task.cancel()
             for t in list(room.sessions.keys()):
                 token_to_room.pop(t, None)
             games.pop(room_code, None)
@@ -400,6 +499,117 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
 async def serve_game() -> FileResponse:
     return FileResponse("templates/game.html")
 
+
+@app.get("/map-editor")
+async def serve_map_editor() -> FileResponse:
+    return FileResponse("templates/map_editor.html")
+
+
+def build_waiting_room_response(room: GameRoom, token: str, player_idx: int, is_host: bool) -> dict:
+    gi = room.game_instance
+    agent = gi.agents[player_idx]
+    color = agent.player.name.split()[-1].lower()
+    role = agent.player.__class__.__name__
+    return {
+        "token": token,
+        "code": next((code for code, candidate in games.items() if candidate is room), ""),
+        "role": role,
+        "color": color,
+        "current_room": agent.player.location,
+        "timestep": gi.timestep,
+        "roster": get_roster(gi.agents, room.ai_filled_slots),
+        "lobby_seconds_left": get_lobby_seconds_left(room),
+        "filled_slots": get_filled_slot_count(room),
+        "total_slots": room.total_slots,
+        "is_host": is_host,
+        "room_status": room.status,
+    }
+
+
+def choose_open_room() -> GameRoom | None:
+    open_rooms = [
+        room for room in games.values()
+        if room.status == "open" and get_next_open_slot(room) is not None
+    ]
+    if not open_rooms:
+        return None
+    return max(open_rooms, key=lambda room: get_filled_slot_count(room))
+
+
+def create_room(selected_config) -> tuple[str, GameRoom]:
+    total_slots = selected_config.get("num_players", 5)
+    host_token = str(uuid4())
+
+    gi = AmongUs(
+        game_config=selected_config,
+        agent_config={
+            "Impostor": "LLM",
+            "Crewmate": "LLM",
+            "IMPOSTOR_LLM_CHOICES": ["google/gemini-3.5-flash"],
+            "CREWMATE_LLM_CHOICES": ["google/gemini-3.5-flash"],
+        },
+    )
+    gi.initialize_game()
+    gi.agents[0] = WebPlayerAgent(gi.players[0])
+    host_agent = gi.agents[0]
+    host_color = host_agent.player.name.split()[-1].lower()
+    host_agent.player.name = host_color.capitalize()
+    gi.game_phase = "staging"
+
+    code = generate_room_code()
+    while code in games:
+        code = generate_room_code()
+
+    room = GameRoom(
+        size_config=selected_config,
+        total_slots=total_slots,
+        host_token=host_token,
+        host_color=host_color,
+    )
+    room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
+    room.game_instance = gi
+    room.sessions[host_token] = 0
+    room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
+    games[code] = room
+    token_to_room[host_token] = code
+    return host_token, room
+
+
+async def add_human_to_room(room: GameRoom, player_idx: int) -> tuple[str, dict]:
+    gi = room.game_instance
+    gi.agents[player_idx] = WebPlayerAgent(gi.players[player_idx])
+    human_agent = gi.agents[player_idx]
+    human_color = human_agent.player.name.split()[-1].lower()
+    human_agent.player.name = human_color.capitalize()
+
+    token = str(uuid4())
+    room.sessions[token] = player_idx
+    token_to_room[token] = next((code for code, candidate in games.items() if candidate is room), "")
+
+    await broadcast_lobby(room)
+    if is_room_full(room):
+        await activate_room(room, "Lobby filled. Starting game.")
+
+    return token, build_waiting_room_response(room, token, player_idx, is_host=False)
+
+
+@app.post("/api/matchmake")
+async def matchmake_game(request: Request) -> dict:
+    data = await request.json()
+    setup_log_directory()
+    init_db()
+
+    room = choose_open_room()
+    if room:
+        player_idx = get_next_open_slot(room)
+        if player_idx is not None:
+            _, response = await add_human_to_room(room, player_idx)
+            return response
+
+    selected_config = get_game_config(data.get("size"))
+    host_token, room = create_room(selected_config)
+    return build_waiting_room_response(room, host_token, 0, is_host=True)
+
 # Receive player color from frontend, initiate global game instance, and return state to session
 @app.post("/api/host")
 async def host_game(request: Request) -> dict:
@@ -408,59 +618,8 @@ async def host_game(request: Request) -> dict:
     setup_log_directory()
     init_db() # Okay to do this on every game startup
     selected_config = get_game_config(data.get("size"))
-    total_slots = selected_config.get("num_players", 5) # Default to 5
-    host_token = str(uuid4()) # Generate a random UUID
-
-    # Initialize engine
-    gi = AmongUs(
-        game_config=selected_config,
-        agent_config={
-            "Impostor": "LLM",
-            "Crewmate": "LLM",
-            "IMPOSTOR_LLM_CHOICES": ["google/gemini-3.5-flash"],
-            "CREWMATE_LLM_CHOICES": ["google/gemini-3.5-flash"],    
-        }
-    )
-
-    gi.initialize_game()
-
-    # Convert Agent 0 (Host) to the human and retrieve attributes
-    gi.agents[0] = WebPlayerAgent(gi.players[0])
-    host_agent = gi.agents[0]
-    host_color = host_agent.player.name.split()[-1].lower()
-    host_agent.player.name = host_color.capitalize()
-    host_role = host_agent.player.__class__.__name__
-
-    gi.game_phase = "staging"
-
-    # Create room and register host
-    code = generate_room_code()
-    while code in games:
-        code = generate_room_code() # ensures no duplicates
-
-    # Store the entire game state in the room object, keyed by the 4-letter code.
-    room = GameRoom(
-        size_config=selected_config,
-        total_slots=total_slots,
-        host_token=host_token,
-        host_color=host_color,
-    )
-    room.game_instance = gi
-    room.sessions[host_token] = 0
-    games[code] = room # Map room code to game room object
-    token_to_room[host_token] = code # Maps hosts UUID to that room code.
-
-    # Contains all info needed to render lobby screen and identify host player for permissions
-    return {
-        "token": host_token, # Host UUID
-        "code": code,
-        "role": host_role,
-        "color": host_color,
-        "current_room": host_agent.player.location,
-        "timestep": gi.timestep,
-        "roster": get_roster(gi.agents),
-        "is_host": True,
-    }
+    host_token, room = create_room(selected_config)
+    return build_waiting_room_response(room, host_token, 0, is_host=True)
 
 # Join an existing open room by claiming the next unclaimed agent slot
 @app.post("/api/join")
@@ -481,31 +640,8 @@ async def join_game(request: Request) -> dict: # Expect code from the request
     if player_idx is None:
         return {"status": "error", "message": "Game is full"}
 
-    # Create new player from an existing AI player
-    gi = room.game_instance
-    gi.agents[player_idx] = WebPlayerAgent(gi.players[player_idx]) # Turn into WebPlayerAgent
-    human_agent = gi.agents[player_idx]
-    human_color = human_agent.player.name.split()[-1].lower()
-    human_agent.player.name = human_color.capitalize()
-    human_role = human_agent.player.__class__.__name__
-
-    token = str(uuid4())
-    room.sessions[token] = player_idx
-    token_to_room[token] = code
-
-    # Notify all waiting players that someone new joined
-    await broadcast_lobby(room)
-
-    return {
-        "token": token,
-        "code": code,
-        "role": human_role,
-        "color": human_color,
-        "current_room": human_agent.player.location,
-        "timestep": gi.timestep,
-        "roster": get_roster(gi.agents),
-        "is_host": False,
-    }
+    _, response = await add_human_to_room(room, player_idx)
+    return response
 
 # Returns all open rooms for the join screen on frontend
 @app.get("/api/lobbies")
@@ -517,8 +653,9 @@ async def list_lobbies() -> dict:
         open_rooms.append({
             "code": code,
             "host_color": room.host_color,
-            "human_count": len(room.sessions),
+            "human_count": get_filled_slot_count(room),
             "total_slots": room.total_slots,
+            "lobby_seconds_left": get_lobby_seconds_left(room),
         })
     return {"lobbies": open_rooms}
 
@@ -530,17 +667,10 @@ async def start_game(x_player_token: str = Header(...)) -> dict:
         return {"status": "error", "message": "Room not found"}
     if x_player_token != room.host_token:
         return {"status": "error", "message": "Only the host can start the game"}
- 
-    # Start the game by setting phase to active
-    room.status = "active"
-    room.game_instance.game_phase = "active"
-    room.game_instance.activity_log.append("Host started the game.")
+    if not is_room_full(room):
+        return {"status": "error", "message": "Game must be full before starting"}
 
-    # Notify all players in the lobby that the game has started
-    # This triggers transition to game screen from the lobby screen on the frontend
-    await broadcast_lobby(room, event="game_started")
-    start_task_timer(room)
-    await broadcast_state(room)  # Push initial timer value to all clients
+    await activate_room(room, "Host started the game.")
 
     return {"status": "success", "phase": room.game_instance.game_phase}
 
@@ -587,6 +717,18 @@ async def get_room_context(x_player_token: str = Header(...)):
         for task in all_incomplete
     ]
 
+    room_task_statuses = [
+        {
+            "name": task.name,
+            "location": task.location,
+            "completed": task.check_completion(),
+            "max_duration": task.max_duration,
+            "steps_done": task.max_duration - task.duration,
+        }
+        for task in player.tasks
+        if task.location == current_room
+    ]
+
     # Map each task name to its specific assigned room
     task_locations = {task["name"]: task["location"] for task in personal_tasks}
 
@@ -629,6 +771,7 @@ async def get_room_context(x_player_token: str = Header(...)):
         "adjacent": skeld.get_adjacent_rooms(current_room),
         "tasks_in_room": room_data.get(current_room, {}).get("tasks", []),
         "personal_tasks": personal_tasks,
+        "room_task_statuses": room_task_statuses,
         "task_locations": task_locations,
         "timestep": gi.timestep,
         "players_in_room": others_in_room,
@@ -1041,4 +1184,6 @@ async def perform_vent(request: Request, x_player_token: str = Header(...)):
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    host = os.getenv("UVICORN_HOST", "0.0.0.0")
+    port = int(os.getenv("UVICORN_PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)

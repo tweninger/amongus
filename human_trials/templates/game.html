@@ -18,13 +18,12 @@
             <div class="row justify-content-center">
                 <div class="col-md-5">
 
-                    <!-- Main Menu: Host or Join -->
+                    <!-- Auto Matchmaking -->
                     <div id="matchmaking-panel">
-                        <button id="host-btn" class="btn btn-primary btn-lg w-100 mb-3">Host Game</button>
-                        <button id="browse-btn" class="btn btn-outline-secondary btn-lg w-100">Join Game</button>
+                        <p id="matchmaking-status" class="text-light text-center mb-0">Finding a game...</p>
                     </div>
 
-                    <!-- Lobby Browser: List of Open Games -->
+                    <!-- Legacy Lobby Browser -->
                     <div id="browse-panel" class="d-none">
                         <div class="d-flex align-items-center mb-3">
                             <button id="back-btn" class="btn btn-sm btn-outline-secondary me-2">Back</button>
@@ -39,9 +38,10 @@
                     <!-- Waiting Room: Shown After Hosting or Joining -->
                     <div id="waiting-panel" class="d-none">
                         <h5 class="text-center text-light mb-3">Waiting for players...</h5>
+                        <p id="lobby-timer" class="text-warning text-center fw-bold small mb-3 d-none"></p>
                         <ul id="ready-checklist" class="list-group list-group-flush mb-3"></ul>
                         <button id="start-game-btn" class="btn btn-success btn-lg w-100 fw-bold d-none">Start Game</button>
-                        <p id="waiting-hint" class="text-muted text-center small mt-2 d-none">Waiting for host to start...</p>
+                        <p id="waiting-hint" class="text-muted text-center small mt-2 d-none">Waiting for more players to join...</p>
                     </div>
 
                 </div>
@@ -128,6 +128,7 @@
                         <span id="location-header" class="fw-bold" style="color:#67e8f9;">Cafeteria</span>
                     </div>
                     <div id="room-view">
+                        <div id="room-task-overlay"></div>
                         <div id="room-player-layer"></div>
                         <div id="room-interaction-layer"></div>
                     </div>

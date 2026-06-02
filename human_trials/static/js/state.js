@@ -21,4 +21,5 @@ export const state = {
     lastDiscussionTurnSeq: -1, // Server-issued counter. Increments each time the discussion passes to a new human in meetings
     pendingActionLog: null, // Stores { message, type, observations, ventObservations } while waiting for step
     meetingCountdownTimer: null,
+    lobbyCountdownTimer: null,
 };

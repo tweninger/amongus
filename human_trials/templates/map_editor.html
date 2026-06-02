@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skeld Map Editor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            background: #0b1020;
+            color: #e5e7eb;
+        }
+        .shell {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            min-height: 100vh;
+        }
+        .sidebar {
+            padding: 20px;
+            border-right: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            overflow-y: auto;
+        }
+        .sidebar h1 {
+            margin: 0 0 8px;
+            font-size: 1.35rem;
+        }
+        .sidebar p {
+            margin: 0 0 16px;
+            color: #9ca3af;
+            line-height: 1.45;
+        }
+        .sidebar label {
+            display: block;
+            margin: 14px 0 6px;
+            font-size: 0.86rem;
+            color: #cbd5e1;
+        }
+        .sidebar select,
+        .sidebar input,
+        .sidebar textarea,
+        .sidebar button {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(15, 23, 42, 0.95);
+            color: #f8fafc;
+            padding: 10px 12px;
+            font: inherit;
+        }
+        .sidebar textarea {
+            min-height: 260px;
+            resize: vertical;
+        }
+        .sidebar button {
+            cursor: pointer;
+            background: linear-gradient(180deg, #2563eb, #1d4ed8);
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .sidebar button.secondary {
+            background: rgba(255,255,255,0.06);
+        }
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .meta {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            color: #cbd5e1;
+            font-size: 0.86rem;
+            line-height: 1.45;
+        }
+        .region-list {
+            margin-top: 14px;
+            max-height: 260px;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .region-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.85rem;
+        }
+        .region-row button {
+            margin: 0;
+            width: auto;
+            padding: 6px 10px;
+        }
+        .canvas-wrap {
+            padding: 20px;
+            overflow: auto;
+        }
+        .map-stage {
+            position: relative;
+            width: 1000px;
+            height: 560px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #020617;
+            box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+        }
+        .map-stage img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            user-select: none;
+            pointer-events: none;
+        }
+        .overlay-layer {
+            position: absolute;
+            inset: 0;
+        }
+        .region-box {
+            position: absolute;
+            border: 2px solid #22c55e;
+            background: rgba(34, 197, 94, 0.14);
+            color: #f8fafc;
+            font-size: 12px;
+            overflow: hidden;
+        }
+        .region-box.selected {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.18);
+        }
+        .region-label {
+            display: inline-block;
+            padding: 2px 6px;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom-right-radius: 8px;
+            white-space: nowrap;
+        }
+        .draft-box {
+            position: absolute;
+            border: 2px dashed #38bdf8;
+            background: rgba(56, 189, 248, 0.12);
+            pointer-events: none;
+        }
+        .point {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(15, 23, 42, 0.95);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            cursor: pointer;
+        }
+        .point.arrow {
+            background: #38bdf8;
+        }
+        .point.vent {
+            background: #f472b6;
+        }
+        .point.selected {
+            width: 20px;
+            height: 20px;
+            border-color: #f8fafc;
+        }
+        .point-label {
+            position: absolute;
+            top: 18px;
+            left: 10px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.92);
+            color: #f8fafc;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .hud {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(255,255,255,0.10);
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+        .legend {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.82rem;
+            color: #cbd5e1;
+        }
+        .legend span::before {
+            content: "";
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            margin-right: 8px;
+        }
+        .legend .box-key::before {
+            border-radius: 2px;
+            background: rgba(34, 197, 94, 0.8);
+        }
+        .legend .arrow-key::before {
+            background: #38bdf8;
+        }
+        .legend .vent-key::before {
+            background: #f472b6;
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <aside class="sidebar">
+            <h1>Skeld Annotation Editor</h1>
+            <p>Pick a map image, then annotate room boxes, shared movement-edge arrow placements, and vent placements. Drag for boxes. Click for arrows and vents.</p>
+
+            <label for="map-select">Map Image</label>
+            <select id="map-select">
+                <option value="/assets/map/The_Skeld_map.webp">The_Skeld_map.webp</option>
+                <option value="/assets/map/The_Skeld_map_hq.webp">The_Skeld_map_hq.webp</option>
+            </select>
+
+            <label for="tool-select">Tool</label>
+            <select id="tool-select">
+                <option value="rooms">Room Boxes</option>
+                <option value="arrows">Arrow Overlay Points</option>
+                <option value="vents">Vent Points</option>
+            </select>
+
+            <label for="region-select" id="selection-label">Active Region</label>
+            <select id="region-select"></select>
+
+            <div class="meta" id="cursor-meta">Cursor: —</div>
+            <div class="meta" id="selection-meta">Mode: Room Boxes</div>
+
+            <div class="button-row">
+                <button id="export-btn">Export JSON</button>
+                <button id="load-btn" class="secondary">Load JSON</button>
+            </div>
+            <div class="button-row">
+                <button id="clear-selected-btn" class="secondary">Delete Selected</button>
+                <button id="clear-all-btn" class="secondary">Clear Current Tool</button>
+            </div>
+
+            <label for="export-output">Export / Import</label>
+            <textarea id="export-output" spellcheck="false"></textarea>
+
+            <div class="legend">
+                <span class="box-key">Room bounds</span>
+                <span class="arrow-key">Arrow overlay points</span>
+                <span class="vent-key">Vent points</span>
+            </div>
+
+            <div class="region-list" id="region-list"></div>
+        </aside>
+
+        <main class="canvas-wrap">
+            <div class="map-stage" id="map-stage">
+                <img id="map-image" src="/assets/map/The_Skeld_map_hq.webp" alt="The Skeld map">
+                <div class="overlay-layer" id="box-layer"></div>
+                <div class="overlay-layer" id="point-layer"></div>
+                <div class="hud" id="selection-hud">Drag to create a room box.</div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const REGION_NAMES = [
+            "Cafeteria",
+            "Weapons",
+            "Navigation",
+            "O2",
+            "Shields",
+            "Communications",
+            "Storage",
+            "Admin",
+            "Electrical",
+            "Lower Engine",
+            "Security",
+            "Reactor",
+            "Upper Engine",
+            "Medbay",
+            "Hallway 1",
+            "Hallway 2",
+            "Hallway 3",
+            "Hallway 4",
+            "Hallway 5",
+            "Hallway 6",
+        ];
+
+        const MOVEMENT_EDGES = [
+            ["Cafeteria", "Weapons"],
+            ["Cafeteria", "Hallway 1"],
+            ["Upper Engine", "Hallway 1"],
+            ["Medbay", "Hallway 1"],
+            ["Upper Engine", "Hallway 2"],
+            ["Reactor", "Hallway 2"],
+            ["Security", "Hallway 2"],
+            ["Lower Engine", "Hallway 2"],
+            ["Lower Engine", "Hallway 3"],
+            ["Electrical", "Hallway 3"],
+            ["Storage", "Hallway 3"],
+            ["Cafeteria", "Hallway 4"],
+            ["Admin", "Hallway 4"],
+            ["Storage", "Hallway 4"],
+            ["Storage", "Hallway 5"],
+            ["Communications", "Hallway 5"],
+            ["Shields", "Hallway 5"],
+            ["Weapons", "Hallway 6"],
+            ["O2", "Hallway 6"],
+            ["Navigation", "Hallway 6"],
+            ["Shields", "Hallway 6"],
+        ];
+
+        const toolDescriptions = {
+            rooms: "Drag to create or replace a room or hallway bounding box.",
+            arrows: "Click to place one shared arrow overlay point for the active movement edge.",
+            vents: "Click to place a vent point for the active region.",
+        };
+
+        const defaultData = () => ({
+            map_image: "/assets/map/The_Skeld_map_hq.webp",
+            rooms: {},
+            arrows: {},
+            vents: {},
+        });
+
+        function edgeKey(roomA, roomB) {
+            return [roomA, roomB].sort().join(" <-> ");
+        }
+
+        const MOVEMENT_EDGE_KEYS = MOVEMENT_EDGES.map(([roomA, roomB]) => edgeKey(roomA, roomB));
+
+        const stage = document.getElementById("map-stage");
+        const mapImage = document.getElementById("map-image");
+        const boxLayer = document.getElementById("box-layer");
+        const pointLayer = document.getElementById("point-layer");
+        const mapSelect = document.getElementById("map-select");
+        const toolSelect = document.getElementById("tool-select");
+        const selectionLabel = document.getElementById("selection-label");
+        const regionSelect = document.getElementById("region-select");
+        const exportOutput = document.getElementById("export-output");
+        const regionList = document.getElementById("region-list");
+        const cursorMeta = document.getElementById("cursor-meta");
+        const selectionMeta = document.getElementById("selection-meta");
+        const selectionHud = document.getElementById("selection-hud");
+
+        let editorData = defaultData();
+        let selectedKey = null;
+        let selectedPoint = null;
+        let dragStart = null;
+        let draftBox = null;
+
+        function rectFromPoints(start, end) {
+            return {
+                x: Math.min(start.x, end.x),
+                y: Math.min(start.y, end.y),
+                width: Math.abs(end.x - start.x),
+                height: Math.abs(end.y - start.y),
+            };
+        }
+
+        function eventToPoint(event) {
+            const rect = stage.getBoundingClientRect();
+            const x = Math.max(0, Math.min(1000, Math.round(event.clientX - rect.left)));
+            const y = Math.max(0, Math.min(560, Math.round(event.clientY - rect.top)));
+            return { x, y };
+        }
+
+        function getCurrentTool() {
+            return toolSelect.value;
+        }
+
+        function getSelectableKeys() {
+            return getCurrentTool() === "arrows" ? MOVEMENT_EDGE_KEYS : REGION_NAMES;
+        }
+
+        function populateSelectionOptions() {
+            const keys = getSelectableKeys();
+            regionSelect.innerHTML = "";
+            keys.forEach((name) => {
+                const option = document.createElement("option");
+                option.value = name;
+                option.textContent = name;
+                regionSelect.appendChild(option);
+            });
+
+            if (!keys.includes(selectedKey)) {
+                selectedKey = keys[0] || null;
+            }
+
+            if (selectedKey) {
+                regionSelect.value = selectedKey;
+            }
+
+            selectionLabel.textContent = getCurrentTool() === "arrows" ? "Active Movement Edge" : "Active Region";
+        }
+
+        function ensurePointBucket(tool, key) {
+            if (tool === "arrows") {
+                return editorData.arrows;
+            }
+            if (!editorData[tool][key]) {
+                editorData[tool][key] = [];
+            }
+            return editorData[tool][key];
+        }
+
+        function updateToolInputs() {
+            populateSelectionOptions();
+        }
+
+        function renderBoxes() {
+            boxLayer.innerHTML = "";
+            Object.entries(editorData.rooms).forEach(([name, box]) => {
+                const el = document.createElement("div");
+                el.className = `region-box${selectedKey === name && getCurrentTool() === "rooms" ? " selected" : ""}`;
+                el.style.left = `${box.x}px`;
+                el.style.top = `${box.y}px`;
+                el.style.width = `${box.width}px`;
+                el.style.height = `${box.height}px`;
+                el.dataset.region = name;
+
+                const label = document.createElement("span");
+                label.className = "region-label";
+                label.textContent = name;
+                el.appendChild(label);
+
+                el.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    selectedKey = name;
+                    selectedPoint = null;
+                    regionSelect.value = name;
+                    updateHud();
+                    renderAll();
+                });
+
+                boxLayer.appendChild(el);
+            });
+        }
+
+        function renderPoints() {
+            pointLayer.innerHTML = "";
+            ["arrows", "vents"].forEach((tool) => {
+                Object.entries(editorData[tool]).forEach(([key, pointsOrPoint]) => {
+                    const points = tool === "arrows" ? [pointsOrPoint] : pointsOrPoint;
+                    points.forEach((point, index) => {
+                        const el = document.createElement("div");
+                        const isSelected = selectedPoint &&
+                            selectedPoint.tool === tool &&
+                            selectedPoint.key === key &&
+                            selectedPoint.index === index;
+                        const pointClass = tool === "vents" ? "vent" : "arrow";
+                        el.className = `point ${pointClass}${isSelected ? " selected" : ""}`;
+                        el.style.left = `${point.x}px`;
+                        el.style.top = `${point.y}px`;
+                        const displayName = tool === "arrows" ? key : `${key} vent ${index + 1}`;
+                        el.title = displayName;
+
+                        const label = document.createElement("div");
+                        label.className = "point-label";
+                        label.textContent = displayName;
+                        el.appendChild(label);
+
+                        el.addEventListener("click", (event) => {
+                            event.stopPropagation();
+                            selectedKey = key;
+                            regionSelect.value = key;
+                            selectedPoint = { tool, key, index };
+                            updateHud();
+                            renderAll();
+                        });
+
+                        pointLayer.appendChild(el);
+                    });
+                });
+            });
+        }
+
+        function summarizeRegion(name) {
+            const room = editorData.rooms[name];
+            const arrows = MOVEMENT_EDGE_KEYS.filter((edge) => edge.includes(name) && editorData.arrows[edge]).length;
+            const vents = editorData.vents[name] || [];
+            const parts = [];
+            parts.push(room ? `box ${room.x}, ${room.y}, ${room.width}, ${room.height}` : "no box");
+            parts.push(`${arrows} edge arrow${arrows === 1 ? "" : "s"}`);
+            parts.push(`${vents.length} vent${vents.length === 1 ? "" : "s"}`);
+            return parts.join(" | ");
+        }
+
+        function summarizeEdge(edge) {
+            return editorData.arrows[edge] ? "arrow placed" : "no arrow yet";
+        }
+
+        function renderRegionList() {
+            regionList.innerHTML = "";
+            const tool = getCurrentTool();
+            const names = tool === "arrows" ? MOVEMENT_EDGE_KEYS : REGION_NAMES;
+
+            names.forEach((name) => {
+                const row = document.createElement("div");
+                row.className = "region-row";
+                row.innerHTML = `
+                    <div>
+                        <strong>${name}</strong><br>
+                        <span>${tool === "arrows" ? summarizeEdge(name) : summarizeRegion(name)}</span>
+                    </div>
+                `;
+
+                const selectBtn = document.createElement("button");
+                selectBtn.textContent = "Select";
+                selectBtn.className = "secondary";
+                selectBtn.addEventListener("click", () => {
+                    selectedKey = name;
+                    selectedPoint = null;
+                    regionSelect.value = name;
+                    updateHud();
+                    renderAll();
+                });
+                row.appendChild(selectBtn);
+                regionList.appendChild(row);
+            });
+        }
+
+        function updateExport() {
+            editorData.map_image = mapSelect.value;
+            exportOutput.value = JSON.stringify(editorData, null, 2);
+        }
+
+        function updateHud() {
+            const tool = getCurrentTool();
+            selectionMeta.textContent = `Mode: ${toolSelect.options[toolSelect.selectedIndex].text}`;
+
+            if (selectedPoint) {
+                selectionHud.textContent = `Selected ${selectedPoint.tool.slice(0, -1)} point for ${selectedPoint.key}`;
+                return;
+            }
+
+            selectionHud.textContent = selectedKey
+                ? `Selected: ${selectedKey}. ${toolDescriptions[tool]}`
+                : toolDescriptions[tool];
+        }
+
+        function renderAll() {
+            renderBoxes();
+            renderPoints();
+            renderRegionList();
+            updateExport();
+        }
+
+        function finishDraft(endPoint) {
+            if (!dragStart || !draftBox) {
+                return;
+            }
+            const box = rectFromPoints(dragStart, endPoint);
+            draftBox.remove();
+            draftBox = null;
+
+            if (box.width < 4 || box.height < 4) {
+                dragStart = null;
+                return;
+            }
+
+            const targetKey = regionSelect.value;
+            editorData.rooms[targetKey] = box;
+            selectedKey = targetKey;
+            selectedPoint = null;
+            dragStart = null;
+            updateHud();
+            renderAll();
+        }
+
+        function addPoint(point) {
+            const tool = getCurrentTool();
+            const targetKey = regionSelect.value;
+            const pointData = {
+                x: point.x,
+                y: point.y,
+            };
+            if (tool === "arrows") {
+                editorData.arrows[targetKey] = pointData;
+                selectedKey = targetKey;
+                selectedPoint = { tool, key: targetKey, index: 0 };
+                updateHud();
+                renderAll();
+                return;
+            }
+            const bucket = ensurePointBucket(tool, targetKey);
+            bucket.push(pointData);
+            selectedKey = targetKey;
+            selectedPoint = { tool, key: targetKey, index: bucket.length - 1 };
+            updateHud();
+            renderAll();
+        }
+
+        function deleteSelected() {
+            if (selectedPoint) {
+                if (selectedPoint.tool === "arrows") {
+                    delete editorData.arrows[selectedPoint.key];
+                } else {
+                    const points = editorData[selectedPoint.tool][selectedPoint.key] || [];
+                    points.splice(selectedPoint.index, 1);
+                    if (points.length === 0) {
+                        delete editorData[selectedPoint.tool][selectedPoint.key];
+                    }
+                }
+                selectedPoint = null;
+                updateHud();
+                renderAll();
+                return;
+            }
+
+            const target = selectedKey || regionSelect.value;
+            if (getCurrentTool() === "rooms") {
+                delete editorData.rooms[target];
+            } else if (getCurrentTool() === "arrows") {
+                delete editorData.arrows[target];
+            } else {
+                delete editorData[getCurrentTool()][target];
+            }
+            updateHud();
+            renderAll();
+        }
+
+        function clearCurrentTool() {
+            const tool = getCurrentTool();
+            if (tool === "rooms") {
+                editorData.rooms = {};
+            } else if (tool === "arrows") {
+                editorData.arrows = {};
+            } else {
+                editorData[tool] = {};
+            }
+            selectedPoint = null;
+            updateHud();
+            renderAll();
+        }
+
+        function loadFromTextarea() {
+            try {
+                const parsed = JSON.parse(exportOutput.value);
+                editorData = {
+                    ...defaultData(),
+                    ...parsed,
+                    rooms: parsed.rooms || {},
+                    arrows: parsed.arrows || {},
+                    vents: parsed.vents || {},
+                };
+                mapSelect.value = editorData.map_image || "/assets/map/The_Skeld_map_hq.webp";
+                mapImage.src = mapSelect.value;
+                selectedPoint = null;
+                selectedKey = null;
+                updateToolInputs();
+                updateHud();
+                renderAll();
+            } catch (error) {
+                selectionHud.textContent = `Could not load JSON: ${error.message}`;
+            }
+        }
+
+        stage.addEventListener("mousemove", (event) => {
+            const point = eventToPoint(event);
+            cursorMeta.textContent = `Cursor: ${point.x}, ${point.y}`;
+            if (!dragStart || !draftBox) {
+                return;
+            }
+            const box = rectFromPoints(dragStart, point);
+            draftBox.style.left = `${box.x}px`;
+            draftBox.style.top = `${box.y}px`;
+            draftBox.style.width = `${box.width}px`;
+            draftBox.style.height = `${box.height}px`;
+        });
+
+        stage.addEventListener("mousedown", (event) => {
+            if (event.button !== 0 || getCurrentTool() !== "rooms") {
+                return;
+            }
+            dragStart = eventToPoint(event);
+            draftBox = document.createElement("div");
+            draftBox.className = "draft-box";
+            draftBox.style.left = `${dragStart.x}px`;
+            draftBox.style.top = `${dragStart.y}px`;
+            boxLayer.appendChild(draftBox);
+        });
+
+        stage.addEventListener("click", (event) => {
+            if (getCurrentTool() === "rooms") {
+                return;
+            }
+            addPoint(eventToPoint(event));
+        });
+
+        window.addEventListener("mouseup", (event) => {
+            if (!dragStart || getCurrentTool() !== "rooms") {
+                return;
+            }
+            finishDraft(eventToPoint(event));
+        });
+
+        mapSelect.addEventListener("change", () => {
+            mapImage.src = mapSelect.value;
+            editorData.map_image = mapSelect.value;
+            updateExport();
+        });
+
+        toolSelect.addEventListener("change", () => {
+            selectedPoint = null;
+            updateToolInputs();
+            updateHud();
+            renderAll();
+        });
+
+        regionSelect.addEventListener("change", () => {
+            selectedKey = regionSelect.value;
+            selectedPoint = null;
+            updateHud();
+            renderAll();
+        });
+
+        document.getElementById("export-btn").addEventListener("click", () => {
+            updateExport();
+            exportOutput.focus();
+            exportOutput.select();
+        });
+
+        document.getElementById("load-btn").addEventListener("click", () => {
+            loadFromTextarea();
+        });
+
+        document.getElementById("clear-selected-btn").addEventListener("click", () => {
+            deleteSelected();
+        });
+
+        document.getElementById("clear-all-btn").addEventListener("click", () => {
+            clearCurrentTool();
+        });
+
+        selectedKey = REGION_NAMES[0];
+        mapSelect.value = editorData.map_image;
+        mapImage.src = editorData.map_image;
+        updateToolInputs();
+        updateHud();
+        renderAll();
+    </script>
+</body>
+</html>
