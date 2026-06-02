@@ -1,20 +1,28 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
 from db import insert_game_outcome, insert_human_action
 from models import WebPlayerAgent
 
+HUMAN_TRIALS_DIR = Path(__file__).resolve().parent
+DEFAULT_LOG_DIR = HUMAN_TRIALS_DIR / "logs"
+
+
+def get_experiment_path() -> str:
+    experiment_path = Path(os.environ.get("EXPERIMENT_PATH", DEFAULT_LOG_DIR)).expanduser()
+    experiment_path.mkdir(parents=True, exist_ok=True)
+    return str(experiment_path)
+
 
 def setup_log_directory():
-    log_dir = os.path.join(os.getcwd(), "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    os.environ["EXPERIMENT_PATH"] = log_dir
+    os.environ["EXPERIMENT_PATH"] = get_experiment_path()
 
 
 def log_human_action(game_instance, player, action_type, details=None):
-    log_dir = os.environ.get("EXPERIMENT_PATH", "logs")
+    log_dir = get_experiment_path()
     log_path = os.path.join(log_dir, "human-logs.json")
     entry = {
         "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
@@ -43,7 +51,7 @@ def get_killer_of(gi, victim_name):
     return None
 
 def log_game_outcome(game_instance):
-    log_dir = os.environ.get("EXPERIMENT_PATH", "logs")
+    log_dir = get_experiment_path()
     log_path = os.path.join(log_dir, "game-outcomes.json")
 
     win_code = game_instance.check_game_over()

@@ -7,16 +7,26 @@ import random
 import re
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict
 
 import aiohttp
 import numpy as np
 from amongagents.agent.neutral_prompts import *
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_EXPERIMENT_PATH = REPO_ROOT / "human_trials" / "logs"
+
+
+def _experiment_path() -> str:
+    experiment_path = Path(os.environ.get("EXPERIMENT_PATH", DEFAULT_EXPERIMENT_PATH)).expanduser()
+    experiment_path.mkdir(parents=True, exist_ok=True)
+    return str(experiment_path)
+
 
 # Write one agent turn to the db
 def _log_interaction_to_db(interaction: dict):
-    db_path = os.path.join(os.getenv("EXPERIMENT_PATH", "logs"), "game_data.db")
+    db_path = os.path.join(_experiment_path(), "game_data.db")
     player = interaction.get("player", {})
     interaction = interaction.get("interaction", {})
     try:
@@ -87,8 +97,9 @@ class LLMAgent(Agent):
         self.chat_history = []
         self.tools = tools
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
-        self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
+        experiment_path = _experiment_path()
+        self.log_path = os.path.join(experiment_path, "agent-logs.json")
+        self.compact_log_path = os.path.join(experiment_path, "agent-logs-compact.json")
         self.game_index = game_index
 
     def log_interaction(self, sysprompt, prompt, original_response, step):
@@ -486,8 +497,9 @@ class HumanAgent(Agent):
         self.game_index = game_index
         self.summarization = "No thought process has been made."
         self.processed_memory = "No memory has been processed."
-        self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
-        self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
+        experiment_path = _experiment_path()
+        self.log_path = os.path.join(experiment_path, "agent-logs.json")
+        self.compact_log_path = os.path.join(experiment_path, "agent-logs-compact.json")
         self.current_available_actions = []
         self.current_step = 0
         self.max_steps = 50  # Default value, will be updated from game config

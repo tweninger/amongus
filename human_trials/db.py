@@ -1,12 +1,22 @@
 import json
 import os
 import sqlite3
+from pathlib import Path
 
 # db.py: Handles SQLite database interactions for human and agent logs
 
+HUMAN_TRIALS_DIR = Path(__file__).resolve().parent
+DEFAULT_LOG_DIR = HUMAN_TRIALS_DIR / "logs"
+
+
+def _experiment_path() -> Path:
+    experiment_path = Path(os.environ.get("EXPERIMENT_PATH", DEFAULT_LOG_DIR)).expanduser()
+    experiment_path.mkdir(parents=True, exist_ok=True)
+    return experiment_path
+
 def _db_file():
     # Resolves to logs/game_data.db alongside the existing JSON log files
-    return os.path.join(os.getenv("EXPERIMENT_PATH", "logs"), "game_data.db")
+    return _experiment_path() / "game_data.db"
 
 def init_db():
     # Creates both tables on first run

@@ -176,6 +176,7 @@ current_dir = Path(__file__).resolve().parent
 static_path = current_dir / "static"
 assets_path = current_dir / "assets"
 game_template_path = current_dir / "templates" / "game.html"
+map_editor_template_path = current_dir / "templates" / "map_editor.html"
 
 # Serve static and asset files 
 app.mount("/static", StaticFiles(directory=static_path), name="static")
@@ -516,12 +517,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
 # Index
 @app.get("/")
 async def serve_game() -> FileResponse:
-    return FileResponse("templates/game.html")
+    return FileResponse(game_template_path)
 
 
 @app.get("/map-editor")
 async def serve_map_editor() -> FileResponse:
-    return FileResponse("templates/map_editor.html")
+    return FileResponse(map_editor_template_path)
 
 
 def build_waiting_room_response(room: GameRoom, token: str, player_idx: int, is_host: bool) -> dict:
