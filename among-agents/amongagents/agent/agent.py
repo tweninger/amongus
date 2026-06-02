@@ -1,19 +1,18 @@
 import ast
 import asyncio
+import http.client
 import json
 import os
 import random
 import re
 import sqlite3
 from datetime import datetime
-from typing import Any, List, Dict, Tuple
+from typing import Any, Dict
+
 import aiohttp
-import time
 import numpy as np
-import requests
-import asyncio
-import http.client
 from amongagents.agent.neutral_prompts import *
+
 
 # Write one agent turn to the db
 def _log_interaction_to_db(interaction: dict):
@@ -117,7 +116,7 @@ class LLMAgent(Agent):
                     except json.JSONDecodeError:
                         # If JSON parsing fails, try ast.literal_eval
                         return ast.literal_eval(s)
-                except:
+                except (ValueError, SyntaxError, TypeError, json.JSONDecodeError):
                     # If parsing fails, keep original string
                     return s
             return s
@@ -137,7 +136,7 @@ class LLMAgent(Agent):
         if isinstance(prompt, str):
             try:
                 prompt = parse_dict_string(prompt)
-            except:
+            except (ValueError, SyntaxError, TypeError, json.JSONDecodeError):
                 pass
         if isinstance(original_response, str):
             sections = {}
@@ -231,7 +230,7 @@ class LLMAgent(Agent):
                         return data#[0]["message"]["content"]#data["choices"][0]["message"]["content"]
                     else:
                         print(f"Request failed with status code {response.status}")
-                except Exception as e:
+                except Exception:
                     print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
                     continue
         else:
@@ -269,7 +268,7 @@ class LLMAgent(Agent):
                                 error_details = await response.text()
                                 print(f"LLM API Failure ({response.status}): {error_details}")
                                 continue
-                    except Exception as e:
+                    except Exception:
                         continue
                 return {"content": "SPEAK: The AI connection failed after 10 attempts."}
 
@@ -718,7 +717,7 @@ class HumanAgent(Agent):
                     print(f"Invalid input. Please enter a number between 0 and {len(map_list) - 1}.")
                 else:
                     return map_list[index]
-            except:
+            except (ValueError, IndexError, TypeError):
                 print("Invalid input. Please enter a number.")
 
     def log_interaction(self, sysprompt, prompt, original_response, step):

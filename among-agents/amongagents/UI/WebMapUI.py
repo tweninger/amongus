@@ -1,19 +1,20 @@
 # app.py
-from flask import Flask, render_template, jsonify
+
+from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-import asyncio
-import json
-from threading import Thread
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode='eventlet')
+web_ui = None
 
 class WebMapUI:
     def __init__(self, map_image_dir, room_coords, debug=False):
+        global web_ui
         self.map_image_dir = map_image_dir
         self.room_coords = room_coords
         self.debug = debug
         self.game_states = {}  # Store states for multiple games
+        web_ui = self
         
     def update_game_state(self, env, game_index):
         game_state = {
@@ -58,5 +59,6 @@ def index():
 def handle_connect():
     print('Client connected')
     # Send current states of all games
-    for game_state in web_ui.game_states.values():
-        emit('game_update', game_state)
+    if web_ui is not None:
+        for game_state in web_ui.game_states.values():
+            emit('game_update', game_state)

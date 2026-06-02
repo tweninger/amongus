@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
 # usage: python app.py
 
+import asyncio
+import contextlib
+import io
 import os
 import sys
-import asyncio
-import uuid
 import threading
-import random
-import json
 import time
-import io
-import contextlib
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+import uuid
+
+from flask import Flask, render_template, request, session
 from flask_socketio import SocketIO, emit
 
 sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
 sys.path.append(os.path.abspath(".."))
 
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, THREE_MEMBER_GAME
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
 from amongagents.envs.game import AmongUs
-from dotenv import load_dotenv
-
-from utils import setup_experiment
 from config import CONFIG
+from dotenv import load_dotenv
+from utils import setup_experiment
 
 ROOT_PATH = os.path.abspath(".")
 LOGS_PATH = os.path.join(ROOT_PATH, CONFIG["logs_path"])

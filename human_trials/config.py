@@ -1,6 +1,6 @@
-import uuid
 import datetime
 import subprocess
+import uuid
 
 # Generate unique session ID
 SESSION_ID = str(uuid.uuid4())[:8]

@@ -167,7 +167,7 @@ class ViewMonitor(Action):
         super().__init__("ViewMonitor", current_location=current_location)
 
     def __repr__(self):
-        return f"VIEW MONITOR"
+        return "VIEW MONITOR"
 
     def execute(self, env, player, choose_location):
         super().execute(env, player)
@@ -211,7 +211,6 @@ class ViewMonitor(Action):
         # TODO: Implement this
 
     def can_execute_actions(env, player):
-        available_tasks = []
         if player.location == "Security":
             return [ViewMonitor("Security")]
         else:
@@ -227,7 +226,7 @@ class CompleteTask(Action):
         return f"{self.name} - {self.task.name}"
 
     def action_text(self):
-        return f"Seemingly doing task"
+        return "Seemingly doing task"
 
     def execute(self, env, player):
         super().execute(env, player)
@@ -292,7 +291,7 @@ class CompleteFakeTask(CompleteTask):
         return f"{self.name} - {self.task.name}"
 
     def action_text(self):
-        return f"Seemingly doing task"
+        return "Seemingly doing task"
 
     def execute(self, env, player):
         super().execute(env, player)

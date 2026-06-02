@@ -118,7 +118,7 @@ class Player:
                 current_phase = record["phase"]
                 action = record["action"]
                 if current_phase == "task":
-                    if type(action) == CompleteTask:
+                    if isinstance(action, CompleteTask):
                         action_text = str(action)
                     else:
                         action_text = action.action_text()

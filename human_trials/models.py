@@ -1,6 +1,7 @@
+import asyncio
 import os
 import sys
-import asyncio
+
 import networkx as nx
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -8,8 +9,8 @@ research_path = os.path.abspath(os.path.join(current_dir, "..", "among-agents"))
 if research_path not in sys.path:
     sys.path.append(research_path)
 
-from amongagents.envs.configs.map_config import room_data, connections, vent_connections
 from amongagents.envs.action import Speak
+from amongagents.envs.configs.map_config import connections, room_data, vent_connections
 
 
 class Map:

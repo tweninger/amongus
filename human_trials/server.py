@@ -1,22 +1,22 @@
 # server.py
+import asyncio
 import os
 import random
 import string
-import asyncio
 import time
-import uvicorn
 from uuid import uuid4
-from fastapi import FastAPI, Request, Header, WebSocket, WebSocketDisconnect, Query
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from models import skeld, WebPlayerAgent
-from amongagents.envs.game import AmongUs
+
+import uvicorn
+from amongagents.envs.action import CallMeeting, CompleteTask, Kill, MoveTo, Speak, Vent, Vote
 from amongagents.envs.configs.map_config import room_data
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
-from amongagents.envs.action import CompleteTask, MoveTo, CallMeeting, Kill, Speak, Vote, Vent
-from server_helpers import *
+from amongagents.envs.game import AmongUs
 from dotenv import load_dotenv
+from fastapi import FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from models import WebPlayerAgent, skeld
+from server_helpers import *
 
 # --- SETUP ---
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))

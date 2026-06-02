@@ -1,4 +1,3 @@
-from langchain_openai import ChatOpenAI
 
 
 def check_kill(log, game_config):

@@ -1,6 +1,7 @@
-import sqlite3
 import json
 import os
+import sqlite3
+
 # db.py: Handles SQLite database interactions for human and agent logs
 
 def _db_file():

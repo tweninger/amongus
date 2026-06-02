@@ -54,6 +54,7 @@ with open("/home/terran/lingjunmao/amongagent/eval_round_2.json", "r") as file:
 
 # with open('/home/terran/lingjunmao/illusion/MyDataset/color/test.json', 'r') as file:
 #     ground_truth = json.load(file)
+ground_truth = data
 
 answers = []
 

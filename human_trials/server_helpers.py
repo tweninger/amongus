@@ -1,9 +1,11 @@
-import os
 import json
+import os
 from datetime import datetime
-from db import init_db, insert_human_action, insert_game_outcome
+
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
+from db import insert_game_outcome, insert_human_action
 from models import WebPlayerAgent
+
 
 def setup_log_directory():
     log_dir = os.path.join(os.getcwd(), "logs")

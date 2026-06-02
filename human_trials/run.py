@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 
-import os
-import sys
 import asyncio
-from typing import List, Dict, Optional
 import datetime
-import subprocess
-import uuid
-import threading
+import os
 import random
+import sys
+from typing import Dict, List, Optional
 
 sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
 sys.path.append(os.path.abspath(".."))
 
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, THREE_MEMBER_GAME
+from amongagents.envs.configs.game_config import (
+    FIVE_MEMBER_GAME,
+    SEVEN_MEMBER_GAME,
+    THREE_MEMBER_GAME,
+)
 from amongagents.envs.game import AmongUs
+from config import BIG_LIST_OF_MODELS, CONFIG, DEFAULT_GAME_ARGS
 from dotenv import load_dotenv
-
 from utils import setup_experiment
-from config import CONFIG, BIG_LIST_OF_MODELS, DEFAULT_GAME_ARGS
 
 ROOT_PATH = os.path.abspath(".")
 LOGS_PATH = os.path.join(ROOT_PATH, CONFIG["logs_path"])
@@ -54,7 +54,7 @@ class RunGames:
         
         # If experiment_name is None, call setup_experiment directly
         if experiment_name is None:
-            print(f"Setting up experiment with auto-generated name")
+            print("Setting up experiment with auto-generated name")
             experiment_name = setup_experiment(experiment_name, LOGS_PATH, CONFIG["date"], CONFIG["commit_hash"], self.game_args)
             return
             
@@ -88,7 +88,7 @@ class RunGames:
             if os.path.exists(lock_file):
                 try:
                     os.remove(lock_file)
-                except:
+                except OSError:
                     pass
     
     def get_next_game_id(self):

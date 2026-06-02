@@ -1,0 +1,39 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = [
+  ".git",
+  ".venv",
+  "venv",
+  "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+]
+ignore = [
+  "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"human_trials/models.py" = ["E402"]
+"human_trials/server.py" = ["F403", "F405"]
+"among-agents/amongagents/agent/agent.py" = ["F403", "F405"]
+"among-agents/amongagents/envs/configs/experiment_config.py" = ["F403", "F405"]
+"among-agents/amongagents/envs/game.py" = ["F403", "F405"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
+python_files = [
+  "test_*.py",
+]
+addopts = "-q"

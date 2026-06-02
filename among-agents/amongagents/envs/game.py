@@ -1,11 +1,10 @@
-import random
 import asyncio
+import json
+import os
+import random
 import time
 
 import numpy as np
-import json
-import os
-
 from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
 from amongagents.agent.neutral_prompts import (
     MEETING_PHASE_INSTRUCTION,
@@ -14,17 +13,14 @@ from amongagents.agent.neutral_prompts import (
     ImpostorPersonalities,
 )
 from amongagents.envs.configs.agent_config import (
-    ALL_LLM,
-    ALL_RANDOM,
-    CREWMATE_LLM,
     IMPOSTOR_LLM,
 )
+from amongagents.envs.configs.experiment_config import *
 from amongagents.envs.configs.game_config import *
-from amongagents.envs.map import Map, Spaceship
+from amongagents.envs.map import Map
 from amongagents.envs.player import PLAYER_COLORS, Crewmate, Impostor
 from amongagents.envs.task import TaskAssignment
 from amongagents.envs.tools import GetBestPath
-from amongagents.envs.configs.experiment_config import *
 
 # Set Flask environment variable to True by default
 if "FLASK" not in os.environ:
@@ -336,7 +332,7 @@ class AmongUs:
             await self.meeting_phase()
         self.timestep += 1
         #print(self.timestep)
-        print(f"|", end="", flush=True)
+        print("|", end="", flush=True)
         # import pdb; pdb.set_trace() # waiting after each timestep
 
     async def task_phase_step(self):
@@ -400,8 +396,6 @@ class AmongUs:
         for agent in self.agents:
 
             is_human = 'homosapiens' in getattr(agent, 'model', '')
-            is_alive = agent.player.is_alive
-
             if is_human:
                 self.is_human_turn = True
                 if not agent.player.is_alive:

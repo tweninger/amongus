@@ -1,29 +1,23 @@
 #!/usr/bin/env python3
 
+import asyncio
+import contextlib
+import io
+import json
 import os
 import sys
-import asyncio
-from typing import List
-import datetime
-import subprocess
-import uuid
 import threading
-import random
-import json
 import time
-import signal
-import io
-import contextlib
+from typing import List
 
 sys.path.append(os.path.join(os.path.abspath(".."), "among-agents"))
 sys.path.append(os.path.abspath(".."))
 
-from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, THREE_MEMBER_GAME
+from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
 from amongagents.envs.game import AmongUs
-from dotenv import load_dotenv
-
-from utils import setup_experiment
 from config import CONFIG
+from dotenv import load_dotenv
+from utils import setup_experiment
 
 ROOT_PATH = os.path.abspath(".")
 LOGS_PATH = os.path.join(ROOT_PATH, CONFIG["logs_path"])
@@ -147,7 +141,7 @@ def load_game_state():
         try:
             with open(GAME_STATE_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except (OSError, json.JSONDecodeError):
             return None
     return None
 
@@ -156,7 +150,7 @@ async def run_game_instance():
     global GAME_INSTANCE
     
     # Check if we already have a game running
-    state = load_game_state()
+    load_game_state()
     
     if GAME_INSTANCE is None:
         # Ensure setup has been done before starting a new game
