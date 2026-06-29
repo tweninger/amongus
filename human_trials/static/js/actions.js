@@ -41,6 +41,10 @@ document.addEventListener('amongus:report-request', () => {
     triggerReport();
 });
 
+document.addEventListener('amongus:emergency-request', () => {
+    triggerEmergencyMeeting();
+});
+
 // Fetch and update ROOM CONTEXT
 //movement options, tasks available, and who is in the room with you
 async function refreshRoomContext() {
@@ -69,26 +73,6 @@ async function refreshRoomContext() {
         if (phaseDisplayEl) {
             phaseDisplayEl.innerText = isAlive ? "Active" : "Spectating as Ghost";
             phaseDisplayEl.className = "text-success fw-bold";
-        }
-    }
-
-    // --- Task Tracking ---
-    // Renders the persistent list of TODO tasks for the human player
-    const personalTasksList = document.getElementById('personal-tasks');
-    if (personalTasksList){
-        personalTasksList.innerHTML = '';
-        if (data.personal_tasks.length === 0){
-            personalTasksList.innerHTML= '<li class="list-group-item text-white bg-transparent">No tasks left!</li>';
-        }
-        else{
-            data.personal_tasks.forEach(task => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item py-1 text-white fw-bold';
-                const location = task.location || "Unknown";
-                const progress = task.max_duration > 1 ? ` (${task.steps_done}/${task.max_duration})` : ''; // Some tasks have duration > 1
-                li.innerText = `${task.name}${progress} - ${location}`;
-                personalTasksList.appendChild(li);
-            })
         }
     }
 
@@ -181,85 +165,6 @@ async function refreshRoomContext() {
             };
             moveContainer.appendChild(btn);
         });
-    }
-
-    // --- PLAYERS IN ROOM LIST ---
-    const playersInRoomList = document.getElementById('players-in-room-list');
-    const reportBtn = document.getElementById('report-btn');
-    const humanRole = roleDisplayEl ? roleDisplayEl.innerText.toLowerCase() : "";
-    let freshBodyFound = false;
-
-    if (playersInRoomList){
-        playersInRoomList.innerHTML= '';
-        if (data.players_in_room.length === 0){
-            playersInRoomList.innerHTML = '<li class="list-group-item bg-dark text-white small"> You are alone here. </li>';
-        }
-        else{
-            data.players_in_room.forEach(player => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item bg-dark border-secondary d-flex align-items-center';
-                if (player.is_alive){
-                    // Reveal fellow impostors
-                    const impostorTag = (humanRole === 'impostor' && player.identity === 'Impostor')
-                        ? '<span class="text-danger small fw-bold ms-2">(Impostor)</span>' : '';
-                    li.innerHTML = `<img src="/assets/player_sprites/alive/player_${player.color}.png" title="${player.name}" style="width: 35px; height: 35px;">${impostorTag}<span class="ms-2">${player.name}</span>`;
-                    // If you're the impostor, create kill btn pinned to right
-                    if (humanRole === 'impostor' && isAlive){
-                        const killBtn = document.createElement('button');
-                        killBtn.className = 'btn-kill';
-                        killBtn.innerText = 'KILL';
-                        killBtn.disabled = state.actionLocked;
-                        killBtn.onclick = () => {
-                            killBtn.classList.add('btn-submitted');
-                            performKill(player.color);
-                        };
-                        li.appendChild(killBtn);
-                    }
-                }
-                // Handle corpse detection
-                // Only render fresh unreported bodies
-                else if (!player.reported_death){
-                    freshBodyFound = true;
-                    li.classList.add('text-muted');
-                    li.innerHTML = `<img src="/assets/player_sprites/dead/${player.color}_body.png" title="${player.name} (Dead)" style="width: 35px; height: 35px; object-fit: contain;"> <span class="ms-2 small">(Dead)</span>`;
-                }
-                else {
-                    return; // Reported dead body. Skip.
-                }
-                playersInRoomList.appendChild(li);
-            });
-        }
-    }
-
-    // --- REPORTING DEAD BODIES ---
-    if (reportBtn){
-        if (freshBodyFound && isAlive){
-            reportBtn.classList.remove('disabled');
-            reportBtn.style.opacity = '1';
-            reportBtn.onclick = () => triggerReport();
-        }
-
-        else{
-            reportBtn.classList.add('disabled');
-            reportBtn.style.opacity = '0.5';
-            reportBtn.onclick = null;
-        }
-    }
-
-    // --- EMERGENCY MEETING BUTTON (Cafeteria only, limited uses) ---
-    const emergencyBtn = document.getElementById('emergency-btn');
-    if (emergencyBtn) {
-        if (data.can_call_meeting) {
-            emergencyBtn.classList.remove('d-none');
-            emergencyBtn.disabled = state.actionLocked;
-            emergencyBtn.onclick = () => {
-                emergencyBtn.classList.add('btn-submitted');
-                triggerEmergencyMeeting();
-            };
-        }
-        else {
-            emergencyBtn.classList.add('d-none');
-        }
     }
 
     return data;

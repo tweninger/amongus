@@ -79,6 +79,10 @@ function addLogMessage(text, type = 'info') {
 
     // Auto-scroll to the bottom
     log.scrollTop = log.scrollHeight;
+    const logStrip = document.getElementById('game-log-strip');
+    if (logStrip) {
+        logStrip.scrollTop = logStrip.scrollHeight;
+    }
 }
 
 // Simply capitalize a color string

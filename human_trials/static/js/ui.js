@@ -171,6 +171,27 @@ function createMapArrow({ destination, point, currentRoom, variant = 'move', eve
     return button;
 }
 
+function createEmergencyHotspot(point) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'map-action-hotspot emergency-hotspot';
+    button.style.left = `${point.x}px`;
+    button.style.top = `${point.y}px`;
+    button.title = 'Call emergency meeting';
+    button.setAttribute('aria-label', 'Call emergency meeting');
+    button.disabled = state.actionLocked || state.waitingForStep;
+    button.textContent = '!';
+
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        commitMapActionSelection(button);
+        document.dispatchEvent(new CustomEvent('amongus:emergency-request'));
+    });
+
+    return button;
+}
+
 function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null) {
     const wrapper = document.createElement('div');
     wrapper.className = 'room-player-sprite-wrap';
@@ -274,6 +295,23 @@ async function renderVentArrows(contextData, roomView, interactionLayer) {
     });
 }
 
+function renderEmergencyHotspot(contextData, roomView, interactionLayer) {
+    if (!interactionLayer || !roomView || !state.isAlive) {
+        return;
+    }
+
+    if (contextData.current_room.toLowerCase() !== 'cafeteria') {
+        return;
+    }
+
+    const projectedPoint = projectMapPoint(contextData.current_room, { x: 564, y: 123 }, roomView);
+    if (!projectedPoint) {
+        return;
+    }
+
+    interactionLayer.appendChild(createEmergencyHotspot(projectedPoint));
+}
+
 // --- GAME UI ---
 
 // Create and show role reveal modal in UI
@@ -299,10 +337,6 @@ function showRoleReveal(role, color){
     }
     const roleModalEl = document.getElementById('role-reveal-modal');
     const roleModal = new bootstrap.Modal(roleModalEl);
-
-    roleModalEl.addEventListener('hidden.bs.modal', () => {
-        new bootstrap.Modal(document.getElementById('how-to-play-modal')).show();
-    }, { once: true });
 
     roleModal.show();
 }
@@ -342,11 +376,6 @@ async function updateMapUI() {
         const roomPlayerLayer = document.getElementById('room-player-layer');
         const roomInteractionLayer = document.getElementById('room-interaction-layer');
         const skeldLayer = document.getElementById('skeld-player-layer');
-        const locationHeader = document.getElementById('location-header');
-
-        if (locationHeader){
-            locationHeader.innerText = contextData.current_room;
-        }
 
         if (roomView){
             setRoomViewBackground(roomView, contextData.current_room);
@@ -473,6 +502,7 @@ async function updateMapUI() {
         });
 
         renderMovementArrows(contextData, roomView, roomInteractionLayer);
+        renderEmergencyHotspot(contextData, roomView, roomInteractionLayer);
         await renderVentArrows(contextData, roomView, roomInteractionLayer);
         syncMapActionHotspots(`${contextData.timestep}:${contextData.current_room}`);
     }

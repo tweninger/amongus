@@ -3,7 +3,7 @@
 // Handles lobby flow, initializes game UI, and sets up WebSocket handlers for game events.
 
 import { state } from './state.js';
-import { apiFetch, addLogMessage, formatColorName, displayColor } from './helpers.js';
+import { apiFetch, addLogMessage, formatColorName } from './helpers.js';
 import { handleSendChat } from './meeting.js';
 import { showRoleReveal, updateTaskProgressBar, updateMapUI } from './ui.js';
 import { refreshRoomContext } from './actions.js';
@@ -22,13 +22,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lobby Screen Panels
     const matchmakingPanel = document.getElementById('matchmaking-panel');
+    const matchmakingRoster = document.getElementById('matchmaking-roster');
     const browsePanel = document.getElementById('browse-panel');
     const waitingPanel = document.getElementById('waiting-panel');
-    const readyChecklist = document.getElementById('ready-checklist');
     const startGameBtn = document.getElementById('start-game-btn');
     const waitingHint = document.getElementById('waiting-hint');
     const lobbyTimer = document.getElementById('lobby-timer');
     const matchmakingStatus = document.getElementById('matchmaking-status');
+    let hasShownAboutThisGame = false;
+    const lobbyFallbackColors = ['red', 'blue', 'green', 'pink', 'orange'];
+
+    function spritePath(color) {
+        return `/assets/player_sprites/alive/player_${color.toLowerCase()}.png`;
+    }
+
+    function showAboutThisGameOnce() {
+        if (hasShownAboutThisGame) {
+            return;
+        }
+        const modalEl = document.getElementById('about-this-game-modal');
+        if (!modalEl || typeof bootstrap === 'undefined') {
+            return;
+        }
+        hasShownAboutThisGame = true;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
 
     function stopLobbyCountdown() {
         if (state.lobbyCountdownTimer) {
@@ -66,25 +84,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
 
-    // --- Game Size selector (host only) ---
-    // --- Render Waiting Room Roster ---
-    function renderWaitingRoster(roster, myColor) {
-        if (!readyChecklist){
+    function normalizeMatchmakingRoster(roster, totalSlots = lobbyFallbackColors.length) {
+        const safeTotal = Math.max(totalSlots || 0, lobbyFallbackColors.length);
+        const slots = Array.from({ length: safeTotal }, (_, id) => ({
+            id,
+            color: lobbyFallbackColors[id] || lobbyFallbackColors[id % lobbyFallbackColors.length],
+            slot_status: 'open',
+        }));
+
+        if (!Array.isArray(roster) || roster.length === 0) {
+            return slots;
+        }
+
+        roster.forEach((player, index) => {
+            if (!player) {
+                return;
+            }
+            const id = Number.isInteger(player.id) ? player.id : index;
+            if (id < 0 || id >= slots.length) {
+                return;
+            }
+
+            slots[id] = {
+                ...slots[id],
+                ...player,
+                color: player.color || slots[id].color,
+                slot_status: player.slot_status || 'open',
+            };
+        });
+
+        return slots;
+    }
+
+    function renderMatchmakingRoster(roster, myColor = null, totalSlots = lobbyFallbackColors.length) {
+        if (!matchmakingRoster){
             return;
         }
-        readyChecklist.innerHTML = '';
+        const slots = normalizeMatchmakingRoster(roster, totalSlots);
+        matchmakingRoster.innerHTML = '';
 
-        roster.forEach(player => {
+        slots.forEach(player => {
             const li = document.createElement('li');
-            li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
+            li.className = `lobby-player-slot list-group-item ${player.slot_status === 'open' ? 'is-open' : 'is-filled'}`;
             const isMe = player.color === myColor;
-            const label = isMe ? `${player.name} (you)` : player.name;
-            let badge = '<span class="badge bg-secondary">Waiting...</span>';
-            if (player.slot_status !== 'open') {
-                badge = '<span class="badge bg-success">Joined</span>';
-            }
-            li.innerHTML = `<span style="color:${displayColor(player.color)};font-weight:bold;">${label}</span>${badge}`;
-            readyChecklist.appendChild(li);
+            const img = document.createElement('img');
+            img.className = 'lobby-player-sprite';
+            img.src = spritePath(player.color);
+            img.alt = player.slot_status === 'open'
+                ? 'Open player slot'
+                : `${formatColorName(player.color)} player`;
+
+            const status = document.createElement('span');
+            status.className = 'lobby-player-status';
+            status.innerText = player.slot_status === 'open'
+                ? 'Waiting'
+                : (isMe ? 'You' : formatColorName(player.color));
+
+            li.append(img, status);
+            matchmakingRoster.appendChild(li);
         });
     }
 
@@ -104,10 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
             state.phaseDisplay.innerText = "Staging";
         }
 
-        renderWaitingRoster(data.roster, data.color);
+        renderMatchmakingRoster(data.roster, data.color, data.total_slots);
 
-        // Switch from main menu / browse games panel to the waiting room
-        matchmakingPanel.classList.add('d-none');
+        // Keep matchmaking visible; it is the visual connection state.
+        matchmakingPanel.classList.remove('d-none');
         browsePanel.classList.add('d-none');
         waitingPanel.classList.remove('d-none');
         if (startGameBtn) {
@@ -116,6 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (waitingHint) {
             waitingHint.classList.remove('d-none');
         }
+        if (matchmakingStatus) {
+            matchmakingStatus.innerText = 'Players joining...';
+        }
+        showAboutThisGameOnce();
 
         if (data.room_status === 'active') {
             stopLobbyCountdown();
@@ -148,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2) game_started: host pressed start -> setup game
     window._wsLobbyHandler = async (msg) => {
         if (msg.type === 'lobby_update') {
-            renderWaitingRoster(msg.roster, state.myColor);
+            renderMatchmakingRoster(msg.roster, state.myColor, msg.total_slots);
             setLobbyCountdown(msg.lobby_seconds_left);
         }
         else if (msg.type === 'game_started') {

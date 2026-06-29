@@ -15,18 +15,15 @@ dependencies = [
   "numpy",
   "python-dotenv",
   "requests",
-  "uvicorn",
+  "uvicorn[standard]",
   "websockets",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "playwright",
   "pytest",
   "ruff",
-]
-legacy = [
-  "flask",
-  "flask-socketio",
 ]
 
 [tool.setuptools]
@@ -43,6 +40,7 @@ exclude = [
   ".venv",
   "venv",
   "__pycache__",
+  "legacy",
 ]
 
 [tool.ruff.lint]
@@ -56,7 +54,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"human_trials/models.py" = ["E402"]
+"human_trials/models.py" = ["E402", "I001"]
+"human_trials/server.py" = ["I001"]
+"human_trials/server_helpers.py" = ["I001"]
 "among-agents/amongagents/agent/agent.py" = ["F403", "F405"]
 "among-agents/amongagents/envs/configs/experiment_config.py" = ["F403", "F405"]
 "among-agents/amongagents/envs/game.py" = ["F403", "F405"]

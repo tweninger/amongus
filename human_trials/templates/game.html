@@ -20,7 +20,33 @@
 
                     <!-- Auto Matchmaking -->
                     <div id="matchmaking-panel">
+                        <ul id="matchmaking-roster" class="list-group list-group-flush mb-3">
+                            <li class="lobby-player-slot list-group-item is-open">
+                                <img class="lobby-player-sprite" src="/assets/player_sprites/alive/player_red.png" alt="Open player slot">
+                                <span class="lobby-player-status">Waiting</span>
+                            </li>
+                            <li class="lobby-player-slot list-group-item is-open">
+                                <img class="lobby-player-sprite" src="/assets/player_sprites/alive/player_blue.png" alt="Open player slot">
+                                <span class="lobby-player-status">Waiting</span>
+                            </li>
+                            <li class="lobby-player-slot list-group-item is-open">
+                                <img class="lobby-player-sprite" src="/assets/player_sprites/alive/player_green.png" alt="Open player slot">
+                                <span class="lobby-player-status">Waiting</span>
+                            </li>
+                            <li class="lobby-player-slot list-group-item is-open">
+                                <img class="lobby-player-sprite" src="/assets/player_sprites/alive/player_pink.png" alt="Open player slot">
+                                <span class="lobby-player-status">Waiting</span>
+                            </li>
+                            <li class="lobby-player-slot list-group-item is-open">
+                                <img class="lobby-player-sprite" src="/assets/player_sprites/alive/player_orange.png" alt="Open player slot">
+                                <span class="lobby-player-status">Waiting</span>
+                            </li>
+                        </ul>
                         <p id="matchmaking-status" class="text-light text-center mb-0">Finding a game...</p>
+                        <div class="d-grid gap-2 mt-3">
+                            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#about-this-game-modal">About This Game</button>
+                            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#how-to-play-modal">How to Play</button>
+                        </div>
                     </div>
 
                     <!-- Legacy Lobby Browser -->
@@ -37,9 +63,7 @@
 
                     <!-- Waiting Room: Shown After Hosting or Joining -->
                     <div id="waiting-panel" class="d-none">
-                        <h5 class="text-center text-light mb-3">Waiting for players...</h5>
                         <p id="lobby-timer" class="text-warning text-center fw-bold small mb-3 d-none"></p>
-                        <ul id="ready-checklist" class="list-group list-group-flush mb-3"></ul>
                         <button id="start-game-btn" class="btn btn-success btn-lg w-100 fw-bold d-none">Start Game</button>
                         <p id="waiting-hint" class="text-muted text-center small mt-2 d-none">Waiting for more players to join...</p>
                     </div>
@@ -104,6 +128,12 @@
             </div>
         </div>
 
+        <!-- Game Log -->
+        <div id="game-log-strip">
+            <div class="log-label">Game Log</div>
+            <div id="game-log"></div>
+        </div>
+
         <!-- Status Strip -->
         <div id="status-strip">
             <span>You: <span id="user-display" class="status-val">—</span></span>
@@ -111,95 +141,91 @@
             <span>Turn: <span id="step-counter" class="status-val">0</span></span>
             <span id="turn-timer-strip" class="d-none">⏱ <span id="turn-timer-val" class="fw-bold">60</span>s</span>
             <span id="current-phase" class="fw-bold">Initializing...</span>
-            <button id="help-btn" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.75rem;" data-bs-toggle="modal" data-bs-target="#how-to-play-modal">? Help</button>
         </div>
 
-        <!-- Main Content: Map | Actions -->
+        <!-- Main Content: Room Stage -->
         <div class="row g-2" id="main-content-row">
 
-            <!-- Left: Minimap + Room View -->
-            <div class="col-md-5" id="map-col">
-                <div id="minimap-container">
-                    <img src="/assets/map/skeld.png" alt="The Skeld">
-                    <div id="skeld-player-layer"></div>
-                </div>
+            <!-- Room Stage -->
+            <div id="map-col">
                 <div id="room-view-wrapper">
-                    <div style="font-size:0.7rem; color:#6b7280; text-align:center; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.04em;">
-                        <span id="location-header" class="fw-bold" style="color:#67e8f9;">Cafeteria</span>
-                    </div>
                     <div id="room-view">
                         <div id="room-task-overlay"></div>
                         <div id="room-player-layer"></div>
                         <div id="room-interaction-layer"></div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Right: My Tasks + Action Panel -->
-            <div class="col-md-7" id="action-col">
-
-                <!-- My Tasks -->
-                <div id="my-tasks-panel">
-                    <h6>My Tasks</h6>
-                    <ul id="personal-tasks">
-                        <li class="list-group-item text-muted bg-transparent">Loading...</li>
-                    </ul>
+                <div id="minimap-container">
+                    <img src="/assets/map/skeld.png" alt="The Skeld">
+                    <div id="skeld-player-layer"></div>
                 </div>
-
-                <!-- Action Panel: shown during task phase -->
-                <div id="action-panel" class="d-none">
-
-                    <!-- Players in Room -->
-                    <div class="action-section">
-                        <div class="action-section-label">In This Room</div>
-                        <ul id="players-in-room-list"></ul>
-                    </div>
-
-                    <!-- Report / Emergency Meeting -->
-                    <div class="action-section">
-                        <button id="report-btn" class="disabled">🚨 Report Dead Body</button>
-                        <button id="emergency-btn" class="d-none mt-1">🚨 Emergency Meeting</button>
-                    </div>
-
-                    <!-- Room Tasks -->
-                    <div class="action-section">
-                        <div class="action-section-label">Tasks Here</div>
-                        <div id="task-list" class="d-flex flex-column gap-1"></div>
-                    </div>
-
-                    <!-- Move -->
-                    <div class="action-section">
-                        <div class="action-section-label">Move To</div>
-                        <div id="movement-options" class="d-flex flex-wrap gap-2"></div>
-                    </div>
-
-                    <!-- Vent (impostors only) -->
-                    <div id="vent-panel" class="action-section d-none" style="border-color: rgba(239,68,68,0.25); background: rgba(185,28,28,0.05);">
-                        <div class="action-section-label" style="color:#f87171;">Vent To</div>
-                        <div id="vent-options" class="d-flex flex-wrap gap-2"></div>
-                    </div>
-
-                    <!-- Waiting -->
-                    <div id="waiting-indicator" class="d-none">Action Submitted: Waiting for other players...</div>
-
-                </div>
-
-                <!-- Meeting Countdown Banner -->
-                <div id="discussion-panel" class="d-none">
-                    <h5 class="text-danger fw-bold mb-1">📢 EMERGENCY MEETING</h5>
-                    <p id="meeting-countdown-text" class="text-danger fw-bold mb-0" style="font-size:1rem;">Discussion starting in 10s...</p>
-                </div>
-
-                <!-- Game Log -->
-                <div id="game-log-strip">
-                    <div class="log-label">Game Log</div>
-                    <div id="game-log"></div>
-                </div>
-
             </div>
         </div>
 
     </section>
+
+    <!-- About This Game Modal -->
+    <div id="about-this-game-modal" class="modal fade" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title fw-bold">About This Game</h5>
+                </div>
+                <div class="modal-body" style="font-size:0.9rem;">
+
+                    <div class="row gx-4">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-info fw-bold text-uppercase">Informed Consent</h6>
+                            <p class="text-light">
+                                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer non justo vitae
+                                lectus posuere luctus. Vivamus vitae sem at erat congue facilisis, and this text
+                                is a placeholder for the study purpose, procedures, and expected participation.
+                            </p>
+                            <p class="text-light mb-0">
+                                Praesent sed magna nec lorem pulvinar finibus. Curabitur at ipsum vitae nibh
+                                ullamcorper posuere, and this text is a placeholder for risks, benefits,
+                                privacy, and voluntary participation details.
+                            </p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-warning fw-bold text-uppercase">What You Will Do</h6>
+                            <ul class="text-light ps-3">
+                                <li>Join a short online social-deduction game.</li>
+                                <li>Interact with other players through game actions and discussion.</li>
+                                <li>Make decisions during timed turns and meetings.</li>
+                                <li>Continue only if you choose to participate.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary">
+
+                    <div class="row gx-4">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-success fw-bold text-uppercase">Your Choice</h6>
+                            <ul class="text-light ps-3">
+                                <li>Participation is voluntary.</li>
+                                <li>You may stop playing at any time.</li>
+                                <li>Only continue if you understand and agree.</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-light fw-bold text-uppercase">Questions</h6>
+                            <ul class="text-muted ps-3">
+                                <li>Contact information and study details can go here.</li>
+                                <li>Eligibility, compensation, and data-use details can go here.</li>
+                                <li>This placeholder content should be replaced before deployment.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">I Agree</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- How to Play Modal -->
     <div id="how-to-play-modal" class="modal fade" tabindex="-1">
@@ -231,7 +257,7 @@
                                 <li><strong>Do Task</strong>: Complete a task in your room (Crewmates)</li>
                                 <li><strong>Report</strong>: Report a dead body to call a meeting</li>
                                 <li><strong>Emergency Meeting</strong>: Call a meeting from the Cafeteria</li>
-                                <li><strong>Kill</strong>: Eliminate a nearby Crewmate (Impostors only) </li>
+                                <li><strong>Kill</strong>: Eliminate a nearby Crewmate (Impostors only)</li>
                                 <li><strong>Vent</strong>: Teleport between vent-connected rooms (Impostors only)</li>
                             </ul>
                         </div>
@@ -247,7 +273,7 @@
                                 <li>Each player speaks once per discussion round</li>
                                 <li>Then everyone votes. Player with most votes gets ejected</li>
                                 <li>Ties result in no ejection</li>
-                                <li>Dead players must observe (pass turn) but cannot vote or speak</li>
+                                <li>Dead players must observe but cannot vote or speak</li>
                             </ul>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -255,8 +281,8 @@
                             <ul class="text-muted ps-3">
                                 <li>You can only see players who are in the same room as you</li>
                                 <li>Watch the game log carefully. It records when players leave your room</li>
-                                <li>Be careful using Impostor actions like killing and venting - Witnesses in the same room will see it and reveal you</li>
-                                <li>If you go fail to submit an action on time, a null action is submitted automatically</li>
+                                <li>Be careful using Impostor actions like killing and venting; witnesses in the same room will see it</li>
+                                <li>If you fail to submit an action on time, a null action is submitted automatically</li>
                             </ul>
                         </div>
                     </div>

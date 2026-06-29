@@ -23,6 +23,55 @@ body:has(#lobby-screen:not(.d-none)) {
     padding: 2rem;
 }
 
+.lobby-player-slot.is-open .lobby-player-sprite {
+    filter: grayscale(1) saturate(0) brightness(0.62);
+    opacity: 0.45;
+}
+
+#matchmaking-roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    gap: 10px;
+}
+
+.lobby-player-slot {
+    min-height: 104px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(0,0,0,0.28) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 8px !important;
+    text-align: center;
+}
+
+.lobby-player-slot.is-filled {
+    border-color: rgba(99,179,237,0.35) !important;
+    box-shadow: 0 0 14px rgba(99,179,237,0.08);
+}
+
+.lobby-player-sprite {
+    width: 54px;
+    height: 54px;
+    object-fit: contain;
+    transition: filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
+}
+
+.lobby-player-slot.is-filled .lobby-player-sprite {
+    transform: translateY(-2px);
+}
+
+.lobby-player-status {
+    font-size: 0.62rem;
+    line-height: 1.1;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
 #game-screen {
     display: flex;
     flex-direction: column;
@@ -65,28 +114,42 @@ body:has(#lobby-screen:not(.d-none)) {
 #main-content-row {
     flex: 1;
     min-height: 0;
+    position: relative;
+    display: block;
     overflow: hidden;
+    margin-left: 0;
+    margin-right: 0;
 }
 
 #main-content-row > [class*="col"] {
     height: 100%;
     overflow: hidden;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 #map-col {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
     display: flex;
     flex-direction: column;
-    gap: 8px;
 }
 
 #minimap-container {
-    flex: 1;
-    min-height: 0;
-    position: relative;
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    z-index: 24;
+    width: min(30vw, 320px);
+    min-width: 210px;
+    aspect-ratio: 1.45;
     border: 1px solid rgba(255,255,255,0.15);
     background: #000;
     border-radius: 8px;
     overflow: hidden;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.42);
 }
 
 #minimap-container img {
@@ -104,13 +167,16 @@ body:has(#lobby-screen:not(.d-none)) {
 #room-view-wrapper {
     flex: 1;
     min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 #room-view {
     flex: 1;
     min-height: 0;
+    height: 100%;
     position: relative;
     background-color: #111;
     border: 2px solid #333;
@@ -298,6 +364,26 @@ body:has(#lobby-screen:not(.d-none)) {
     cursor: default;
 }
 
+.emergency-hotspot {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: rgba(220, 38, 38, 0.22);
+    color: #fee2e2;
+    border: 1px solid rgba(248, 113, 113, 0.65);
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18), 0 10px 24px rgba(220, 38, 38, 0.16);
+}
+
+.emergency-hotspot:hover,
+.emergency-hotspot:focus-visible {
+    background: rgba(220, 38, 38, 0.48);
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(254, 202, 202, 0.72), 0 12px 28px rgba(220, 38, 38, 0.3);
+}
+
 .vent-arrow-hotspot {
     width: 28px;
     height: 28px;
@@ -324,313 +410,16 @@ body:has(#lobby-screen:not(.d-none)) {
     pointer-events: none;
 }
 
-#action-col {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    overflow-y: auto;
-    padding-right: 2px;
-}
-
-#action-col::-webkit-scrollbar { width: 4px; }
-#action-col::-webkit-scrollbar-track { background: transparent; }
-#action-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-
-#my-tasks-panel {
+/* ---- Game log ---- */
+#game-log-strip {
+    flex: 0 0 auto;
+    height: 52px;
+    max-height: 52px;
     background: rgba(40,167,69,0.06);
     border: 1px solid rgba(40,167,69,0.2);
     border-radius: 8px;
-    padding: 8px 10px;
-    flex-shrink: 0;
-}
-
-#my-tasks-panel h6 {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #6fcf97;
-    margin-bottom: 4px;
-}
-
-#personal-tasks {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-#personal-tasks li {
-    font-size: 0.78rem;
-    color: #fff;
-    padding: 2px 0;
-    border: none;
-    background: transparent;
-}
-
-.action-section {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 8px;
-    padding: 8px 10px;
-}
-
-.action-section-label {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #6b7280;
-    margin-bottom: 6px;
-    font-weight: 600;
-}
-
-#players-in-room-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-
-#players-in-room-list li {
-    font-size: 0.8rem;
-    padding: 4px 6px;
-    border-radius: 6px;
-    background: rgba(255,255,255,0.04);
-    border: none;
-    color: #fff;
-    display: flex;
-    align-items: center;
-}
-
-/* ---- Report button ---- */
-#report-btn {
-    width: 100%;
-    padding: 7px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    background: rgba(220, 38, 38, 0.12);
-    border: 1px solid rgba(220, 38, 38, 0.4);
-    color: #f87171;
-    border-radius: 8px;
-    transition: all 0.15s;
-    cursor: pointer;
-}
-
-#report-btn:not(.disabled):hover {
-    background: rgba(220, 38, 38, 0.25);
-    border-color: rgba(220, 38, 38, 0.7);
-    color: #fff;
-    box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
-}
-
-#report-btn.disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-#emergency-btn {
-    width: 100%;
-    padding: 7px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    background: rgba(220, 38, 38, 0.18);
-    border: 1px solid rgba(220, 38, 38, 0.55);
-    color: #fca5a5;
-    border-radius: 8px;
-    transition: all 0.15s;
-    cursor: pointer;
-}
-
-#emergency-btn:hover {
-    background: rgba(220, 38, 38, 0.32);
-    border-color: rgba(220, 38, 38, 0.85);
-    color: #fff;
-    box-shadow: 0 0 10px rgba(220, 38, 38, 0.35);
-}
-
-#emergency-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-/* ---- Move buttons ---- */
-.btn-move {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.14);
-    color: #a1a1aa;
-    border-radius: 20px;
-    font-size: 0.76rem;
-    padding: 4px 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-}
-
-.btn-move:hover {
-    background: rgba(99,179,237,0.15);
-    border-color: rgba(99,179,237,0.4);
-    color: #93c5fd;
-    transform: translateY(-1px);
-}
-
-.btn-move:active {
-    transform: translateY(0);
-}
-
-/* ---- Task buttons ---- */
-.btn-task {
-    background: rgba(40,167,69,0.08);
-    border: 1px solid rgba(40,167,69,0.3);
-    color: #6fcf97;
-    border-radius: 6px;
-    font-size: 0.76rem;
-    padding: 4px 10px;
-    text-align: left;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    width: 100%;
-}
-
-.btn-task:hover {
-    background: rgba(40,167,69,0.2);
-    border-color: rgba(40,167,69,0.55);
-    color: #a7f3d0;
-}
-
-.btn-task.unavailable {
-    opacity: 0.4;
-    cursor: not-allowed;
-    border-style: dashed;
-}
-
-/* ---- Vent buttons ---- */
-.btn-vent {
-    background: rgba(185,28,28,0.1);
-    border: 1px solid rgba(239,68,68,0.3);
-    color: #fca5a5;
-    border-radius: 20px;
-    font-size: 0.76rem;
-    padding: 4px 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-}
-
-.btn-vent:hover {
-    background: rgba(185,28,28,0.25);
-    border-color: rgba(239,68,68,0.6);
-    color: #fff;
-    box-shadow: 0 0 8px rgba(239,68,68,0.25);
-}
-
-/* ---- Kill button ---- */
-.btn-kill {
-    background: rgba(153,0,0,0.2);
-    border: 1px solid rgba(239,68,68,0.45);
-    color: #f87171;
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 3px 9px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.15s;
-    margin-left: auto;
-}
-
-.btn-kill:hover {
-    background: rgba(185,28,28,0.4);
-    border-color: #ef4444;
-    color: #fff;
-    box-shadow: 0 0 8px rgba(239,68,68,0.35);
-}
-
-/* ---- Disabled state (other buttons greyed when one is in flight) ---- */
-.btn-move:disabled,
-.btn-task:disabled,
-.btn-vent:disabled,
-.btn-kill:disabled {
-    opacity: 0.2;
-    cursor: not-allowed;
-}
-
-/* ---- Submitted state (the specific button the player clicked) ---- */
-.btn-submitted,
-.btn-submitted:disabled {
-    opacity: 1 !important;
-    cursor: default;
-    animation: submittedPulse 1.4s ease-in-out infinite;
-}
-.btn-move.btn-submitted,
-.btn-move.btn-submitted:disabled {
-    background: rgba(99,179,237,0.22);
-    border-color: rgba(99,179,237,0.7);
-    color: #93c5fd;
-}
-.btn-task.btn-submitted,
-.btn-task.btn-submitted:disabled {
-    background: rgba(40,167,69,0.28);
-    border-color: rgba(40,167,69,0.7);
-    color: #a7f3d0;
-}
-.btn-vent.btn-submitted,
-.btn-vent.btn-submitted:disabled {
-    background: rgba(185,28,28,0.3);
-    border-color: rgba(239,68,68,0.7);
-    color: #fca5a5;
-}
-.btn-kill.btn-submitted,
-.btn-kill.btn-submitted:disabled {
-    background: rgba(185,28,28,0.4);
-    border-color: #ef4444;
-    color: #fff;
-}
-@keyframes submittedPulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.6; }
-}
-
-/* ---- Waiting indicator ---- */
-#waiting-indicator {
-    font-size: 0.82rem;
-    color: #93c5fd;
-    font-weight: 600;
-    text-align: center;
-    padding: 8px 12px;
-    margin-top: 6px;
-    background: rgba(99,179,237,0.08);
-    border: 1px solid rgba(99,179,237,0.25);
-    border-radius: 6px;
-    animation: waitPulse 1.6s ease-in-out infinite;
-}
-@keyframes waitPulse {
-    0%, 100% { border-color: rgba(99,179,237,0.25); }
-    50%       { border-color: rgba(99,179,237,0.6); }
-}
-
-/* ---- Meeting countdown banner ---- */
-#discussion-panel {
-    background: rgba(220,38,38,0.07);
-    border: 1px solid rgba(220,38,38,0.3);
-    border-radius: 8px;
-    padding: 10px;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-/* ---- Game log ---- */
-#game-log-strip {
-    flex: 1;
-    min-height: 80px;
-    background: rgba(0,0,0,0.35);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 8px;
     overflow-y: auto;
-    padding: 4px 10px;
+    padding: 5px 12px;
 }
 
 #game-log-strip::-webkit-scrollbar { width: 4px; }
@@ -638,26 +427,35 @@ body:has(#lobby-screen:not(.d-none)) {
 #game-log-strip::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 
 #game-log-strip .log-label {
-    font-size: 0.65rem;
+    float: left;
+    font-size: 0.68rem;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: #4b5563;
+    letter-spacing: 0.05em;
+    color: #6fcf97;
     font-weight: 600;
-    margin-bottom: 2px;
+    margin: 1px 10px 0 0;
     position: sticky;
     top: 0;
-    background: rgba(0,0,0,0.6);
-    padding: 2px 0;
+    background: rgba(14, 28, 18, 0.94);
+    padding: 0;
 }
 
 #game-log p {
     font-size: 0.76rem;
     margin: 0;
-    padding: 1px 0;
-    line-height: 1.5;
+    padding: 0;
+    line-height: 1.35;
     font-family: 'Courier New', monospace;
     color: #fff;
     border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+@media (max-width: 900px) {
+    #minimap-container {
+        width: min(42vw, 240px);
+        min-width: 160px;
+        bottom: 14px;
+    }
 }
 
 /* ---- Turn timer ---- */

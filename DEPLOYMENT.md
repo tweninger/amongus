@@ -14,7 +14,7 @@ python -m venv venv
 source venv/bin/activate
 pip install -e ./among-agents
 pip install -e ".[dev]"
-uvicorn amongus_server.main:app --host 127.0.0.1 --port 8011 --reload
+make run
 ```
 
 Open `http://127.0.0.1:8011`.
@@ -57,4 +57,3 @@ ProxyPassReverse /ws ws://127.0.0.1:8011/ws
 ProxyPass / http://127.0.0.1:8011/
 ProxyPassReverse / http://127.0.0.1:8011/
 ```
-
