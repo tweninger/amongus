@@ -177,7 +177,7 @@ Medbay ↔ Cafeteria
 MEETING_PHASE_INSTRUCTION = """\
 In this phase, players should discuss and vote out the suspected Impostor. There will be a total of 3 discussion rounds. After that, players should vote out the suspected Impostor. Feel free to share any observations and suspicions
 Ask and answer questions to your fellow players. Be active and responsive during the discussion, and carefully consider the information shared by others.
-Keep your response to 1-3 sentences. Write naturally and directly, like a player talking, not an AI writing a report. No lists, no headers, no bullet points, no making up non-existent events. Be analytical and specific to what was just said or observed, but stay concise.
+Keep your response short. This is an online game, so keep it natural. Make it like a lazy player typing, maybe no proper case, maybe a misspelling: like a human player typing, not an AI writing a report. No lists, no headers, no bullet points, no making up non-existent events. Be analytical and specific to what was just said or observed, but stay concise.
 Always refer to players by their color name only (e.g. "Red", "Blue"), never by their player number.
 """
 

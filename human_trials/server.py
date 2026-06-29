@@ -46,6 +46,27 @@ LOBBY_COUNTDOWN_SECONDS = int(os.getenv("LOBBY_COUNTDOWN_SECONDS", "60"))
 LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
 LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
 
+
+def env_model_choices(role: str) -> list[str]:
+    role_prefix = role.upper()
+    raw_models = (
+        os.getenv(f"{role_prefix}_LLM_MODELS")
+        or os.getenv(f"{role_prefix}_LLM_MODEL")
+        or os.getenv("LLM_MODELS")
+        or os.getenv("LLM_MODEL")
+        or "gemini-3.5-flash"
+    )
+    return [model.strip() for model in raw_models.split(",") if model.strip()]
+
+
+def build_agent_config() -> dict:
+    return {
+        "Impostor": "LLM",
+        "Crewmate": "LLM",
+        "IMPOSTOR_LLM_CHOICES": env_model_choices("impostor"),
+        "CREWMATE_LLM_CHOICES": env_model_choices("crewmate"),
+    }
+
 # Each GameRoom holds one game's engine, sessions, and WebSocket connections.
 class GameRoom:
     def __init__(self, size_config, total_slots, host_token, host_color):
@@ -69,6 +90,8 @@ class GameRoom:
         self.task_timeout_task: asyncio.Task | None = None # Background sleep task for task-phase auto-submit
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
         self.game_outcome_logged: bool = False
+        self.game_events: list[dict] = []
+        self.next_game_event_id: int = 1
 
 # All active rooms keyed by 4 letter code
 games: dict[str, GameRoom] = {}
@@ -98,6 +121,17 @@ def get_filled_slot_count(room: GameRoom) -> int:
 
 def is_room_full(room: GameRoom) -> bool:
     return get_filled_slot_count(room) >= room.total_slots
+
+
+def add_game_event(room: GameRoom, message: str, event_type: str = "info") -> None:
+    room.game_events.append({
+        "id": room.next_game_event_id,
+        "timestep": room.game_instance.timestep if room.game_instance else 0,
+        "message": message,
+        "type": event_type,
+    })
+    room.next_game_event_id += 1
+    room.game_events = room.game_events[-25:]
 
 
 async def activate_room(room: GameRoom, reason: str) -> None:
@@ -255,6 +289,57 @@ def _is_player_turn(agent, is_alive: bool, current_phase: str, can_vote: bool) -
     return (isinstance(agent, WebPlayerAgent) and
             getattr(agent, 'waiting_for_action', False))
 
+
+def get_meeting_turn_player(gi, current_phase: str, can_vote: bool) -> dict | None:
+    if current_phase != "meeting" or can_vote:
+        return None
+
+    current_name = getattr(gi, "current_player", None)
+    if not current_name:
+        return None
+
+    player = next((candidate for candidate in gi.players if candidate.name == current_name), None)
+    if not player or not is_connected_player(player):
+        return None
+
+    data = format_player_data(player)
+    data.pop("identity", None)
+    return data
+
+
+def is_connected_player(player) -> bool:
+    return getattr(player, "is_connected", True)
+
+
+def mark_active_player_disconnected(room: GameRoom, token: str):
+    gi = room.game_instance
+    if not gi:
+        return None
+
+    idx = room.sessions.pop(token, None)
+    if idx is None:
+        return None
+
+    agent = gi.agents[idx]
+    player = agent.player
+    player.is_connected = False
+    player.available_actions = []
+    player.body_location = None
+    player.reported_death = True
+    player.killed_this_step = False
+
+    if isinstance(agent, WebPlayerAgent):
+        agent.queued_action = None
+        agent.waiting_for_action = False
+        agent._prev_waiting = False
+
+    log_human_action(gi, player, "disconnect")
+    player_color = player.name.split()[-1].capitalize()
+    add_game_event(room, f"{player_color} disconnected.", "warning")
+    gi.update_map()
+    return agent
+
+
 # Broadcast current game state to all connected players in a room
 # This includes player states, phase, timestep, task progress, win status, and meeting context when relevant
 async def broadcast_state(room: GameRoom):
@@ -268,7 +353,11 @@ async def broadcast_state(room: GameRoom):
 
     turn_seconds_left = max(0, int(room.turn_deadline - time.time())) if room.turn_deadline > 0 else None
     winner = get_win_message(gi)
-    players_data = [format_player_data(agent.player) for agent in gi.agents]
+    players_data = [
+        format_player_data(agent.player)
+        for agent in gi.agents
+        if is_connected_player(agent.player)
+    ]
     if not winner:
         for p in players_data:
             p.pop("identity", None)
@@ -283,7 +372,9 @@ async def broadcast_state(room: GameRoom):
         "meeting_messages": parse_meeting_messages(gi, room.meeting_start_step) if current_phase == "meeting" else [],
         "can_vote": can_vote,
         "discussion_turn_seq": room.discussion_turn_seq,
+        "meeting_turn_player": get_meeting_turn_player(gi, current_phase, can_vote),
         "turn_seconds_left": turn_seconds_left,
+        "game_events": room.game_events,
     }
 
     if payload["winner"] and not room.game_outcome_logged:
@@ -297,7 +388,11 @@ async def broadcast_state(room: GameRoom):
         try:
             idx = room.sessions.get(token)
             agent = gi.agents[idx] if idx is not None else None
-            is_alive = getattr(agent.player, 'is_alive', True) if agent else True
+            is_alive = (
+                getattr(agent.player, 'is_alive', True)
+                and is_connected_player(agent.player)
+                if agent else True
+            )
             is_my_turn = _is_player_turn(agent, is_alive, current_phase, can_vote)
             killed_by = get_killer_of(gi, agent.player.name) if agent and not is_alive else None
             await ws.send_json({**payload, "is_alive": is_alive, "is_my_turn": is_my_turn, "killed_by": killed_by})
@@ -335,7 +430,7 @@ def queue_null_actions_for_idle_humans(room: GameRoom) -> None:
     for idx in room.sessions.values():
         agent = gi.agents[idx]
         if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-            if getattr(agent.player, 'is_alive', True):
+            if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
                 agent.queued_action = MoveTo(current_location=agent.player.location, new_location=agent.player.location)
 
 # Returns True if every human has a queued action
@@ -344,7 +439,7 @@ def all_humans_ready(room: GameRoom) -> bool:
     for idx in room.sessions.values():
         agent = gi.agents[idx]
         if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-            if getattr(agent.player, 'is_alive', True):
+            if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
                 return False
     return True
 
@@ -396,7 +491,7 @@ async def task_phase_timeout(room: GameRoom) -> None:
     for idx in room.sessions.values():
         agent = gi.agents[idx]
         if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-            if getattr(agent.player, 'is_alive', True):
+            if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
                 agent.queued_action = MoveTo(current_location=agent.player.location, new_location=agent.player.location)
                 log_human_action(gi, agent.player, "TIMEOUT_TASK", {"location": agent.player.location})
     room.task_timeout_task = None  # Clear before calling maybe_step_and_broadcast to avoid self-cancel
@@ -427,7 +522,7 @@ async def run_meeting_step(room: GameRoom) -> None:
                 for idx in room.sessions.values():
                     agent = gi.agents[idx]
                     if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-                        if getattr(agent.player, 'is_alive', True):
+                        if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
                             agent.queued_action = Vote(current_location=agent.player.location, other_player=None)
                             log_human_action(gi, agent.player, "TIMEOUT_VOTE", {"target": "none"}) # Write clearly to log
                 room.turn_deadline = 0
@@ -438,7 +533,7 @@ async def run_meeting_step(room: GameRoom) -> None:
                 for idx in room.sessions.values():
                     agent = gi.agents[idx]
                     if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-                        if getattr(agent, 'waiting_for_action', False):
+                        if getattr(agent, 'waiting_for_action', False) and is_connected_player(agent.player):
                             action = Speak(current_location=agent.player.location)
                             action.provide_message("...")
                             agent.queued_action = action
@@ -498,10 +593,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
         token_to_room.pop(token, None)
         gi = room.game_instance
         if gi and room.status == "active":
-            idx = room.sessions.get(token)
-            if idx is not None:
-                agent = gi.agents[idx]
-                log_human_action(gi, agent.player, "disconnect")
+            mark_active_player_disconnected(room, token)
+            if str(gi.current_phase).lower() == "task":
+                await maybe_step_and_broadcast(room)
+            else:
+                await broadcast_state(room)
         elif room.status == "open" and token != room.host_token:
             room.sessions.pop(token, None)
             await broadcast_lobby(room)
@@ -562,12 +658,7 @@ def create_room(selected_config) -> tuple[str, GameRoom]:
 
     gi = AmongUs(
         game_config=selected_config,
-        agent_config={
-            "Impostor": "LLM",
-            "Crewmate": "LLM",
-            "IMPOSTOR_LLM_CHOICES": ["google/gemini-3.5-flash"],
-            "CREWMATE_LLM_CHOICES": ["google/gemini-3.5-flash"],
-        },
+        agent_config=build_agent_config(),
     )
     gi.initialize_game()
     gi.agents[0] = WebPlayerAgent(gi.players[0])
@@ -704,7 +795,11 @@ async def get_map_state(x_player_token: str = Header(...)):
 
     return {
         # name, color, location, is_alive, reported_death, identity
-        "players": [format_player_data(agent.player) for agent in gi.agents]
+        "players": [
+            format_player_data(agent.player)
+            for agent in gi.agents
+            if is_connected_player(agent.player)
+        ]
     }
 
 # Returns everything the frontend needs to render the human player's current room view
@@ -720,6 +815,8 @@ async def get_room_context(x_player_token: str = Header(...)):
     if not agent:
         return {"error": "No human agent found"}
     player = agent.player
+    if not is_connected_player(player):
+        return {"error": "Player disconnected"}
     current_room = player.location
 
     # Only include tasks the player hasn't finished yet
@@ -759,12 +856,16 @@ async def get_room_context(x_player_token: str = Header(...)):
         others_in_room = [
             format_player_data(a.player)
             for a in gi.agents
-            if a.player.location == current_room and a != agent and a.player.is_alive
+            if is_connected_player(a.player)
+            and a.player.location == current_room
+            and a != agent
+            and a.player.is_alive
         ]
         # Add unreported bodies in room
         for a in gi.agents:
             body_loc = getattr(a.player, 'body_location', None)
-            if (not a.player.is_alive
+            if (is_connected_player(a.player)
+                    and not a.player.is_alive
                     and not getattr(a.player, 'reported_death', False)
                     and body_loc == current_room):
                 others_in_room.append(format_player_data(a.player))
@@ -773,13 +874,16 @@ async def get_room_context(x_player_token: str = Header(...)):
         others_in_room = [
             format_player_data(a.player)
             for a in gi.agents
-            if a.player.location == current_room and a != agent
+            if is_connected_player(a.player)
+            and a.player.location == current_room
+            and a != agent
         ]
 
     # Check if the player can call an emergency meeting: alive, in cafeteria, during task phase, and meetings remaining
     is_alive = getattr(player, 'is_alive', True)
     can_call_meeting = (
         is_alive
+        and is_connected_player(player)
         and gi.current_phase == "task"
         and current_room == "Cafeteria"
         and gi.button_num < gi.game_config["max_num_buttons"]
@@ -916,7 +1020,13 @@ async def report_body(request: Request, x_player_token: str = Header(...)) -> di
         }
 
     # Find unreported corpse at this location using body_location
-    dead_player = next((p for p in gi.players if not p.is_alive and not getattr(p, 'reported_death', False) and getattr(p, 'body_location', None) == player.location), None)
+    dead_player = next((
+        p for p in gi.players
+        if is_connected_player(p)
+        and not p.is_alive
+        and not getattr(p, 'reported_death', False)
+        and getattr(p, 'body_location', None) == player.location
+    ), None)
     dead_name = get_clean_name(dead_player) if dead_player else "Unknown"
 
     # Tell engine to call meeting
@@ -1002,7 +1112,10 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
         }
 
     # Find target player object by color
-    target_player = next((player for player in gi.players if target_color.lower() in player.name.lower()), None)
+    target_player = next((
+        player for player in gi.players
+        if is_connected_player(player) and target_color.lower() in player.name.lower()
+    ), None)
 
     if target_player:
         kill_room = human_player.location
@@ -1114,7 +1227,10 @@ async def handle_vote(request: Request, x_player_token: str = Header(...)) -> di
     # Vote for target player and execute action
     if getattr(player, 'is_alive', True):
         if target_color != "none":
-            target_player = next((p for p in gi.players if target_color.lower() in p.name.lower()), None)
+            target_player = next((
+                p for p in gi.players
+                if is_connected_player(p) and target_color.lower() in p.name.lower()
+            ), None)
 
         human_agent.queued_action = Vote(current_location=human_agent.player.location, other_player=target_player)
         log_human_action(gi, player, "VOTE", {"target": target_color})

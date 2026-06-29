@@ -189,6 +189,21 @@ function updateHUD(data) {
     updateTaskProgressBar(data.task_progress);
 }
 
+function renderGameEvents(data) {
+    if (!Array.isArray(data.game_events)) {
+        return;
+    }
+
+    data.game_events.forEach((event) => {
+        if (!event || state.processedGameEventIds.has(event.id)) {
+            return;
+        }
+        state.processedGameEventIds.add(event.id);
+        const turnPrefix = event.timestep !== undefined ? `[Turn ${event.timestep}] ` : '';
+        addLogMessage(`${turnPrefix}${event.message}`, event.type || 'info');
+    });
+}
+
 // Multiplayer sync. Wait for every player to put in an action.
 // The server only runs game_step() once ALL alive humans have queued an action, so we are locked until so.
 async function resolveStepIfReady(data) {
@@ -266,6 +281,7 @@ async function handleWsStateUpdate(data) {
     if (!state.gameStarted) return;
     if (handleGameOver(data)) return;
     updateHUD(data);
+    renderGameEvents(data);
     updateTurnTimer(data);
     await resolveStepIfReady(data);
     await handlePhaseUpdate(data);
@@ -277,7 +293,6 @@ async function handleGlobalPhaseTransition(data) {
     const { phase, is_alive, vote_result } = data;
 
     const actionPanelEl = document.getElementById('action-panel');
-    const discussionPanelEl = document.getElementById('discussion-panel');
     const meetingOverlayEl = document.getElementById('meeting-overlay');
     const phaseDisplayEl = document.getElementById('current-phase');
     const chatInputGroupEl = document.getElementById('chat-input-group');
@@ -302,8 +317,8 @@ async function handleGlobalPhaseTransition(data) {
         if (actionPanelEl){
             actionPanelEl.classList.add('d-none');
         }
-        if (discussionPanelEl){
-            discussionPanelEl.classList.remove('d-none');
+        if (meetingOverlayEl){
+            meetingOverlayEl.classList.remove('d-none');
         }
         // Reset meeting state
         const chatBox = document.getElementById('discussion-chat');
@@ -319,7 +334,7 @@ async function handleGlobalPhaseTransition(data) {
         state.chatInputLocked = false;
         state.lastDiscussionTurnSeq = -1;
         state.pendingActionLog = null;
-        // Start 10 second countdown timer
+        // Advance the engine after a short visible meeting-intro beat.
         startMeetingCountdown();
     }
 
@@ -341,9 +356,6 @@ async function handleGlobalPhaseTransition(data) {
         if (actionPanelEl){
             actionPanelEl.classList.remove('d-none');
         }
-        if (discussionPanelEl){
-            discussionPanelEl.classList.add('d-none');
-        }
         if (meetingOverlayEl){
             meetingOverlayEl.classList.add('d-none');
         }
@@ -356,7 +368,7 @@ async function handleGlobalPhaseTransition(data) {
     }
 }
 
-// Countdown from 10 then auto-enter the meeting overlay and start meeting step
+// Short randomized meeting intro, then start the discussion step.
 function startMeetingCountdown() {
     // Reset timer from previous meeting if needed
     if (state.meetingCountdownTimer !== null) {
@@ -364,26 +376,34 @@ function startMeetingCountdown() {
         state.meetingCountdownTimer = null;
     }
 
-    function countDown(secondsLeft) {
-        const countdownText = document.getElementById('meeting-countdown-text');
-        if (countdownText){
-            countdownText.innerText = `Emergency meeting starting in ${secondsLeft}s...`;
+    const introMs = 500 + Math.floor(Math.random() * 2501);
+
+    function countDown(msLeft) {
+        const secondsLeft = Math.max(0, msLeft / 1000);
+        const turnPrompt = document.getElementById('turn-prompt');
+        if (turnPrompt){
+            turnPrompt.style.display = 'block';
+            turnPrompt.className = 'text-danger fw-bold small text-center mb-1';
+            turnPrompt.innerText = `Emergency meeting starting in ${secondsLeft.toFixed(1)}s...`;
         }
 
-        if (secondsLeft <= 0) {
+        if (msLeft <= 0) {
             state.meetingCountdownTimer = null;
             const overlay = document.getElementById('meeting-overlay');
             if (overlay){
                 overlay.classList.remove('d-none');
             }
+            if (turnPrompt){
+                turnPrompt.style.display = 'none';
+            }
             apiFetch('/api/next-step', { method: 'POST' }); // intentionally not awaited
             return;
         }
-        // Recursively call countDown until 0
-        state.meetingCountdownTimer = setTimeout(() => countDown(secondsLeft - 1), 1000);
+        const nextDelay = Math.min(100, msLeft);
+        state.meetingCountdownTimer = setTimeout(() => countDown(msLeft - nextDelay), nextDelay);
     }
 
-    countDown(10);
+    countDown(introMs);
 }
 
 export { connectWebSocket };

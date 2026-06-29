@@ -1,6 +1,5 @@
 import ast
 import asyncio
-import http.client
 import json
 import os
 import random
@@ -16,12 +15,90 @@ from amongagents.agent.neutral_prompts import *
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_EXPERIMENT_PATH = REPO_ROOT / "human_trials" / "logs"
+SUPPORTED_LLM_PROVIDERS = {"openai", "gemini", "anthropic"}
 
 
 def _experiment_path() -> str:
     experiment_path = Path(os.environ.get("EXPERIMENT_PATH", DEFAULT_EXPERIMENT_PATH)).expanduser()
     experiment_path.mkdir(parents=True, exist_ok=True)
     return str(experiment_path)
+
+
+def _normalize_provider(provider: str | None, model: str) -> str:
+    if provider:
+        provider = provider.strip().lower()
+    elif "/" in model:
+        provider = model.split("/", 1)[0].strip().lower()
+        if provider == "google":
+            provider = "gemini"
+    else:
+        provider = "gemini"
+
+    if provider not in SUPPORTED_LLM_PROVIDERS:
+        raise ValueError(
+            f"Unsupported LLM_PROVIDER={provider!r}. "
+            f"Use one of: {', '.join(sorted(SUPPORTED_LLM_PROVIDERS))}."
+        )
+    return provider
+
+
+def _normalize_model_name(provider: str, model: str) -> str:
+    model = model.strip()
+    provider_prefixes = {
+        "openai": ("openai/",),
+        "gemini": ("google/", "gemini/"),
+        "anthropic": ("anthropic/",),
+    }
+    for prefix in provider_prefixes[provider]:
+        if model.startswith(prefix):
+            return model.removeprefix(prefix)
+    return model
+
+
+def _provider_api_key(provider: str) -> str | None:
+    env_name = {
+        "openai": "OPENAI_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }[provider]
+    if provider == "gemini":
+        return os.getenv(env_name) or os.getenv("GOOGLE_API_KEY")
+    return os.getenv(env_name)
+
+
+def _anthropic_messages(messages: list[dict]) -> tuple[str, list[dict]]:
+    system_parts = []
+    conversation = []
+    for message in messages:
+        role = message.get("role", "user")
+        content = message.get("content", "")
+        if role == "system":
+            system_parts.append(content)
+        else:
+            conversation.append({
+                "role": "assistant" if role == "assistant" else "user",
+                "content": content,
+            })
+    return "\n\n".join(system_parts), conversation
+
+
+def _gemini_contents(messages: list[dict]) -> tuple[dict | None, list[dict]]:
+    system_parts = []
+    contents = []
+    for message in messages:
+        role = message.get("role", "user")
+        content = message.get("content", "")
+        if role == "system":
+            system_parts.append(content)
+        else:
+            contents.append({
+                "role": "model" if role == "assistant" else "user",
+                "parts": [{"text": content}],
+            })
+    system_instruction = None
+    if system_parts:
+        system_instruction = {"parts": [{"text": "\n\n".join(system_parts)}]}
+    return system_instruction, contents
 
 
 # Write one agent turn to the db
@@ -86,12 +163,10 @@ class LLMAgent(Agent):
 
         self.system_prompt = system_prompt
         self.model = model
-        #self.model = "llama3.2:3b"
         self.temperature = 0.7
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
-        #self.api_key="ollama"
-        #self.api_url = "http://localhost:11434/v1/chat/completions"
-        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.provider = _normalize_provider(os.getenv("LLM_PROVIDER"), self.model)
+        self.provider_model = _normalize_model_name(self.provider, self.model)
+        self.api_key = _provider_api_key(self.provider)
         self.summarization = "No thought process has been made."
         self.processed_memory = "No memory has been processed."
         self.chat_history = []
@@ -199,89 +274,104 @@ class LLMAgent(Agent):
 
         print(".", end="", flush=True)
 
-    async def send_request(self, messages):
-        if self.model == "llama3.2:latest":
-            # JSON payload
-            payload = json.dumps({
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-                "top_p": 1,
-                "frequency_penalty": 0,
-                "presence_penalty": 0,
-                "repetition_penalty": 1,
-                "top_k": 0,
-                "stream": False
-            })
+    def _build_llm_request(self, messages):
+        if not self.api_key:
+            raise RuntimeError(f"Missing API key for LLM_PROVIDER={self.provider}.")
 
+        if self.provider == "openai":
+            return (
+                "https://api.openai.com/v1/chat/completions",
+                {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                {
+                    "model": self.provider_model,
+                    "messages": messages,
+                    "temperature": self.temperature,
+                },
+            )
+
+        if self.provider == "anthropic":
+            system_prompt, anthropic_messages = _anthropic_messages(messages)
+            payload = {
+                "model": self.provider_model,
+                "messages": anthropic_messages,
+                "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "1024")),
+                "temperature": self.temperature,
+            }
+            if system_prompt:
+                payload["system"] = system_prompt
+            return (
+                "https://api.anthropic.com/v1/messages",
+                {
+                    "x-api-key": self.api_key,
+                    "anthropic-version": os.getenv("ANTHROPIC_VERSION", "2023-06-01"),
+                    "Content-Type": "application/json",
+                },
+                payload,
+            )
+
+        system_instruction, gemini_contents = _gemini_contents(messages)
+        payload = {
+            "contents": gemini_contents,
+            "generationConfig": {
+                "temperature": self.temperature,
+                "maxOutputTokens": int(os.getenv("LLM_MAX_TOKENS", "1024")),
+            },
+        }
+        if system_instruction:
+            payload["systemInstruction"] = system_instruction
+        return (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.provider_model}:generateContent?key={self.api_key}",
+            {"Content-Type": "application/json"},
+            payload,
+        )
+
+    def _extract_llm_text(self, data):
+        if self.provider == "openai":
+            return data["choices"][0]["message"]["content"]
+
+        if self.provider == "anthropic":
+            parts = data.get("content", [])
+            return "".join(part.get("text", "") for part in parts if part.get("type") == "text")
+
+        parts = data["candidates"][0]["content"].get("parts", [])
+        return "".join(part.get("text", "") for part in parts)
+
+    async def send_request(self, messages):
+        """Send a chat-style request to the configured direct LLM provider."""
+        try:
+            url, headers, payload = self._build_llm_request(messages)
+        except Exception as exc:
+            print(f"LLM configuration failure for {self.model}: {exc}")
+            return {"content": "SPEAK: The AI connection failed after 10 attempts."}
+
+        async with aiohttp.ClientSession() as session:
             for attempt in range(10):
                 try:
-                    # Connect to local server (adjust port if different)
-                    #conn = http.client.HTTPConnection("wl-gpu1.cse.nd.edu", 11434)
-                    conn = http.client.HTTPConnection("127.0.0.1", 11434)
-                    headers = {
-                        "Content-Type": "application/json"
-                    }
-
-                    # Send request
-                    conn.request("POST", "/api/chat", body=payload, headers=headers)
-                    response = conn.getresponse()
-
-                    # Read and display result
-                    if response.status == 200:
-                        data = json.loads(response.read())
-                        #print(data)
-                        #if "choices" not in data:
-                        #    print(f"API request failed: 'choices' key not in response for {self.model}.")
-                        #    #print(data)
-                        #    continue
-                        #if not data["choices"]:
-                        #    print(f"API request failed: 'choices' key is empty in response for {self.model}.")
-                        #    continue
-                        return data#[0]["message"]["content"]#data["choices"][0]["message"]["content"]
-                    else:
-                        print(f"Request failed with status code {response.status}")
-                except Exception:
-                    print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
+                    async with session.post(url, headers=headers, json=payload) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            text = self._extract_llm_text(data)
+                            if text:
+                                return text
+                            print(f"LLM API returned no text for {self.provider}/{self.provider_model}.")
+                        else:
+                            error_details = await response.text()
+                            print(
+                                f"LLM API failure ({response.status}) for "
+                                f"{self.provider}/{self.provider_model}: {error_details}"
+                            )
+                except Exception as exc:
+                    print(
+                        f"LLM API request failed. Retrying... ({attempt + 1}/10) "
+                        f"for {self.provider}/{self.provider_model}: {exc}"
+                    )
                     continue
-        else:
-            """Send a POST request to OpenRouter API with the provided messages."""
-            headers = {"Authorization": f"Bearer {self.api_key}"}
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-                "top_p": 1,
-                "frequency_penalty": 0,
-                "presence_penalty": 0,
-                "repetition_penalty": 1,
-                "top_k": 0,
-            }
-        
-            async with aiohttp.ClientSession() as session:
-                for attempt in range(10):
-                    try:
-                        async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
-                            if response is None:
-                                print(f"API request failed: response is None for {self.model}.")
-                                continue
-                            if response.status == 200:
-                                data = await response.json()
-                                # print("HELLO?")
-                                if "choices" not in data:
-                                    print(f"API request failed: 'choices' key not in response for {self.model}.")
-                                    continue
-                                if not data["choices"]:
-                                    print(f"API request failed: 'choices' key is empty in response for {self.model}.")
-                                    continue
-                                return data["choices"][0]["message"]["content"]
-                            else:
-                                error_details = await response.text()
-                                print(f"LLM API Failure ({response.status}): {error_details}")
-                                continue
-                    except Exception:
-                        continue
-                return {"content": "SPEAK: The AI connection failed after 10 attempts."}
+
+        return {"content": "SPEAK: The AI connection failed after 10 attempts."}
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -459,6 +549,7 @@ class LLMAgent(Agent):
                 return action
             elif "SPEAK: " in repr(action) and "SPEAK: " in output_action:
                 message = output_action.split("SPEAK: ")[1]
+                await asyncio.sleep(0.10 * len(message))
                 action.message = message
                 return action
             else:

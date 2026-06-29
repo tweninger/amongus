@@ -4,6 +4,56 @@
 import { state } from './state.js';
 import { apiFetch, displayColor } from './helpers.js';
 
+function removeThinkingIndicator() {
+    const existing = document.getElementById('meeting-thinking-indicator');
+    if (existing) {
+        existing.remove();
+    }
+}
+
+function lastMeetingMessage(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+        return null;
+    }
+    return messages[messages.length - 1];
+}
+
+function renderThinkingIndicator(data) {
+    const chatBox = document.getElementById('discussion-chat');
+    const player = data.meeting_turn_player;
+    if (!chatBox || !player || data.can_vote || data.is_my_turn) {
+        removeThinkingIndicator();
+        return;
+    }
+
+    const latestMessage = lastMeetingMessage(data.meeting_messages);
+    if (latestMessage && latestMessage.sender_color === player.color) {
+        removeThinkingIndicator();
+        return;
+    }
+
+    const color = displayColor(player.color);
+    let indicator = document.getElementById('meeting-thinking-indicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'meeting-thinking-indicator';
+        indicator.className = 'meeting-thinking-row';
+        chatBox.appendChild(indicator);
+    }
+
+    indicator.style.borderLeftColor = color;
+    indicator.innerHTML = `
+        <img src="/assets/player_sprites/alive/player_${player.color}.png" alt="${player.name}" class="meeting-thinking-avatar">
+        <div class="meeting-thinking-body">
+            <strong style="color: ${color};">${player.name}</strong>
+            <span class="meeting-thinking-text">thinking</span>
+            <span class="meeting-typing-dots" aria-label="typing">
+                <span></span><span></span><span></span>
+            </span>
+        </div>`;
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
 // Display visual notification in chat when a vote result is announced at the end of a meeting
 function showEjectionBanner(voteResult) {
     const chatBox = document.getElementById('discussion-chat');
@@ -47,6 +97,7 @@ function renderMeetingChat(messages) {
     }
     // Get the new messages that haven't been rendered yet
     const newMessages = messages.slice(state.processedMessageCount);
+    removeThinkingIndicator();
 
     // Append each new msg to chat box with sender name and color styling
     newMessages.forEach(msg => {
@@ -79,6 +130,7 @@ function updateMeetingUI(data) {
     const votingRoster = document.getElementById('voting-roster-container');
     const sendBtn = document.getElementById('send-chat-btn');
     const chatInput = document.getElementById('chat-input');
+    renderThinkingIndicator(data);
 
     if (data.is_my_turn) {
         const meetingOverlayEl = document.getElementById('meeting-overlay');

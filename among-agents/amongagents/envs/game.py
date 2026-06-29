@@ -222,14 +222,18 @@ class AmongUs:
             [
                 1
                 for player in self.players
-                if player.identity == "Impostor" and player.is_alive
+                if player.identity == "Impostor"
+                and player.is_alive
+                and getattr(player, "is_connected", True)
             ]
         )
         num_crewmates = sum(
             [
                 1
                 for player in self.players
-                if player.identity == "Crewmate" and player.is_alive
+                if player.identity == "Crewmate"
+                and player.is_alive
+                and getattr(player, "is_connected", True)
             ]
         )
         if num_impostors >= num_crewmates:
@@ -244,6 +248,9 @@ class AmongUs:
 
     def check_actions(self):
         for player in self.players:
+            if not getattr(player, "is_connected", True):
+                player.set_available_actions([])
+                continue
             all_actions = player.get_all_actions()
             available_actions = []
             for action in all_actions:
@@ -269,6 +276,9 @@ class AmongUs:
         return None
 
     async def agent_step(self, agent):
+        if not getattr(agent.player, "is_connected", True):
+            return
+
         self.check_actions()
 
         is_human = 'homosapiens' in getattr(agent, 'model', '')
@@ -292,7 +302,7 @@ class AmongUs:
             if is_human:
                 action = await agent.choose_action(self.timestep)
             else:
-                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=20.0)
+                action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=120.0)
         except asyncio.TimeoutError:
             available = agent.player.available_actions
             # If timed out, return silently
@@ -350,10 +360,16 @@ class AmongUs:
         # import pdb; pdb.set_trace() # waiting after each timestep
 
     async def task_phase_step(self):
-        self.camera_record = {p.name: "stand quietly and do nothing" for p in self.players}
+        self.camera_record = {
+            p.name: "stand quietly and do nothing"
+            for p in self.players
+            if getattr(p, "is_connected", True)
+        }
         for player in self.players:
             player.killed_this_step = False
         for agent in self.agents:
+            if not getattr(agent.player, "is_connected", True):
+                continue
             if 'homosapiens' in agent.model:
                 self.is_human_turn = True
             else:
@@ -377,7 +393,8 @@ class AmongUs:
 
         # Move all players to the Cafeteria
         for player in self.players:
-            player.location = "Cafeteria"
+            if getattr(player, "is_connected", True):
+                player.location = "Cafeteria"
 
         self.update_map()
 
@@ -385,21 +402,17 @@ class AmongUs:
         while self.discussion_rounds_left > 0:
             print(f"DEBUG: discussion round, rounds_left={self.discussion_rounds_left}")
             for agent in self.agents:
+                if not getattr(agent.player, "is_connected", True):
+                    continue
                 print(f"DEBUG: STARTING DISCUSSION turn for {agent.player.name} (rounds_left={self.discussion_rounds_left})")
 
                 is_human = 'homosapiens' in getattr(agent, 'model', '')
                 if is_human:
                     self.is_human_turn = True
                     await self.agent_step(agent)
-                    await asyncio.sleep(3) # Temp workaround to delay not occurring after human player
                 else:
                     self.is_human_turn = False
                     await self.agent_step(agent)
-                    # Delay proportional to message length before prompting the next agent
-                    if self.activity_log:
-                        last_action = self.activity_log[-1].get('action')
-                        if last_action and getattr(last_action, 'name', '') == 'SPEAK':
-                            await asyncio.sleep(0.05 * len(last_action.message)) # 0.05s per char
 
             self.discussion_rounds_left -= 1
             # Update game state after each round
@@ -410,6 +423,8 @@ class AmongUs:
         print(f"DEBUG: entering voting phase, discussion_rounds_left={self.discussion_rounds_left}")
         self.vote_info_one_round = {}
         for agent in self.agents:
+            if not getattr(agent.player, "is_connected", True):
+                continue
 
             is_human = 'homosapiens' in getattr(agent, 'model', '')
             if is_human:
@@ -474,7 +489,7 @@ class AmongUs:
         self.important_activity_log.append(import_event)
         # Push ejection result to every surviving player's observation history
         for p in self.players:
-            if p.is_alive:
+            if p.is_alive and getattr(p, "is_connected", True):
                 p.observation_history.append(ejection_broadcast)
         self.current_phase = "task"
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
@@ -587,6 +602,8 @@ class MessageSystem:
             ]
             record = {"location": location, "players": player_names}
             for player in players:
+                if not getattr(player, "is_connected", True):
+                    continue
                 self.send_message(
                     player,
                     self.create_location_message(record, env),
@@ -601,9 +618,13 @@ class MessageSystem:
             action.new_location if hasattr(action, "new_location") else location
         )  # could be different from action.current_location if player moved or vented
         for other_player in env.players:
-            if other_player != player and (
+            if (
+                getattr(other_player, "is_connected", True)
+                and other_player != player
+                and (
                 other_player.location == location
                 or other_player.location == new_location
+                )
             ):
                 self.send_message(
                     other_player, self.create_action_message(record), info_type="action"

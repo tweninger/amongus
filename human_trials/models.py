@@ -50,9 +50,12 @@ class WebPlayerAgent:
     async def choose_action(self, timestep):
         # Blocking loop. Pause until the human submits an action via API
         self.waiting_for_action = True
-        while self.queued_action is None:
+        while self.queued_action is None and getattr(self.player, "is_connected", True):
             await asyncio.sleep(0.5)
         self.waiting_for_action = False
+        if not getattr(self.player, "is_connected", True):
+            self.queued_action = None
+            return None
         action = self.queued_action
         self.queued_action = None
         if action == "nudge":

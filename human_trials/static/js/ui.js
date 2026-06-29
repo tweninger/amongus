@@ -418,6 +418,9 @@ async function updateMapUI() {
         }
 
         data.players.forEach(player => {
+            if (player.is_connected === false) {
+                return;
+            }
             const isSelf = player.color === myColor;
             const isAlivePlayer = player.is_alive;
             const isReported = player.reported_death;

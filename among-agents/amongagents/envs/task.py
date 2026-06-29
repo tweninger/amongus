@@ -122,6 +122,9 @@ class TaskAssignment:
         all_tasks = 0
         completed_tasks = 0
         for task in self.assigned_tasks:
+            assigned_player = getattr(task, "assigned_player", None)
+            if assigned_player is not None and not getattr(assigned_player, "is_connected", True):
+                continue
             all_tasks += 1
             if task.check_completion():
                 completed_tasks += 1

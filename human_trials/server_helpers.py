@@ -74,6 +74,7 @@ def log_game_outcome(game_instance):
                 "name": p.name.split()[-1].capitalize(),
                 "identity": p.__class__.__name__,
                 "is_alive": getattr(p, "is_alive", True),
+                "is_connected": getattr(p, "is_connected", True),
             }
             for p in game_instance.players
         ],
@@ -159,8 +160,6 @@ def parse_meeting_messages(game_instance, meeting_start_step=None):
                 text = "Called an Emergency Meeting!"
             elif "REPORT DEAD BODY" in action:
                 text = f"Reported a dead body at {action.split('at ')[-1]}!"
-            elif "VOTE" in action:
-                text = action
 
             if text:
                 player_data = record.get("player", {})
@@ -189,6 +188,7 @@ def format_player_data(player):
         "location": player.location,
         "body_location": getattr(player, 'body_location', None),
         "is_alive": getattr(player, 'is_alive', True),
+        "is_connected": getattr(player, 'is_connected', True),
         "reported_death": getattr(player, 'reported_death', False),
         "identity": getattr(player, 'identity', 'Crewmate')
     }
@@ -208,7 +208,11 @@ def generate_room_observations(game_instance, players_initially_here, current_ro
 
 
 def get_players_in_room_except_human(game_instance, room_name, human):
-    return [player for player in game_instance.map.get_players_in_room(room_name) if player != human]
+    return [
+        player
+        for player in game_instance.map.get_players_in_room(room_name)
+        if player != human and getattr(player, "is_connected", True)
+    ]
 
 
 # Get name of player (color capitalized)

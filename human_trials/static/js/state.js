@@ -19,6 +19,7 @@ export const state = {
     waitingForStep: false, // True when this current client submitted an action but other players haven't yet
     lastTimestep: 0, // Used to detect when a new step is run
     lastDiscussionTurnSeq: -1, // Server-issued counter. Increments each time the discussion passes to a new human in meetings
+    processedGameEventIds: new Set(), // Server-issued event ids already shown in the game log
     pendingActionLog: null, // Stores { message, type, observations, ventObservations } while waiting for step
     meetingCountdownTimer: null,
     lobbyCountdownTimer: null,

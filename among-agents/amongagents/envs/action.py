@@ -37,6 +37,8 @@ class MoveTo(Action):
 
     @staticmethod
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if env.current_phase == "task":
             new_locations = env.map.get_adjacent_rooms(player.location)
             return [MoveTo(player.location, location) for location in new_locations]
@@ -51,6 +53,8 @@ class Vent(MoveTo):
 
     @staticmethod
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if env.current_phase == "task":
             new_locations = env.map.get_adjacent_rooms_vent(player.location)
             return [Vent(player.location, location) for location in new_locations]
@@ -87,6 +91,8 @@ class CallMeeting(Action):
 
     @staticmethod
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if env.current_phase == "task":
             current_location = player.location
             players_in_the_same_room = env.map.get_players_in_room(
@@ -125,9 +131,13 @@ class Vote(Action):
         env.votes[self.other_player] = env.votes.get(self.other_player, 0) + 1
 
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if env.current_phase == "meeting" and env.discussion_rounds_left == 0:
             alive_players_excluding_self = [
-                p for p in env.players if p.is_alive and p != player
+                p
+                for p in env.players
+                if p.is_alive and getattr(p, "is_connected", True) and p != player
             ]
             return [
                 Vote(player.location, other_player)
@@ -153,6 +163,8 @@ class Speak(Action):
         # TODO: Implement this
 
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if env.current_phase == "meeting" and env.discussion_rounds_left == 0:
             return []
         # ADDITION BY ME
@@ -211,6 +223,8 @@ class ViewMonitor(Action):
         # TODO: Implement this
 
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if player.location == "Security":
             return [ViewMonitor("Security")]
         else:
@@ -234,6 +248,8 @@ class CompleteTask(Action):
         # TODO: Implement this
 
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         available_tasks = []
         if env.current_phase == "task":
             current_location = player.location
@@ -271,6 +287,8 @@ class Kill(Action):
 
     @staticmethod
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         if env.current_phase == "task" and player.kill_cooldown == 0:
             current_location = player.location
             other_players = env.map.get_players_in_room(current_location)
@@ -299,6 +317,8 @@ class CompleteFakeTask(CompleteTask):
         self.task.do_task()  # TODO: Implement this (implement fake task instance)
 
     def can_execute_actions(env, player):
+        if not getattr(player, "is_connected", True):
+            return []
         available_tasks = []
         if env.current_phase == "task":
             current_location = player.location

@@ -73,11 +73,14 @@ class Map:
 
     def get_players_in_room(self, room_name, include_new_deaths=False):
         players = self.ship_map.nodes[room_name]["players"]
-        alive_players = [player for player in players if player.is_alive]
+        connected_players = [
+            player for player in players if getattr(player, "is_connected", True)
+        ]
+        alive_players = [player for player in connected_players if player.is_alive]
         if include_new_deaths:
             unreported_death_players = [
                 player
-                for player in players
+                for player in connected_players
                 if (not player.reported_death and not player.is_alive)
             ]
             return alive_players + unreported_death_players
@@ -97,6 +100,8 @@ class Map:
 
         :param player: Player object.
         """
+        if not getattr(player, "is_connected", True) or player.location not in self.ship_map:
+            return
         self.ship_map.nodes[player.location]["players"].append(player)
         self.players.append(player)
 

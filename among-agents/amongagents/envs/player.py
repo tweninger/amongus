@@ -42,6 +42,7 @@ class Player:
 
         # Player status
         self.is_alive = True
+        self.is_connected = True
         self.tasks = []
         self.reported_death = False
         self.body_location = None # Represents location at death (static)
@@ -66,6 +67,8 @@ class Player:
         self.available_actions = actions
 
     def get_available_actions(self):
+        if not self.is_connected:
+            return []
         if self.is_alive:
             return self.available_actions
         else:
@@ -94,6 +97,8 @@ class Player:
         self.action_history.append(record)
 
     def receive(self, message, info_type):
+        if not self.is_connected:
+            return
         if info_type == "location":
             self.location_info = message
         elif info_type == "action":

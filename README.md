@@ -15,6 +15,21 @@ make run
 
 Open `http://127.0.0.1:8011`.
 
+## LLM Provider
+
+The server calls model providers directly. Configure one provider in `.env`:
+
+```bash
+LLM_PROVIDER=gemini  # openai, gemini, or anthropic
+LLM_MODEL=gemini-3.5-flash
+GEMINI_API_KEY=...
+```
+
+Use `OPENAI_API_KEY`, `GEMINI_API_KEY`, or `ANTHROPIC_API_KEY` for the selected
+provider. Optional role-specific overrides are also supported:
+`CREWMATE_LLM_MODEL`, `IMPOSTOR_LLM_MODEL`, `CREWMATE_LLM_MODELS`, and
+`IMPOSTOR_LLM_MODELS`.
+
 For headless browser checks, Playwright may require OS packages. Check them with:
 
 ```bash
