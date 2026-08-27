@@ -139,11 +139,23 @@ function handleGameOver(data) {
     const title = document.getElementById('gameover-title');
     const winnerText = document.getElementById('gameover-winner-text');
     const playersDiv = document.getElementById('gameover-players');
+    const completionLink = document.getElementById('participation-completion-link');
 
     const impostorWin = data.winner.toLowerCase().includes('impostor');
     title.className = `fw bold mb-1 ${impostorWin ? 'text-danger' : 'text-success'}`;
     winnerText.innerText = `${data.winner}`;
     winnerText.className = impostorWin ? 'text-danger' : 'text-success';
+
+    if (completionLink) {
+        const completionUrl = data.participation_completion_url;
+        if (completionUrl) {
+            completionLink.href = completionUrl;
+            completionLink.classList.remove('d-none');
+        } else {
+            completionLink.href = '#';
+            completionLink.classList.add('d-none');
+        }
+    }
     
     playersDiv.innerHTML = '';
     // For each player, show their name, color, alive/dead status, and role (impostor or crewmate)

@@ -404,6 +404,9 @@ class AmongUs:
             for agent in self.agents:
                 if not getattr(agent.player, "is_connected", True):
                     continue
+                # Dead players observe meetings but never receive a discussion turn.
+                if not agent.player.is_alive:
+                    continue
                 print(f"DEBUG: STARTING DISCUSSION turn for {agent.player.name} (rounds_left={self.discussion_rounds_left})")
 
                 is_human = 'homosapiens' in getattr(agent, 'model', '')

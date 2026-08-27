@@ -45,6 +45,7 @@ os.environ['SESSION_ID'] = time.strftime("%Y%m%d_%H%M%S")
 LOBBY_COUNTDOWN_SECONDS = int(os.getenv("LOBBY_COUNTDOWN_SECONDS", "60"))
 LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
 LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
+PARTICIPATION_COMPLETION_URL = os.getenv("PARTICIPATION_COMPLETION_URL", "").strip()
 
 
 def env_model_choices(role: str) -> list[str]:
@@ -287,6 +288,7 @@ def _is_player_turn(agent, is_alive: bool, current_phase: str, can_vote: bool) -
 
     # Discussion Phase: only the human whose choose_action() is currently blocking
     return (isinstance(agent, WebPlayerAgent) and
+            is_alive and
             getattr(agent, 'waiting_for_action', False))
 
 
@@ -368,6 +370,7 @@ async def broadcast_state(room: GameRoom):
         "phase": current_phase,
         "task_progress": gi.task_assignment.check_task_completion(),
         "winner": winner,
+        "participation_completion_url": PARTICIPATION_COMPLETION_URL if winner else "",
         "vote_result": get_latest_vote_result(gi),
         "meeting_messages": parse_meeting_messages(gi, room.meeting_start_step) if current_phase == "meeting" else [],
         "can_vote": can_vote,
@@ -533,7 +536,11 @@ async def run_meeting_step(room: GameRoom) -> None:
                 for idx in room.sessions.values():
                     agent = gi.agents[idx]
                     if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-                        if getattr(agent, 'waiting_for_action', False) and is_connected_player(agent.player):
+                        if (
+                            getattr(agent, 'waiting_for_action', False)
+                            and getattr(agent.player, 'is_alive', True)
+                            and is_connected_player(agent.player)
+                        ):
                             action = Speak(current_location=agent.player.location)
                             action.provide_message("...")
                             agent.queued_action = action
@@ -1202,14 +1209,10 @@ async def next_step(x_player_token: str = Header(...)) -> dict:
 
     return {"status": "success"}
 
-# Nudge is a null action that is handled by models.py that = Speak with msg (...)
-# Used by ghosts to pass their discussion turn
+# Legacy compatibility endpoint. Ghost discussion turns are now skipped by the game engine.
 @app.post("/api/set-nudge")
 async def set_nudge(x_player_token: str = Header(...)) -> dict:
-    human_agent = get_human_agent(x_player_token)
-    if not human_agent.player.is_alive:
-        human_agent.queued_action = "nudge"
-    return {"status": "success"}
+    return {"status": "ignored", "message": "Ghost turns are skipped automatically."}
 
 # Endpoint for submitting votes during meetings.
 # Expects target player color or "none" for skip.

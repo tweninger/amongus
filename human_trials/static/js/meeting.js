@@ -156,25 +156,19 @@ function updateMeetingUI(data) {
                 populateVotingRoster();
             }
         }
-        // Discussion turn. Show chat input and turn prompt. 
-        // If player is a ghost, disable chat input and change button to "Pass Turn"
+        // Discussion turn. Dead players are skipped by the server, so this branch is alive-only.
         else if (!state.chatInputLocked) {
             const turnPrompt = document.getElementById('turn-prompt');
             if (turnPrompt) {
                 turnPrompt.style.display = 'block';
-                turnPrompt.innerText = data.is_alive ? "It's your turn to speak." : "You are a ghost. Pass your turn.";
+                turnPrompt.innerText = "It's your turn to speak.";
             }
             if (chatInputGroup) chatInputGroup.style.display = 'flex';
             if (sendBtn) {
                 sendBtn.disabled = false;
-                sendBtn.innerText = data.is_alive ? "Send" : "Pass Turn";
+                sendBtn.innerText = "Send";
             }
-            // If player is a ghost, disable chat input and set placeholder text
-            if (chatInput && !data.is_alive) {
-                chatInput.value = "Observing Discussion...";
-                chatInput.disabled = true;
-            } 
-            else if (chatInput) {
+            if (chatInput) {
                 chatInput.disabled = false;
             }
         }
@@ -259,14 +253,12 @@ async function populateVotingRoster() {
     }
 }
 
-// Handle sending chat messages or passing turn if ghost. 
+// Handle sending chat messages on a live player's discussion turn.
 // Locks input until next turn to prevent repeated presses
 async function handleSendChat() {
-    const isGhost = state.chatInput.disabled || state.chatInput.value === "Observing Discussion...";
     const message = state.chatInput.value.trim();
 
-    // Alive players must type something before submitting
-    if (!isGhost && !message){
+    if (!message){
         return;
     }
 
@@ -277,26 +269,20 @@ async function handleSendChat() {
     if (state.chatInput) state.chatInput.disabled = true;
 
     try {
-        if (!isGhost) {
-            // Queue the speak action with the message for the server to process in the current game step.
-            await apiFetch('/api/speak', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message })
-            });
-            state.chatInput.value = '';
-        }
-        else {
-            // Ghost mode: queue a nudge action to pass the turn without a message
-            await apiFetch('/api/set-nudge', { method: 'POST' });
-        }
+        // Queue the speak action with the message for the server to process in the current game step.
+        await apiFetch('/api/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
+        });
+        state.chatInput.value = '';
     }
     catch (error) {
         console.error("Chat Error:", error);
         // Unlock on error so the player can retry
         state.chatInputLocked = false;
         state.sendChatBtn.disabled = false;
-        state.sendChatBtn.innerText = isGhost ? "Pass Turn" : "Send";
+        state.sendChatBtn.innerText = "Send";
         if (state.chatInput) state.chatInput.disabled = false;
     }
 }
