@@ -309,7 +309,10 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
         actionBtn.type = 'button';
         actionBtn.className = `room-hover-action-button ${actionConfig.className}`;
         actionBtn.textContent = actionConfig.label;
-        actionBtn.disabled = state.actionLocked || state.waitingForStep;
+        actionBtn.title = actionConfig.title || actionConfig.label;
+        actionBtn.disabled = Boolean(actionConfig.disabled) || (
+            !actionConfig.allowWhilePending && (state.actionLocked || state.waitingForStep)
+        );
         actionBtn.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -600,12 +603,15 @@ async function updateMapUI() {
                         label: 'KILL',
                         eventName: 'amongus:kill-request',
                         detail: { targetColor: player.color },
+                        disabled: contextData.can_kill === false,
+                        title: contextData.can_kill === false ? 'Kill is on cooldown.' : 'Kill',
                     };
                 } else if (!player.is_alive && !player.reported_death && state.isAlive) {
                     actionConfig = {
                         className: 'room-report-button',
                         label: 'REPORT',
                         eventName: 'amongus:report-request',
+                        allowWhilePending: true,
                     };
                 }
                 roomPlayerLayer.appendChild(

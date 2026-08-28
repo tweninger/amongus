@@ -47,6 +47,9 @@ LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
 LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
 PARTICIPATION_COMPLETION_URL = os.getenv("PARTICIPATION_COMPLETION_URL", "").strip()
 CONSENT_TOKEN_TTL_SECONDS = 60 * 60
+ROUND_DURATION_SECONDS = int(os.getenv("ROUND_DURATION_SECONDS", "90"))
+MEETING_DISCUSSION_SECONDS = int(os.getenv("MEETING_DISCUSSION_SECONDS", "60"))
+MEETING_VOTING_SECONDS = int(os.getenv("MEETING_VOTING_SECONDS", "60"))
 
 # Short-lived, one-time browser tokens prove consent was explicitly accepted before matchmaking.
 consent_tokens: dict[str, float] = {}
@@ -95,6 +98,13 @@ class GameRoom:
         self.turn_deadline: float = 0.0 # Unix timestamp when current turn expires
         self.task_timeout_task: asyncio.Task | None = None # Background sleep task for task-phase auto-submit
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
+        self.meeting_discussion_deadline: float = 0.0
+        self.meeting_voting_open: bool = False
+        self.meeting_thinking_players: set[str] = set()
+        self.meeting_llm_tasks: set[asyncio.Task] = set()
+        self.meeting_last_message_at: float = 0.0
+        self.meeting_last_idle_roll_at: float = 0.0
+        self.game_finished: bool = False
         self.game_outcome_logged: bool = False
         self.game_events: list[dict] = []
         self.next_game_event_id: int = 1
@@ -104,6 +114,18 @@ games: dict[str, GameRoom] = {}
 
 # Reverse lookup to find a player's room from their session token
 token_to_room: dict[str, str] = {}
+
+
+def finish_game(room: GameRoom) -> None:
+    """Stop every room-level background activity once the game has a winner."""
+    if room.game_finished:
+        return
+    room.game_finished = True
+    room.turn_deadline = 0
+    if room.task_timeout_task and not room.task_timeout_task.done():
+        room.task_timeout_task.cancel()
+    room.task_timeout_task = None
+    cancel_meeting_llm_tasks(room)
 
 # Generates 4 letter random key code
 def generate_room_code():
@@ -280,14 +302,16 @@ def get_next_open_slot(room: GameRoom) -> int | None:
             return i
     return None
 
-# Track meeting phase transitions and per-human turn sequence on the room object.
-# Private Helper used in broadcast_state
+# Track meeting phase transitions on the room object.
+# Private helper used in broadcast_state.
 def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
     # Meeting start
     if current_phase == "meeting" and room.last_phase != "meeting":
         room.meeting_start_step = gi.timestep
         room.discussion_turn_seq = 0
         room.turn_deadline = 0
+        room.meeting_discussion_deadline = 0
+        room.meeting_voting_open = False
         if room.task_timeout_task and not room.task_timeout_task.done():
             room.task_timeout_task.cancel()
             room.task_timeout_task = None
@@ -295,19 +319,11 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
     elif current_phase != "meeting" and room.last_phase == "meeting":
         room.meeting_start_step = None
         room.discussion_turn_seq = 0
+        room.meeting_discussion_deadline = 0
+        room.meeting_voting_open = False
+        cancel_meeting_llm_tasks(room)
 
     room.last_phase = current_phase
-
-    # Increment turn_seq each time a human's waiting_for_action newly becomes True
-    if current_phase == "meeting":
-        for agent in gi.agents:
-            if isinstance(agent, WebPlayerAgent):
-                now_waiting = getattr(agent, 'waiting_for_action', False)
-                if now_waiting and not agent._prev_waiting:
-                    room.discussion_turn_seq += 1
-                    is_ghost = not getattr(agent.player, 'is_alive', True)
-                    room.turn_deadline = time.time() + (15 if is_ghost else 60)
-                agent._prev_waiting = now_waiting
 
 # Is it a specific player's turn given the current meeting state?
 # This accounts for both voting and discussion
@@ -317,10 +333,8 @@ def _is_player_turn(agent, is_alive: bool, current_phase: str, can_vote: bool) -
     if can_vote:
         return is_alive  # Only if alive!
 
-    # Discussion Phase: only the human whose choose_action() is currently blocking
-    return (isinstance(agent, WebPlayerAgent) and
-            is_alive and
-            getattr(agent, 'waiting_for_action', False))
+    # During shared discussion every living participant may speak at any time.
+    return is_alive
 
 
 def get_meeting_turn_player(gi, current_phase: str, can_vote: bool) -> dict | None:
@@ -381,7 +395,7 @@ async def broadcast_state(room: GameRoom):
         return
 
     current_phase = str(gi.current_phase).lower()
-    can_vote = current_phase == "meeting" and getattr(gi, 'discussion_rounds_left', 0) <= 0
+    can_vote = current_phase == "meeting" and room.meeting_voting_open
     _update_meeting_tracking(room, gi, current_phase)
 
     turn_seconds_left = max(0, int(room.turn_deadline - time.time())) if room.turn_deadline > 0 else None
@@ -405,8 +419,21 @@ async def broadcast_state(room: GameRoom):
         "vote_result": get_latest_vote_result(gi),
         "meeting_messages": parse_meeting_messages(gi, room.meeting_start_step) if current_phase == "meeting" else [],
         "can_vote": can_vote,
+        "discussion_open": (
+            current_phase == "meeting"
+            and room.meeting_running
+            and not room.meeting_voting_open
+            and time.time() < room.meeting_discussion_deadline
+        ),
         "discussion_turn_seq": room.discussion_turn_seq,
         "meeting_turn_player": get_meeting_turn_player(gi, current_phase, can_vote),
+        "thinking_players": [
+            format_player_data(agent.player)
+            for agent in gi.agents
+            if agent.player.name in room.meeting_thinking_players
+            and getattr(agent.player, "is_alive", True)
+            and is_connected_player(agent.player)
+        ],
         "turn_seconds_left": turn_seconds_left,
         "game_events": room.game_events,
     }
@@ -414,6 +441,8 @@ async def broadcast_state(room: GameRoom):
     if payload["winner"] and not room.game_outcome_logged:
         room.game_outcome_logged = True
         log_game_outcome(gi)
+    if payload["winner"]:
+        finish_game(room)
 
     dead = []
 
@@ -480,6 +509,9 @@ def all_humans_ready(room: GameRoom) -> bool:
 # Checks if all humans have queued actions, and if so steps the game and broadcasts state.
 # If not, just broadcast current state
 async def maybe_step_and_broadcast(room: GameRoom) -> bool:
+    if room.game_finished:
+        await broadcast_state(room)
+        return False
     if not all_humans_ready(room):
         await broadcast_state(room)
         return False
@@ -498,29 +530,33 @@ async def maybe_step_and_broadcast(room: GameRoom) -> bool:
 # Guards against two players reporting the same body (or double-clicking emergency):
 # the second caller waits on the lock, finds the phase already flipped to meeting, and skips.
 async def step_and_broadcast(room: GameRoom) -> None:
+    if room.game_finished:
+        await broadcast_state(room)
+        return
     async with room.step_lock:
         if str(room.game_instance.current_phase).lower() != "meeting":
             await room.game_instance.game_step()
     await broadcast_state(room)
 
 
-# 90 seconds per task-phase turn
-# Start (or restart) the 90s task-phase turn timer.
+# Start (or restart) the configured task-phase round timer.
 # Cancels any running timer and starts a new one.
 def start_task_timer(room: GameRoom) -> None:
+    if room.game_finished:
+        return
     if room.task_timeout_task and not room.task_timeout_task.done():
         room.task_timeout_task.cancel()
-    room.turn_deadline = time.time() + 90
+    room.turn_deadline = time.time() + ROUND_DURATION_SECONDS
     room.task_timeout_task = asyncio.create_task(task_phase_timeout(room))
 
-# Auto-submits a null MoveTo (stay in place) for any alive human who hasn't acted after 90s.
+# Auto-submits a null MoveTo (stay in place) when the configured round expires.
 async def task_phase_timeout(room: GameRoom) -> None:
     try:
-        await asyncio.sleep(90)
+        await asyncio.sleep(ROUND_DURATION_SECONDS)
     except asyncio.CancelledError:
         return
     gi = room.game_instance
-    if not gi or str(gi.current_phase).lower() != "task":
+    if room.game_finished or not gi or str(gi.current_phase).lower() != "task":
         return
     for idx in room.sessions.values():
         agent = gi.agents[idx]
@@ -532,59 +568,180 @@ async def task_phase_timeout(room: GameRoom) -> None:
     await maybe_step_and_broadcast(room)
 
 
-# Run the single long-running meeting game_step as a background task.
-# Broadcasts state every second so clients see messages in real time.
+def cancel_meeting_llm_tasks(room: GameRoom) -> None:
+    for task in tuple(room.meeting_llm_tasks):
+        task.cancel()
+    room.meeting_llm_tasks.clear()
+    room.meeting_thinking_players.clear()
+
+
+def start_llm_meeting_speech(room: GameRoom, agent, reason: str) -> None:
+    if agent.player.name in room.meeting_thinking_players:
+        return
+    # Mark before creating the task. Otherwise a second message can schedule the
+    # same agent again before its coroutine first gets a chance to run.
+    room.meeting_thinking_players.add(agent.player.name)
+    print(f"Scheduling meeting reply from {agent.player.name} ({reason}).")
+    task = asyncio.create_task(generate_llm_meeting_speech(room, agent))
+    room.meeting_llm_tasks.add(task)
+    task.add_done_callback(room.meeting_llm_tasks.discard)
+
+
+def schedule_llm_speech_rolls(room: GameRoom) -> None:
+    """Give each available LLM a 1 / alive-player-count chance to answer a message."""
+    gi = room.game_instance
+    if (
+        not gi
+        or room.meeting_voting_open
+        or str(gi.current_phase).lower() != "meeting"
+        or time.time() >= room.meeting_discussion_deadline
+    ):
+        return
+
+    alive_agents = [
+        agent for agent in gi.agents
+        if getattr(agent.player, "is_alive", True) and is_connected_player(agent.player)
+    ]
+    if not alive_agents:
+        return
+
+    for agent in alive_agents:
+        if isinstance(agent, WebPlayerAgent) or agent.player.name in room.meeting_thinking_players:
+            continue
+        if random.random() >= 1 / len(alive_agents):
+            continue
+        start_llm_meeting_speech(room, agent, "message roll")
+
+
+def get_meeting_reporter(gi):
+    for record in reversed(gi.activity_log):
+        if not isinstance(record, dict):
+            continue
+        action = record.get("action")
+        if getattr(action, "name", None) == "CALL MEETING":
+            return record.get("player")
+    return None
+
+
+async def generate_llm_meeting_speech(room: GameRoom, agent) -> None:
+    gi = room.game_instance
+    player = agent.player
+    if not gi or room.meeting_voting_open or not getattr(player, "is_alive", True):
+        room.meeting_thinking_players.discard(player.name)
+        return
+
+    await broadcast_state(room)
+    try:
+        # A Speak action stores its chosen text. Rebuild the available actions so
+        # this request receives a fresh `SPEAK: ...` option, not its last reply.
+        gi.check_actions()
+        action = await asyncio.wait_for(agent.choose_action(gi.timestep), timeout=120.0)
+        if (
+            room.game_instance is gi
+            and not room.meeting_voting_open
+            and time.time() < room.meeting_discussion_deadline
+            and getattr(player, "is_alive", True)
+            and getattr(action, "name", None) == "SPEAK"
+            and getattr(action, "message", "").strip()
+        ):
+            gi.record_activity(player, action)
+            room.meeting_last_message_at = time.time()
+            schedule_llm_speech_rolls(room)
+        else:
+            print(f"Meeting reply from {player.name} was unavailable or expired.")
+    except asyncio.TimeoutError:
+        print(f"Meeting speech generation timed out for {player.name}.")
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        print(f"Meeting speech generation failed for {player.name}: {error}")
+    finally:
+        room.meeting_thinking_players.discard(player.name)
+        await broadcast_state(room)
+
+
+# Run a shared discussion window, then use the normal engine only for voting.
 async def run_meeting_step(room: GameRoom) -> None:
-    # Cancel any leftover task-phase timer
     if room.task_timeout_task and not room.task_timeout_task.done():
         room.task_timeout_task.cancel()
         room.task_timeout_task = None
+
+    gi = room.game_instance
     room.voting_deadline_set = False
+    room.meeting_voting_open = False
+    gi.external_discussion_complete = False
+    room.meeting_discussion_deadline = time.time() + MEETING_DISCUSSION_SECONDS
+    room.turn_deadline = room.meeting_discussion_deadline
+    room.meeting_last_message_at = time.time()
+    room.meeting_last_idle_roll_at = room.meeting_last_message_at
+    # Keep SPEAK available while the server manages the shared discussion window.
+    gi.discussion_rounds_left = gi.game_config["discussion_rounds"]
+    # Meetings are global conversations: placing everyone in Cafeteria means the
+    # engine's real-time message routing reaches every other living participant.
+    for player in gi.players:
+        if is_connected_player(player):
+            player.location = "Cafeteria"
+    gi.update_map()
+    gi.check_actions()
+    reporter = get_meeting_reporter(gi)
+    reporter_agent = next((agent for agent in gi.agents if agent.player is reporter), None)
+    if (
+        reporter_agent
+        and not isinstance(reporter_agent, WebPlayerAgent)
+        and getattr(reporter_agent.player, "is_alive", True)
+    ):
+        start_llm_meeting_speech(room, reporter_agent, "meeting reporter")
+    await broadcast_state(room)
 
     async def broadcast_loop():
-        while room.game_instance and str(room.game_instance.current_phase).lower() == "meeting":
-            gi = room.game_instance
-            can_vote = getattr(gi, 'discussion_rounds_left', 0) <= 0
-
-            # 60 second deadline when voting opens
-            if can_vote and not room.voting_deadline_set:
-                room.turn_deadline = time.time() + 60
-                room.voting_deadline_set = True
-
-            # Handle afk voting
-            if can_vote and room.voting_deadline_set and time.time() > room.turn_deadline:
+        while (
+            not room.game_finished
+            and room.game_instance
+            and str(room.game_instance.current_phase).lower() == "meeting"
+        ):
+            now = time.time()
+            if (
+                not room.meeting_voting_open
+                and now - room.meeting_last_message_at >= 5
+                and now - room.meeting_last_idle_roll_at >= 5
+            ):
+                room.meeting_last_idle_roll_at = now
+                schedule_llm_speech_rolls(room)
+            if room.meeting_voting_open and room.turn_deadline and time.time() >= room.turn_deadline:
                 for idx in room.sessions.values():
                     agent = gi.agents[idx]
-                    if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-                        if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
-                            agent.queued_action = Vote(current_location=agent.player.location, other_player=None)
-                            log_human_action(gi, agent.player, "TIMEOUT_VOTE", {"target": "none"}) # Write clearly to log
+                    if (
+                        isinstance(agent, WebPlayerAgent)
+                        and agent.queued_action is None
+                        and getattr(agent.player, "is_alive", True)
+                        and is_connected_player(agent.player)
+                    ):
+                        agent.queued_action = Vote(current_location=agent.player.location, other_player=None)
+                        log_human_action(gi, agent.player, "TIMEOUT_VOTE", {"target": "none"})
                 room.turn_deadline = 0
-                break
-
-            # Handle afk discussion turns
-            if not can_vote and room.turn_deadline > 0 and time.time() > room.turn_deadline:
-                for idx in room.sessions.values():
-                    agent = gi.agents[idx]
-                    if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-                        if (
-                            getattr(agent, 'waiting_for_action', False)
-                            and getattr(agent.player, 'is_alive', True)
-                            and is_connected_player(agent.player)
-                        ):
-                            action = Speak(current_location=agent.player.location)
-                            action.provide_message("...")
-                            agent.queued_action = action
-                            log_human_action(gi, agent.player, "TIMEOUT_DISCUSS", {"message": "..."}) # Write clearly to log
-                room.turn_deadline = 0  # Reset; next human's turn will set a new deadline
-
             await broadcast_state(room)
             await asyncio.sleep(1.0)
 
     broadcast_task = asyncio.create_task(broadcast_loop())
     try:
-        await room.game_instance.game_step()
+        while (
+            not room.game_finished
+            and str(gi.current_phase).lower() == "meeting"
+            and time.time() < room.meeting_discussion_deadline
+        ):
+            await asyncio.sleep(0.25)
+
+        if not room.game_finished and str(gi.current_phase).lower() == "meeting":
+            cancel_meeting_llm_tasks(room)
+            room.meeting_voting_open = True
+            room.voting_deadline_set = True
+            room.turn_deadline = time.time() + MEETING_VOTING_SECONDS
+            gi.discussion_rounds_left = 0
+            gi.external_discussion_complete = True
+            await broadcast_state(room)
+            await gi.game_step()
     finally:
+        cancel_meeting_llm_tasks(room)
         broadcast_task.cancel()
         await asyncio.gather(broadcast_task, return_exceptions=True)
         room.meeting_running = False
@@ -596,7 +753,7 @@ async def run_meeting_step(room: GameRoom) -> None:
             for player in room.game_instance.players:
                 if ejected_color in player.name.lower() and not getattr(player, 'is_alive', True):
                     player.reported_death = True
-    if room.game_instance and str(room.game_instance.current_phase).lower() == "task":
+    if not room.game_finished and room.game_instance and str(room.game_instance.current_phase).lower() == "task":
         start_task_timer(room)
     await broadcast_state(room)  # Final broadcast after meeting ends
 
@@ -941,6 +1098,14 @@ async def get_room_context(x_player_token: str = Header(...)):
         and current_room == "Cafeteria"
         and gi.button_num < gi.game_config["max_num_buttons"]
     )
+    kill_cooldown = getattr(player, "kill_cooldown", 0)
+    can_kill = (
+        is_alive
+        and is_connected_player(player)
+        and player.identity == "Impostor"
+        and gi.current_phase == "task"
+        and kill_cooldown == 0
+    )
 
     return {
         "current_room": current_room,
@@ -954,6 +1119,8 @@ async def get_room_context(x_player_token: str = Header(...)):
         "players_in_room": others_in_room,
         "is_alive": is_alive,
         "can_call_meeting": can_call_meeting,
+        "can_kill": can_kill,
+        "kill_cooldown": kill_cooldown,
     }
 
 # Handles moving, trigers AI turns, and generates movement observations
@@ -1239,6 +1406,32 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
     }
 
 # Endpoint for sending chat messages during meetings
+@app.post("/api/typing")
+async def set_human_typing(request: Request, x_player_token: str = Header(...)) -> dict:
+    room = get_room(x_player_token)
+    if not room or not room.game_instance:
+        raise HTTPException(status_code=404, detail="No active game session")
+
+    gi = room.game_instance
+    agent = get_human_agent(x_player_token)
+    player = agent.player
+    data = await request.json()
+    is_typing = bool(data.get("is_typing"))
+    discussion_open = (
+        str(gi.current_phase).lower() == "meeting"
+        and room.meeting_running
+        and not room.meeting_voting_open
+        and time.time() < room.meeting_discussion_deadline
+        and getattr(player, "is_alive", True)
+    )
+    if is_typing and discussion_open:
+        room.meeting_thinking_players.add(player.name)
+    else:
+        room.meeting_thinking_players.discard(player.name)
+    await broadcast_state(room)
+    return {"status": "success"}
+
+
 @app.post("/api/speak")
 async def human_speak(request: Request, x_player_token: str = Header(...)) -> dict:
     room = get_room(x_player_token)
@@ -1247,7 +1440,7 @@ async def human_speak(request: Request, x_player_token: str = Header(...)) -> di
     gi = room.game_instance
 
     data = await request.json()
-    chat_msg = data.get("message", "")
+    chat_msg = str(data.get("message", "")).strip()
 
     human_agent = get_human_agent(x_player_token)
     player = human_agent.player
@@ -1261,11 +1454,26 @@ async def human_speak(request: Request, x_player_token: str = Header(...)) -> di
             "timestep": gi.timestep,
             "is_alive": is_alive
         }
-    # Execute speak
+    if (
+        str(gi.current_phase).lower() != "meeting"
+        or not room.meeting_running
+        or room.meeting_voting_open
+        or time.time() >= room.meeting_discussion_deadline
+    ):
+        raise HTTPException(status_code=400, detail="Discussion is closed.")
+    if not chat_msg:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    # Shared discussion messages are recorded immediately; they are not queued for
+    # the sequential game engine.
+    room.meeting_thinking_players.discard(player.name)
     action = Speak(current_location=player.location)
-    action.provide_message(chat_msg) # Attach the message to the action
-    human_agent.queued_action = action
+    action.provide_message(chat_msg)
+    gi.record_activity(player, action)
+    room.meeting_last_message_at = time.time()
     log_human_action(gi, player, "SPEAK", {"message": chat_msg, "phase": str(gi.current_phase)})
+    schedule_llm_speech_rolls(room)
+    await broadcast_state(room)
 
     return {
         "status": "success",
@@ -1301,8 +1509,12 @@ async def set_nudge(x_player_token: str = Header(...)) -> dict:
 # Endpoint for submitting votes during meetings.
 # Expects target player color or "none" for skip.
 @app.post("/api/vote")
-async def handle_vote(request: Request, x_player_token: str = Header(...)) -> dict: 
+async def handle_vote(request: Request, x_player_token: str = Header(...)) -> dict:
     room = get_room(x_player_token)
+    if not room or not room.game_instance:
+        raise HTTPException(status_code=404, detail="No active game session")
+    if not room.meeting_voting_open:
+        raise HTTPException(status_code=400, detail="Voting has not opened yet.")
     gi = room.game_instance
     data = await request.json()
     target_color = data.get("target")
@@ -1311,16 +1523,18 @@ async def handle_vote(request: Request, x_player_token: str = Header(...)) -> di
 
     target_player = None
 
-    # Vote for target player and execute action
-    if getattr(player, 'is_alive', True):
-        if target_color != "none":
-            target_player = next((
-                p for p in gi.players
-                if is_connected_player(p) and target_color.lower() in p.name.lower()
-            ), None)
+    if not getattr(player, 'is_alive', True):
+        raise HTTPException(status_code=403, detail="Ghosts cannot vote.")
 
-        human_agent.queued_action = Vote(current_location=human_agent.player.location, other_player=target_player)
-        log_human_action(gi, player, "VOTE", {"target": target_color})
+    # Vote for target player and execute action
+    if target_color != "none":
+        target_player = next((
+            p for p in gi.players
+            if is_connected_player(p) and target_color.lower() in p.name.lower()
+        ), None)
+
+    human_agent.queued_action = Vote(current_location=human_agent.player.location, other_player=target_player)
+    log_human_action(gi, player, "VOTE", {"target": target_color})
 
     # If meeting_phase is already running, the queued_action will be picked up
     # automatically. Calling game_step() here would start a second meeting phase which is bad

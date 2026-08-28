@@ -344,6 +344,15 @@ async function completeTask(taskName) {
 }
 
 async function triggerReport() {
+    // A killer may immediately report the body they created. Reporting replaces
+    // the queued kill with CallMeeting on the server, so release the local
+    // pending-action lock before submitting it.
+    if (state.waitingForStep) {
+        state.waitingForStep = false;
+        state.pendingActionLog = null;
+        document.getElementById('waiting-indicator')?.classList.add('d-none');
+        unlockActions();
+    }
     if (!lockActions()){
         return;
     }
@@ -416,6 +425,10 @@ async function performKill(targetColor){
 
             await refreshRoomContext();
             await updateMapUI();
+        }
+        else {
+            const error = await response.json().catch(() => ({}));
+            addLogMessage(error.detail || error.message || 'Kill was not available.', 'warning');
         }
     }
     catch (e) {

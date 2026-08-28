@@ -44,7 +44,7 @@ function connectWebSocket() {
 
 // --- TURN TIMER ---
 // Tracks last-seen values to detect when new timer period starts.
-// Only resets the countdown when the timestep, phase, turn sequence, or voting state changes
+// Only resets the countdown when a distinct server-managed timer period begins.
 let _turnTimerInterval = null;
 let _timerLastTimestep = -1;
 let _timerLastPhase = null;
@@ -84,9 +84,12 @@ function _hideTimer() {
 function updateTurnTimer(data) {
     const isTask = data.phase === 'task';
     const isMeeting = data.phase === 'meeting';
-    // Task phase: show for everyone
-    // Meeting phase: only show when it's your turn
-    const shouldShow = isTask || (isMeeting && data.is_my_turn);
+    // The meeting intro has no server deadline yet. Waiting until discussion
+    // actually opens prevents the old 60s fallback from masking a configured
+    // discussion duration such as MEETING_DISCUSSION_SECONDS=120.
+    const shouldShow = isTask || (
+        isMeeting && data.is_alive && (data.discussion_open || data.can_vote)
+    );
 
     if (!shouldShow) {_hideTimer(); return;}
 
@@ -138,14 +141,12 @@ function handleGameOver(data) {
     }
     const overlay = document.getElementById('gameover-overlay');
     const title = document.getElementById('gameover-title');
-    const winnerText = document.getElementById('gameover-winner-text');
     const playersDiv = document.getElementById('gameover-players');
     const completionLink = document.getElementById('participation-completion-link');
 
     const impostorWin = data.winner.toLowerCase().includes('impostor');
-    title.className = `fw bold mb-1 ${impostorWin ? 'text-danger' : 'text-success'}`;
-    winnerText.innerText = `${data.winner}`;
-    winnerText.className = impostorWin ? 'text-danger' : 'text-success';
+    title.className = `fw-bold mb-4 ${impostorWin ? 'text-danger' : 'text-success'}`;
+    title.innerText = data.winner.split('(')[0].trim();
 
     if (completionLink) {
         const completionUrl = data.participation_completion_url;
@@ -351,7 +352,12 @@ async function handleGlobalPhaseTransition(data) {
         else {
             if (chatInputGroupEl) chatInputGroupEl.style.display = 'flex';
         }
-        if (skipBtnEl) skipBtnEl.style.display = 'none';
+        if (skipBtnEl) {
+            skipBtnEl.style.display = 'none';
+            skipBtnEl.disabled = false;
+            skipBtnEl.classList.remove('vote-skip-selected', 'text-dark');
+            skipBtnEl.classList.add('btn-outline-warning');
+        }
         // Hide action panel, show countdown banner
         if (actionPanelEl){
             actionPanelEl.classList.add('d-none');
@@ -394,6 +400,12 @@ async function handleGlobalPhaseTransition(data) {
         // Restore task screen
         if (actionPanelEl){
             actionPanelEl.classList.remove('d-none');
+        }
+        if (skipBtnEl) {
+            skipBtnEl.style.display = 'none';
+            skipBtnEl.disabled = false;
+            skipBtnEl.classList.remove('vote-skip-selected', 'text-dark');
+            skipBtnEl.classList.add('btn-outline-warning');
         }
         if (meetingOverlayEl){
             meetingOverlayEl.classList.add('d-none');

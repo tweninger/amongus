@@ -4,7 +4,7 @@
 
 import { state } from './state.js';
 import { apiFetch, addLogMessage, formatColorName } from './helpers.js';
-import { handleSendChat } from './meeting.js';
+import { handleChatTyping, handleSendChat } from './meeting.js';
 import { showRoleReveal, updateTaskProgressBar, updateMapUI } from './ui.js';
 import { refreshRoomContext } from './actions.js';
 import { connectWebSocket } from './websocket.js';
@@ -308,8 +308,12 @@ document.addEventListener('DOMContentLoaded', () => {
         state.sendChatBtn.onclick = handleSendChat;
     }
     if (state.chatInput) {
+        state.chatInput.addEventListener('input', handleChatTyping);
         state.chatInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter'){
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
                 handleSendChat();
             }
         });

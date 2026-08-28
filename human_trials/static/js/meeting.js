@@ -4,6 +4,9 @@
 import { state } from './state.js';
 import { apiFetch, displayColor } from './helpers.js';
 
+let typingStopTimer = null;
+let humanTypingAnnounced = false;
+
 function removeThinkingIndicator() {
     const existing = document.getElementById('meeting-thinking-indicator');
     if (existing) {
@@ -11,28 +14,13 @@ function removeThinkingIndicator() {
     }
 }
 
-function lastMeetingMessage(messages) {
-    if (!Array.isArray(messages) || messages.length === 0) {
-        return null;
-    }
-    return messages[messages.length - 1];
-}
-
 function renderThinkingIndicator(data) {
     const chatBox = document.getElementById('discussion-chat');
-    const player = data.meeting_turn_player;
-    if (!chatBox || !player || data.can_vote || data.is_my_turn) {
+    const players = Array.isArray(data.thinking_players) ? data.thinking_players : [];
+    if (!chatBox || data.can_vote || players.length === 0) {
         removeThinkingIndicator();
         return;
     }
-
-    const latestMessage = lastMeetingMessage(data.meeting_messages);
-    if (latestMessage && latestMessage.sender_color === player.color) {
-        removeThinkingIndicator();
-        return;
-    }
-
-    const color = displayColor(player.color);
     let indicator = document.getElementById('meeting-thinking-indicator');
     if (!indicator) {
         indicator = document.createElement('div');
@@ -41,16 +29,16 @@ function renderThinkingIndicator(data) {
         chatBox.appendChild(indicator);
     }
 
-    indicator.style.borderLeftColor = color;
+    const names = players.map(player => (
+        `<strong style="color: ${displayColor(player.color)};">${player.name}</strong>`
+    ));
+    const nameList = names.length === 1
+        ? names[0]
+        : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
     indicator.innerHTML = `
-        <img src="/assets/player_sprites/alive/player_${player.color}.png" alt="${player.name}" class="meeting-thinking-avatar">
-        <div class="meeting-thinking-body">
-            <strong style="color: ${color};">${player.name}</strong>
-            <span class="meeting-thinking-text">thinking</span>
-            <span class="meeting-typing-dots" aria-label="typing">
-                <span></span><span></span><span></span>
-            </span>
-        </div>`;
+        <span class="meeting-thinking-names">${nameList}</span>
+        <span class="meeting-thinking-text">${players.length === 1 ? 'is' : 'are'} typing</span>
+        <span class="meeting-typing-dots" aria-label="typing"><span></span><span></span><span></span></span>`;
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
@@ -123,8 +111,7 @@ function renderMeetingChat(messages) {
     state.processedMessageCount = messages.length;
 }
 
-// Update the meeting UI based on whether it's the player's turn to speak or vote, and whether they are alive or a ghost.
-// Meeting UI includes the chat input area and the voting roster.
+// Update the shared-discussion and voting controls for the current meeting state.
 function updateMeetingUI(data) {
     const chatInputGroup = document.getElementById('chat-input-group');
     const votingRoster = document.getElementById('voting-roster-container');
@@ -132,62 +119,46 @@ function updateMeetingUI(data) {
     const chatInput = document.getElementById('chat-input');
     renderThinkingIndicator(data);
 
-    if (data.is_my_turn) {
-        const meetingOverlayEl = document.getElementById('meeting-overlay');
-        if (meetingOverlayEl && meetingOverlayEl.classList.contains('d-none')) {
-            meetingOverlayEl.classList.remove('d-none');
-        }
+    const meetingOverlayEl = document.getElementById('meeting-overlay');
+    if (meetingOverlayEl) meetingOverlayEl.classList.remove('d-none');
+    const turnPrompt = document.getElementById('turn-prompt');
+    const skipBtn = document.getElementById('skip-vote-btn');
 
-        // Unlock chat input if it's new turn for this player
-        if (data.discussion_turn_seq !== state.lastDiscussionTurnSeq) {
-            state.chatInputLocked = false;
-        }
-
-        // Voting turn. Only show voting roster and skip button if player is alive.
-        if (data.can_vote && data.is_alive) {
-            if (chatInputGroup) chatInputGroup.style.display = 'none';
-            // Hide turn prompt during voting
-            const turnPromptV = document.getElementById('turn-prompt');
-            if (turnPromptV) turnPromptV.style.display = 'none';
-            const skipBtn = document.getElementById('skip-vote-btn');
-            if (skipBtn) skipBtn.style.display = 'block';
-            // Populate voting roster if not already populated for this meeting
-            if (votingRoster && votingRoster.innerHTML.trim() === '') {
-                populateVotingRoster();
-            }
-        }
-        // Discussion turn. Dead players are skipped by the server, so this branch is alive-only.
-        else if (!state.chatInputLocked) {
-            const turnPrompt = document.getElementById('turn-prompt');
-            if (turnPrompt) {
-                turnPrompt.style.display = 'block';
-                turnPrompt.innerText = "It's your turn to speak.";
-            }
-            if (chatInputGroup) chatInputGroup.style.display = 'flex';
-            if (sendBtn) {
-                sendBtn.disabled = false;
-                sendBtn.innerText = "Send";
-            }
-            if (chatInput) {
-                chatInput.disabled = false;
-            }
-        }
-    }
-    // Not your turn.
-    else {
-        const turnPrompt = document.getElementById('turn-prompt');
-        if (turnPrompt) {
-            // Small reminder text to indicate it's not the player's turn
-            if (!data.can_vote && data.is_alive) {
-                turnPrompt.style.display = 'block';
-                turnPrompt.innerText = 'It is currently another player\'s turn to speak';
-                turnPrompt.className = 'text-success fw-bold small text-center mb-1';
-            }
-            else {
-                turnPrompt.style.display = 'none';
-            }
-        }
+    if (data.can_vote && data.is_alive) {
         if (chatInputGroup) chatInputGroup.style.display = 'none';
+        if (turnPrompt) turnPrompt.style.display = 'none';
+        if (skipBtn) skipBtn.style.display = 'block';
+        if (votingRoster && votingRoster.innerHTML.trim() === '') populateVotingRoster();
+    } else if (data.discussion_open && data.is_alive) {
+        if (votingRoster) votingRoster.innerHTML = '';
+        if (skipBtn) skipBtn.style.display = 'none';
+        if (turnPrompt) {
+            turnPrompt.style.display = 'block';
+            turnPrompt.innerText = 'Discussion is open. Speak whenever you are ready.';
+            turnPrompt.className = 'text-success fw-bold small text-center mb-1';
+        }
+        if (chatInputGroup) chatInputGroup.style.display = 'flex';
+        if (sendBtn) {
+            sendBtn.disabled = state.chatInputLocked;
+            sendBtn.innerText = state.chatInputLocked ? 'Sending...' : 'Send';
+        }
+        if (chatInput) chatInput.disabled = false;
+    } else if (!data.is_alive) {
+        if (chatInputGroup) chatInputGroup.style.display = 'none';
+        if (turnPrompt) {
+            turnPrompt.style.display = 'block';
+            turnPrompt.innerText = 'You are a ghost and cannot speak or vote.';
+            turnPrompt.className = 'text-secondary fw-bold small text-center mb-1';
+        }
+        if (skipBtn) skipBtn.style.display = 'none';
+    } else {
+        if (chatInputGroup) chatInputGroup.style.display = 'none';
+        if (turnPrompt) {
+            turnPrompt.style.display = 'block';
+            turnPrompt.innerText = 'Discussion is starting...';
+            turnPrompt.className = 'text-danger fw-bold small text-center mb-1';
+        }
+        if (skipBtn) skipBtn.style.display = 'none';
     }
 
     state.lastDiscussionTurnSeq = data.discussion_turn_seq;
@@ -226,7 +197,9 @@ async function populateVotingRoster() {
         // Handles voting when target is clicked
         btn.onclick = async () => {
             container.querySelectorAll('button').forEach(b => b.disabled = true);
-            btn.classList.add('bg-danger', 'text-white');
+            document.getElementById('skip-vote-btn').disabled = true;
+            btn.classList.remove('bg-dark', 'border-secondary');
+            btn.classList.add('vote-selected', 'text-white');
 
             // Send vote to server.
             await apiFetch('/api/vote', {
@@ -244,6 +217,8 @@ async function populateVotingRoster() {
         skipBtn.onclick = async () => {
             container.querySelectorAll('button').forEach(b => b.disabled = true);
             skipBtn.disabled = true;
+            skipBtn.classList.remove('btn-outline-warning');
+            skipBtn.classList.add('vote-skip-selected', 'text-dark');
             await apiFetch('/api/vote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -253,38 +228,71 @@ async function populateVotingRoster() {
     }
 }
 
-// Handle sending chat messages on a live player's discussion turn.
-// Locks input until next turn to prevent repeated presses
+// Send a discussion message. The short lock prevents duplicate requests only.
 async function handleSendChat() {
+    if (state.chatInputLocked) {
+        return;
+    }
     const message = state.chatInput.value.trim();
 
     if (!message){
         return;
     }
 
+    clearTimeout(typingStopTimer);
+    setHumanTyping(false);
+
     // Lock chat input and button to prevent repeated presses while waiting for server response
     state.chatInputLocked = true;
     state.sendChatBtn.disabled = true;
-    state.sendChatBtn.innerText = "Sent!";
-    if (state.chatInput) state.chatInput.disabled = true;
+    state.sendChatBtn.innerText = "Sending...";
+    state.chatInput.value = '';
+    state.chatInput.focus();
 
     try {
-        // Queue the speak action with the message for the server to process in the current game step.
-        await apiFetch('/api/speak', {
+        // The server records shared discussion messages immediately.
+        const response = await apiFetch('/api/speak', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: message })
         });
-        state.chatInput.value = '';
+        if (!response.ok) {
+            throw new Error('Discussion message was not accepted.');
+        }
     }
     catch (error) {
         console.error("Chat Error:", error);
-        // Unlock on error so the player can retry
+    }
+    finally {
         state.chatInputLocked = false;
         state.sendChatBtn.disabled = false;
         state.sendChatBtn.innerText = "Send";
-        if (state.chatInput) state.chatInput.disabled = false;
+        state.chatInput?.focus();
     }
 }
 
-export { showEjectionBanner, renderMeetingChat, updateMeetingUI, handleSendChat };
+function setHumanTyping(isTyping) {
+    if (isTyping === humanTypingAnnounced) {
+        return;
+    }
+    humanTypingAnnounced = isTyping;
+    apiFetch('/api/typing', {
+        method: 'POST',
+        body: JSON.stringify({ is_typing: isTyping }),
+    }).catch(() => {
+        humanTypingAnnounced = false;
+    });
+}
+
+function handleChatTyping() {
+    if (!state.chatInput || !state.chatInput.value.trim()) {
+        clearTimeout(typingStopTimer);
+        setHumanTyping(false);
+        return;
+    }
+    setHumanTyping(true);
+    clearTimeout(typingStopTimer);
+    typingStopTimer = setTimeout(() => setHumanTyping(false), 1200);
+}
+
+export { showEjectionBanner, renderMeetingChat, updateMeetingUI, handleSendChat, handleChatTyping };

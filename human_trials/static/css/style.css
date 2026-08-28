@@ -617,29 +617,22 @@ body:has(#lobby-screen:not(.d-none)) {
 .meeting-thinking-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 7px;
     margin-bottom: 12px;
     padding: 8px;
     background: rgba(255,255,255,0.035);
-    border-left: 4px solid rgba(255,255,255,0.28);
+    border-left: 4px solid #22c55e;
     border-radius: 8px;
-}
-
-.meeting-thinking-avatar {
-    width: 40px;
-    height: 40px;
-    object-fit: contain;
-    flex: 0 0 auto;
-}
-
-.meeting-thinking-body {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
     color: #d4d4d8;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 0.86rem;
+    white-space: nowrap;
+}
+
+.meeting-thinking-names {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .meeting-thinking-text {
@@ -656,7 +649,7 @@ body:has(#lobby-screen:not(.d-none)) {
     width: 6px;
     height: 6px;
     border-radius: 999px;
-    background: #e4e4e7;
+    background: #22c55e;
     opacity: 0.32;
     animation: meetingTypingDot 1.1s infinite ease-in-out;
 }
@@ -667,6 +660,26 @@ body:has(#lobby-screen:not(.d-none)) {
 
 .meeting-typing-dots span:nth-child(3) {
     animation-delay: 0.32s;
+}
+
+#voting-roster-container .vote-selected:disabled {
+    opacity: 1;
+    background: #b91c1c;
+    border-color: #ef4444;
+}
+
+#voting-roster-container button:not(:disabled):hover,
+#voting-roster-container button:not(:disabled):focus-visible {
+    background-color: #7f1d1d !important;
+    border-color: #f87171 !important;
+    color: #fff !important;
+    box-shadow: inset 4px 0 0 #f87171;
+}
+
+#skip-vote-btn.vote-skip-selected:disabled {
+    opacity: 1;
+    background: #facc15;
+    border-color: #fde047;
 }
 
 @keyframes meetingTypingDot {

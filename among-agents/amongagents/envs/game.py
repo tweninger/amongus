@@ -387,8 +387,11 @@ class AmongUs:
             self.meeting_in_progress = False
 
     async def _run_meeting_phase(self):
-        # Always reset discussion rounds at the start of a new meeting
-        self.discussion_rounds_left = self.game_config["discussion_rounds"]
+        # Web games can run their discussion outside the sequential engine loop.
+        # In that case the server opens voting only after its shared chat timer ends.
+        externally_managed_discussion = getattr(self, "external_discussion_complete", False)
+        if not externally_managed_discussion:
+            self.discussion_rounds_left = self.game_config["discussion_rounds"]
         print(f"DEBUG: _run_meeting_phase start, discussion_rounds_left={self.discussion_rounds_left}, agents={[a.player.name for a in self.agents]}")
 
         # Move all players to the Cafeteria
@@ -445,6 +448,7 @@ class AmongUs:
         print("REACHED")
         # Vote out
         self.voteout()
+        self.external_discussion_complete = False
         self.current_phase = "task"
         self.update_map()
 
@@ -454,6 +458,7 @@ class AmongUs:
             # Manually trigger the transition back to tasks
             self.current_phase = "task"
             self.discussion_rounds_left = self.game_config["discussion_rounds"]
+            self.external_discussion_complete = False
             return
 
         round = self.game_config["discussion_rounds"] - self.discussion_rounds_left
