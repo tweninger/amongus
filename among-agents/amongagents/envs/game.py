@@ -283,8 +283,8 @@ class AmongUs:
 
         is_human = 'homosapiens' in getattr(agent, 'model', '')
 
-        # Dead AI skip meetings
-        if not agent.player.is_alive and not is_human and self.current_phase != "task":
+        # Dead AI do not take further actions.
+        if not agent.player.is_alive and not is_human:
             return
 
         # kill cooldown

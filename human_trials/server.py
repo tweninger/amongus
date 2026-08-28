@@ -13,7 +13,7 @@ from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.game import AmongUs
 from db import init_db
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -46,6 +46,10 @@ LOBBY_COUNTDOWN_SECONDS = int(os.getenv("LOBBY_COUNTDOWN_SECONDS", "60"))
 LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
 LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
 PARTICIPATION_COMPLETION_URL = os.getenv("PARTICIPATION_COMPLETION_URL", "").strip()
+CONSENT_TOKEN_TTL_SECONDS = 60 * 60
+
+# Short-lived, one-time browser tokens prove consent was explicitly accepted before matchmaking.
+consent_tokens: dict[str, float] = {}
 
 
 def env_model_choices(role: str) -> list[str]:
@@ -78,6 +82,7 @@ class GameRoom:
         self.host_token = host_token # Only the host can start the game
         self.host_color = host_color # For show in the lobby list
         self.lobby_deadline: float = 0.0 # Unix timestamp when lobby countdown expires
+        self.consented_tokens: set[str] = set()
         self.ai_filled_slots: set[int] = set()
         self.lobby_fill_task: asyncio.Task | None = None
         self.sessions = {} # token -> agent index
@@ -111,6 +116,27 @@ def get_lobby_seconds_left(room: GameRoom) -> int:
     return max(0, int(room.lobby_deadline - time.time()))
 
 
+def all_human_participants_consented(room: GameRoom) -> bool:
+    return bool(room.sessions) and set(room.sessions).issubset(room.consented_tokens)
+
+
+def start_lobby_countdown_if_ready(room: GameRoom) -> None:
+    if (
+        room.status == "open"
+        and room.lobby_deadline <= 0
+        and all_human_participants_consented(room)
+    ):
+        room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
+        room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
+
+
+def consume_consent_token(token: object) -> None:
+    token = str(token or "")
+    issued_at = consent_tokens.pop(token, None)
+    if issued_at is None or time.time() - issued_at > CONSENT_TOKEN_TTL_SECONDS:
+        raise HTTPException(status_code=403, detail="Informed consent is required before joining a game.")
+
+
 def get_open_slots(room: GameRoom) -> list[int]:
     taken = set(room.sessions.values()) | room.ai_filled_slots
     return [i for i in range(room.total_slots) if i not in taken]
@@ -136,7 +162,12 @@ def add_game_event(room: GameRoom, message: str, event_type: str = "info") -> No
 
 
 async def activate_room(room: GameRoom, reason: str) -> None:
-    if not room.game_instance or room.status != "open" or not is_room_full(room):
+    if (
+        not room.game_instance
+        or room.status != "open"
+        or not is_room_full(room)
+        or not all_human_participants_consented(room)
+    ):
         return
 
     if room.lobby_fill_task and room.lobby_fill_task is not asyncio.current_task():
@@ -659,7 +690,8 @@ def choose_open_room() -> GameRoom | None:
     return max(open_rooms, key=lambda room: get_filled_slot_count(room))
 
 
-def create_room(selected_config) -> tuple[str, GameRoom]:
+def create_room(selected_config, consent_token: object) -> tuple[str, GameRoom]:
+    consume_consent_token(consent_token)
     total_slots = selected_config.get("num_players", 5)
     host_token = str(uuid4())
 
@@ -684,16 +716,17 @@ def create_room(selected_config) -> tuple[str, GameRoom]:
         host_token=host_token,
         host_color=host_color,
     )
-    room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
     room.game_instance = gi
     room.sessions[host_token] = 0
-    room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
+    room.consented_tokens.add(host_token)
     games[code] = room
     token_to_room[host_token] = code
+    start_lobby_countdown_if_ready(room)
     return host_token, room
 
 
-async def add_human_to_room(room: GameRoom, player_idx: int) -> tuple[str, dict]:
+async def add_human_to_room(room: GameRoom, player_idx: int, consent_token: object) -> tuple[str, dict]:
+    consume_consent_token(consent_token)
     gi = room.game_instance
     gi.agents[player_idx] = WebPlayerAgent(gi.players[player_idx])
     human_agent = gi.agents[player_idx]
@@ -702,13 +735,26 @@ async def add_human_to_room(room: GameRoom, player_idx: int) -> tuple[str, dict]
 
     token = str(uuid4())
     room.sessions[token] = player_idx
+    room.consented_tokens.add(token)
     token_to_room[token] = next((code for code, candidate in games.items() if candidate is room), "")
 
+    start_lobby_countdown_if_ready(room)
     await broadcast_lobby(room)
     if is_room_full(room):
         await activate_room(room, "Lobby filled. Starting game.")
 
     return token, build_waiting_room_response(room, token, player_idx, is_host=False)
+
+
+@app.post("/api/consent")
+async def record_consent() -> dict:
+    now = time.time()
+    for token, issued_at in list(consent_tokens.items()):
+        if now - issued_at > CONSENT_TOKEN_TTL_SECONDS:
+            consent_tokens.pop(token, None)
+    token = str(uuid4())
+    consent_tokens[token] = now
+    return {"consent_token": token}
 
 
 @app.post("/api/matchmake")
@@ -721,11 +767,11 @@ async def matchmake_game(request: Request) -> dict:
     if room:
         player_idx = get_next_open_slot(room)
         if player_idx is not None:
-            _, response = await add_human_to_room(room, player_idx)
+            _, response = await add_human_to_room(room, player_idx, data.get("consent_token"))
             return response
 
     selected_config = get_game_config(data.get("size"))
-    host_token, room = create_room(selected_config)
+    host_token, room = create_room(selected_config, data.get("consent_token"))
     return build_waiting_room_response(room, host_token, 0, is_host=True)
 
 # Receive player color from frontend, initiate global game instance, and return state to session
@@ -736,7 +782,7 @@ async def host_game(request: Request) -> dict:
     setup_log_directory()
     init_db() # Okay to do this on every game startup
     selected_config = get_game_config(data.get("size"))
-    host_token, room = create_room(selected_config)
+    host_token, room = create_room(selected_config, data.get("consent_token"))
     return build_waiting_room_response(room, host_token, 0, is_host=True)
 
 # Join an existing open room by claiming the next unclaimed agent slot
@@ -758,7 +804,7 @@ async def join_game(request: Request) -> dict: # Expect code from the request
     if player_idx is None:
         return {"status": "error", "message": "Game is full"}
 
-    _, response = await add_human_to_room(room, player_idx)
+    _, response = await add_human_to_room(room, player_idx, data.get("consent_token"))
     return response
 
 # Returns all open rooms for the join screen on frontend
@@ -916,11 +962,15 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     room = get_room(x_player_token)
     gi = room.game_instance
     data = await request.json()
+    skip_move = bool(data.get("skip_move"))
     new_room = data.get("destination")
 
     human_agent = get_human_agent(x_player_token)
     player = human_agent.player
     is_alive = getattr(player, 'is_alive', True)
+
+    if skip_move:
+        new_room = player.location
 
     initial_neighbors = get_players_in_room_except_human(gi, player.location, player)
     old_room = player.location
@@ -941,7 +991,12 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     observations = generate_room_observations(gi, initial_neighbors, old_room) if is_alive else []
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room) if is_alive else []
     vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors) if is_alive else []
-    log_human_action(gi, player, "MOVE", {"from": old_room, "to": new_room})
+    log_human_action(
+        gi,
+        player,
+        "SKIP_MOVE" if skip_move else "MOVE",
+        {"from": old_room, "to": new_room},
+    )
     return {
         "status": "success",
         "current_room": new_room,
@@ -1118,40 +1173,69 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
             "is_alive": is_alive
         }
 
+    if "Impostor" not in human_player.__class__.__name__:
+        raise HTTPException(status_code=403, detail="Only impostors can kill.")
+    if str(gi.current_phase).lower() != "task":
+        raise HTTPException(status_code=400, detail="Kills are only available during the task phase.")
+    if not isinstance(target_color, str):
+        raise HTTPException(status_code=400, detail="A kill target is required.")
+
     # Find target player object by color
     target_player = next((
         player for player in gi.players
         if is_connected_player(player) and target_color.lower() in player.name.lower()
     ), None)
 
-    if target_player:
-        kill_room = human_player.location
-        initial_neighbors = get_players_in_room_except_human(gi, kill_room, human_player)
-        human_agent.queued_action = Kill(current_location=kill_room, other_player=target_player)
-
-        step_ran = await maybe_step_and_broadcast(room)
-        if not step_ran:
-            return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
-
-        observations = generate_room_observations(gi, initial_neighbors, kill_room)
-        vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, kill_room)
-        vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors)
-
-        log_human_action(gi, human_player, "KILL", {"target": target_color.capitalize(), "location": human_player.location})
-
-        return{
-            "status": "success",
-            "message": f"You killed {target_color.capitalize()}!",
+    if not target_player:
+        return {
+            "status": "error",
+            "message": "Error: Target not found.",
             "timestep": gi.timestep,
             "is_alive": is_alive,
-            "observations": observations,
-            "vent_observations": vent_observations,
         }
-    return {
-        "status": "error",
-        "message": "Error: Target not found.",
+    if target_player is human_player or not getattr(target_player, "is_alive", True):
+        raise HTTPException(status_code=400, detail="That player cannot be killed.")
+    if target_player.location != human_player.location:
+        raise HTTPException(status_code=400, detail="Kill targets must be in the same room.")
+    if getattr(human_player, "kill_cooldown", 0) > 0:
+        raise HTTPException(status_code=400, detail="Kill is on cooldown.")
+
+    kill_room = human_player.location
+    initial_neighbors = get_players_in_room_except_human(gi, kill_room, human_player)
+    kill_action = Kill(current_location=kill_room, other_player=target_player)
+
+    # Kills are immediate: reveal the body before the rest of the turn resolves.
+    kill_action.execute(gi, human_player)
+    target_agent = next((agent for agent in gi.agents if agent.player is target_player), None)
+    if isinstance(target_agent, WebPlayerAgent):
+        target_agent.queued_action = MoveTo(
+            current_location=target_player.location,
+            new_location=target_player.location,
+        )
+    gi.update_map()
+    await broadcast_state(room)
+
+    # Keep the original action queued so the normal turn engine records it for
+    # observations and the LLM-facing activity log when the turn resolves.
+    human_agent.queued_action = kill_action
+
+    step_ran = await maybe_step_and_broadcast(room)
+    if not step_ran:
+        return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
+
+    observations = generate_room_observations(gi, initial_neighbors, kill_room)
+    vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, kill_room)
+    vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors)
+
+    log_human_action(gi, human_player, "KILL", {"target": target_color.capitalize(), "location": human_player.location})
+
+    return{
+        "status": "success",
+        "message": f"You killed {target_color.capitalize()}!",
         "timestep": gi.timestep,
-        "is_alive": is_alive
+        "is_alive": is_alive,
+        "observations": observations,
+        "vent_observations": vent_observations,
     }
 
 # Endpoint for sending chat messages during meetings

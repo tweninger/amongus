@@ -14,6 +14,7 @@ export const state = {
     chatInputLocked: false,
 
     isAlive: true,
+    deathModalShown: false,
     lastPhase: "active",
     actionLocked: false, // Global Lock for human actions
     waitingForStep: false, // True when this current client submitted an action but other players haven't yet

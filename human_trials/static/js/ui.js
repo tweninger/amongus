@@ -81,7 +81,10 @@ function renderRoomTasks(contextData) {
         const taskStatus = assignedTaskMap.get(taskName);
         const chip = document.createElement(taskStatus && !taskStatus.completed ? 'button' : 'div');
         chip.className = 'room-task-chip';
-        chip.textContent = taskName;
+        const progress = taskStatus && taskStatus.max_duration > 1
+            ? ` (${taskStatus.steps_done}/${taskStatus.max_duration})`
+            : '';
+        chip.textContent = `${taskName}${progress}`;
 
         if (!taskStatus) {
             chip.classList.add('room-task-unassigned');
@@ -89,6 +92,7 @@ function renderRoomTasks(contextData) {
             chip.classList.add('room-task-complete');
         } else {
             chip.classList.add('room-task-active');
+            chip.classList.add(taskStatus.steps_done > 0 ? 'room-task-in-progress' : 'room-task-ready');
             if (chip instanceof HTMLButtonElement) {
                 chip.type = 'button';
                 chip.disabled = state.actionLocked || state.waitingForStep;
@@ -97,6 +101,7 @@ function renderRoomTasks(contextData) {
                 chip.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    commitRoomTaskSelection(chip);
                     document.dispatchEvent(new CustomEvent('amongus:task-request', {
                         detail: { taskName },
                     }));
@@ -106,6 +111,23 @@ function renderRoomTasks(contextData) {
 
         overlay.appendChild(chip);
     });
+
+    if (contextData.is_alive && contextData.phase.toLowerCase() === 'task') {
+        const skipMove = document.createElement('button');
+        skipMove.type = 'button';
+        skipMove.className = 'room-task-chip room-task-active room-skip-move';
+        skipMove.textContent = 'Skip Move';
+        skipMove.disabled = state.actionLocked || state.waitingForStep;
+        skipMove.title = 'Stay in this room for this turn';
+        skipMove.setAttribute('aria-label', 'Skip move');
+        skipMove.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            commitRoomTaskSelection(skipMove);
+            document.dispatchEvent(new CustomEvent('amongus:skip-move-request'));
+        });
+        overlay.appendChild(skipMove);
+    }
 }
 
 function commitMapActionSelection(button) {
@@ -117,6 +139,27 @@ function commitMapActionSelection(button) {
     layer.querySelectorAll('.map-action-hotspot').forEach((hotspot) => {
         hotspot.disabled = true;
         hotspot.classList.remove('committed');
+    });
+    button.classList.add('committed');
+}
+
+function commitRoomTaskSelection(button) {
+    const overlay = button.closest('#room-task-overlay');
+    if (!overlay) {
+        return;
+    }
+
+    overlay.querySelectorAll('.room-task-active, .room-skip-move').forEach((task) => {
+        task.disabled = true;
+        task.classList.remove('committed');
+    });
+    button.classList.add('committed');
+}
+
+function commitRoomPlayerActionSelection(button) {
+    document.querySelectorAll('.room-hover-action-button').forEach((action) => {
+        action.disabled = true;
+        action.classList.remove('committed');
     });
     button.classList.add('committed');
 }
@@ -270,6 +313,7 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
         actionBtn.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
+            commitRoomPlayerActionSelection(actionBtn);
             document.dispatchEvent(new CustomEvent(actionConfig.eventName, {
                 detail: actionConfig.detail || {},
             }));
@@ -368,6 +412,7 @@ function showRoleReveal(role, color){
     const colorDisplay = document.getElementById('color-name-display');
     const imgDisplay = document.getElementById('color-img-display');
     const userDisplay = document.getElementById('user-display');
+    const roleReminder = document.getElementById('role-reminder');
     if (roleDisplay){
         roleDisplay.innerText = role;
         // Assign role display color as red for impostor, blue for crewmate
@@ -383,10 +428,26 @@ function showRoleReveal(role, color){
     if (userDisplay){
         userDisplay.innerText = formatColorName(color);
     }
+    if (roleReminder) {
+        roleReminder.innerText = ` (${role})`;
+        roleReminder.className = `fw-bold ${role.toLowerCase() === 'impostor' ? 'text-danger' : 'text-info'}`;
+    }
     const roleModalEl = document.getElementById('role-reveal-modal');
     const roleModal = new bootstrap.Modal(roleModalEl);
 
     roleModal.show();
+}
+
+function showKilledModal() {
+    if (state.deathModalShown) {
+        return;
+    }
+    const modalEl = document.getElementById('killed-modal');
+    if (!modalEl || typeof bootstrap === 'undefined') {
+        return;
+    }
+    state.deathModalShown = true;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 // Updates UI related to task bar progress (tasks completed / total tasks)
@@ -563,4 +624,4 @@ async function updateMapUI() {
     }
 }
 
-export { showRoleReveal, updateTaskProgressBar, updateMapUI };
+export { showRoleReveal, showKilledModal, updateTaskProgressBar, updateMapUI };

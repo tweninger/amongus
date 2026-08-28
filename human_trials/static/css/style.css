@@ -111,6 +111,25 @@ body:has(#lobby-screen:not(.d-none)) {
     margin-left: auto;
 }
 
+#status-strip #current-phase.choice-prompt {
+    animation: choice-prompt-glow 1.6s ease-in-out 5s infinite;
+}
+
+@keyframes choice-prompt-glow {
+    0%, 100% {
+        text-shadow: 0 0 0 rgba(74, 222, 128, 0);
+    }
+    50% {
+        text-shadow: 0 0 10px rgba(74, 222, 128, 0.8);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #status-strip #current-phase.choice-prompt {
+        animation: none;
+    }
+}
+
 #main-content-row {
     flex: 1;
     min-height: 0;
@@ -231,13 +250,44 @@ body:has(#lobby-screen:not(.d-none)) {
 }
 
 .room-task-chip.room-task-active {
-    color: #fef9c3;
-    background: rgba(133, 77, 14, 0.76);
-    border-color: rgba(250, 204, 21, 0.52);
-    animation: room-task-pulse 1.35s ease-in-out infinite;
     cursor: pointer;
     pointer-events: auto;
     transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.room-task-chip.room-task-ready {
+    color: #e0f2fe;
+    background: rgba(3, 105, 161, 0.72);
+    border-color: rgba(125, 211, 252, 0.5);
+}
+
+.room-task-chip.room-task-in-progress,
+.room-task-chip.room-task-active.committed {
+    color: #fef9c3;
+    background: rgba(133, 77, 14, 0.82);
+    border-color: rgba(250, 204, 21, 0.6);
+    animation: room-task-pulse 1.35s ease-in-out infinite;
+}
+
+.room-task-chip.room-skip-move {
+    color: #f3e8ff;
+    background: rgba(126, 34, 206, 0.78);
+    border-color: rgba(216, 180, 254, 0.62);
+    animation: none;
+}
+
+.room-task-chip.room-skip-move:hover,
+.room-task-chip.room-skip-move:focus-visible {
+    background: rgba(147, 51, 234, 0.96);
+    color: #ffffff;
+    box-shadow: 0 0 0 1px rgba(233, 213, 255, 0.7), 0 10px 24px rgba(126, 34, 206, 0.24);
+}
+
+.room-task-chip.room-skip-move.committed {
+    background: rgba(88, 28, 135, 0.96);
+    border-color: rgba(233, 213, 255, 0.9);
+    color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(107, 33, 168, 0.55), 0 10px 24px rgba(49, 10, 77, 0.4);
 }
 
 .room-task-chip.room-task-active:hover,
@@ -249,8 +299,14 @@ body:has(#lobby-screen:not(.d-none)) {
 }
 
 .room-task-chip.room-task-active:disabled {
-    opacity: 0.72;
     cursor: default;
+}
+
+.room-task-chip.room-task-active:disabled:not(.committed) {
+    color: rgba(212, 212, 216, 0.55);
+    background: rgba(63, 63, 70, 0.72);
+    border-color: rgba(161, 161, 170, 0.3);
+    animation: none;
 }
 
 @keyframes room-task-pulse {
@@ -265,7 +321,8 @@ body:has(#lobby-screen:not(.d-none)) {
 }
 
 #room-player-layer { z-index: 5; }
-#room-interaction-layer { z-index: 10; pointer-events: none; }
+/* Keep room controls above the inset Skeld map when their projected positions overlap. */
+#room-interaction-layer { z-index: 40; pointer-events: none; }
 
 .room-player-sprite-wrap {
     position: absolute;
@@ -309,6 +366,9 @@ body:has(#lobby-screen:not(.d-none)) {
     border: 1px solid rgba(239, 68, 68, 0.55);
     background: rgba(127, 29, 29, 0.18);
     color: #fecaca;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(12px, -50%);
 }
 
 .room-kill-button:hover,
@@ -318,16 +378,34 @@ body:has(#lobby-screen:not(.d-none)) {
     outline: none;
 }
 
+.room-kill-button.committed {
+    background: rgba(127, 29, 29, 0.96);
+    border-color: #fecaca;
+    color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(127, 29, 29, 0.5), 0 8px 18px rgba(69, 10, 10, 0.46);
+}
+
+.room-hover-action-button:disabled:not(.committed) {
+    opacity: 0.35;
+    cursor: default;
+    filter: grayscale(1);
+}
+
 .room-report-button {
-    border: 1px solid rgba(251, 191, 36, 0.55);
-    background: rgba(120, 53, 15, 0.2);
-    color: #fde68a;
+    border: 2px solid rgba(254, 215, 170, 0.94);
+    background: rgba(194, 65, 12, 0.9);
+    color: #ffffff;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(12px, -50%);
+    box-shadow: 0 0 0 2px rgba(154, 52, 18, 0.5), 0 8px 18px rgba(67, 20, 7, 0.42);
 }
 
 .room-report-button:hover,
 .room-report-button:focus-visible {
-    background: rgba(245, 158, 11, 0.92);
-    color: #fff7ed;
+    background: rgba(234, 88, 12, 1);
+    color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(254, 215, 170, 0.72), 0 10px 22px rgba(67, 20, 7, 0.5);
     outline: none;
 }
 
@@ -364,6 +442,38 @@ body:has(#lobby-screen:not(.d-none)) {
     cursor: default;
 }
 
+.move-arrow-hotspot:not(.vent-arrow-hotspot) {
+    width: 68px;
+    height: 68px;
+    background: rgba(2, 132, 199, 0.78);
+    color: #ffffff;
+    border: 3px solid rgba(224, 242, 254, 0.96);
+    box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.48), 0 12px 26px rgba(0, 0, 0, 0.42);
+}
+
+.move-arrow-hotspot:not(.vent-arrow-hotspot):hover,
+.move-arrow-hotspot:not(.vent-arrow-hotspot):focus-visible {
+    background: rgba(14, 165, 233, 0.96);
+    color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(186, 230, 253, 0.7), 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+.move-arrow-hotspot:not(.vent-arrow-hotspot).committed {
+    background: rgba(3, 105, 161, 0.98);
+    border-color: rgba(186, 230, 253, 0.98);
+    color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(7, 89, 133, 0.72), 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+.map-action-hotspot:disabled:not(.committed) {
+    background: rgba(82, 82, 91, 0.72);
+    border-color: rgba(161, 161, 170, 0.52);
+    color: rgba(228, 228, 231, 0.52);
+    box-shadow: none;
+    cursor: default;
+    filter: grayscale(1);
+}
+
 .emergency-hotspot {
     width: 40px;
     height: 40px;
@@ -385,28 +495,30 @@ body:has(#lobby-screen:not(.d-none)) {
 }
 
 .vent-arrow-hotspot {
-    width: 28px;
-    height: 28px;
+    width: 48px;
+    height: 48px;
     border-radius: 8px;
-    background: rgba(239, 68, 68, 0.16);
+    background: rgba(185, 28, 28, 0.84);
     color: transparent;
-    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.28);
+    border: 3px solid rgba(254, 226, 226, 0.92);
+    box-shadow: 0 0 0 3px rgba(127, 29, 29, 0.54), 0 10px 22px rgba(0, 0, 0, 0.4);
 }
 
 .vent-arrow-hotspot:hover,
 .vent-arrow-hotspot:focus-visible {
-    background: rgba(239, 68, 68, 0.42);
+    background: rgba(220, 38, 38, 0.98);
     color: transparent;
-    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.6);
+    box-shadow: 0 0 0 4px rgba(254, 202, 202, 0.72), 0 12px 28px rgba(0, 0, 0, 0.48);
 }
 
 .move-arrow-glyph {
     position: absolute;
     left: 50%;
     top: 50%;
-    font-size: 1.7rem;
+    font-size: 2.45rem;
+    font-weight: 900;
     line-height: 1;
-    text-shadow: 0 0 10px rgba(34, 211, 238, 0.24);
+    text-shadow: 0 2px 3px rgba(3, 105, 161, 0.85);
     pointer-events: none;
 }
 

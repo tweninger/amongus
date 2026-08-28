@@ -29,7 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const waitingHint = document.getElementById('waiting-hint');
     const lobbyTimer = document.getElementById('lobby-timer');
     const matchmakingStatus = document.getElementById('matchmaking-status');
+    const consentAgreeBtn = document.getElementById('consent-agree-btn');
     let hasShownAboutThisGame = false;
+    let hasConsented = false;
+    let consentToken = null;
     const lobbyFallbackColors = ['red', 'blue', 'green', 'pink', 'orange'];
 
     function spritePath(color) {
@@ -46,6 +49,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         hasShownAboutThisGame = true;
         bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    async function recordConsent() {
+        if (hasConsented && consentToken) {
+            return true;
+        }
+        if (consentAgreeBtn) {
+            consentAgreeBtn.disabled = true;
+            consentAgreeBtn.innerText = 'Saving...';
+        }
+        try {
+            const response = await fetch('/api/consent', { method: 'POST' });
+            if (!response.ok) {
+                throw new Error('Unable to record consent');
+            }
+            const data = await response.json();
+            consentToken = data.consent_token;
+            hasConsented = true;
+            return true;
+        }
+        catch (error) {
+            console.error('Consent error:', error);
+            if (matchmakingStatus) {
+                matchmakingStatus.innerText = 'Unable to record consent. Please try again.';
+            }
+            return false;
+        }
+        finally {
+            if (consentAgreeBtn) {
+                consentAgreeBtn.disabled = false;
+                consentAgreeBtn.innerText = 'I Agree';
+            }
+        }
     }
 
     function stopLobbyCountdown() {
@@ -176,8 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (matchmakingStatus) {
             matchmakingStatus.innerText = 'Players joining...';
         }
-        showAboutThisGameOnce();
-
         if (data.room_status === 'active') {
             stopLobbyCountdown();
             await enterGame(state.myColor);
@@ -228,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/matchmake', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ size: 'FIVE_MEMBER_GAME' }),
+                body: JSON.stringify({ size: 'FIVE_MEMBER_GAME', consent_token: consentToken }),
             });
             if (!response.ok) {
                 throw new Error('Failed to matchmake');
@@ -238,13 +272,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         catch (e) {
             console.error('Matchmake error:', e);
+            consentToken = null;
             if (matchmakingStatus) {
                 matchmakingStatus.innerText = 'Unable to find a game right now. Refresh to retry.';
             }
         }
     }
 
-    autoMatchmake();
+    if (consentAgreeBtn) {
+        consentAgreeBtn.addEventListener('click', async () => {
+            const modalEl = document.getElementById('about-this-game-modal');
+            if (hasConsented) {
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+                return;
+            }
+            const accepted = await recordConsent();
+            if (!accepted) {
+                return;
+            }
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            }
+            autoMatchmake();
+        });
+    }
+    if (matchmakingStatus) {
+        matchmakingStatus.innerText = 'Please review and accept the consent form to begin.';
+    }
+    showAboutThisGameOnce();
 
     // --- Chat Handler ---
     if (state.sendChatBtn) {

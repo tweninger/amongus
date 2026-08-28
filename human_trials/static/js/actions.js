@@ -13,6 +13,13 @@ document.addEventListener('amongus:move-request', (event) => {
     performMove(destination);
 });
 
+document.addEventListener('amongus:skip-move-request', () => {
+    const currentRoom = document.getElementById('location-display')?.innerText;
+    if (currentRoom) {
+        performMove(currentRoom, true);
+    }
+});
+
 document.addEventListener('amongus:vent-request', (event) => {
     const destination = event.detail?.destination;
     if (!destination) {
@@ -71,8 +78,12 @@ async function refreshRoomContext() {
     // Normal gameplay, task phase
     else{
         if (phaseDisplayEl) {
-            phaseDisplayEl.innerText = isAlive ? "Active" : "Spectating as Ghost";
-            phaseDisplayEl.className = "text-success fw-bold";
+            phaseDisplayEl.innerText = isAlive
+                ? (state.waitingForStep ? 'Action entered, waiting for others...' : 'Please make your choice')
+                : 'Spectating as Ghost';
+            phaseDisplayEl.className = isAlive && state.waitingForStep
+                ? 'text-warning fw-bold'
+                : (isAlive ? 'text-success fw-bold choice-prompt' : 'text-success fw-bold');
         }
     }
 
@@ -178,7 +189,7 @@ async function refreshRoomContext() {
 // 4) If response is successful, log the action and any observations, then refresh room context and map UI
 // 5) Unlock actions unless we're waiting for a step to resolve, in which case unlock when new state arrives from the server
 
-async function performMove(destination) {
+async function performMove(destination, skipMove = false) {
     const source = document.getElementById('location-display')?.innerText || 'Unknown';
     if (!lockActions()){
         return;
@@ -188,7 +199,7 @@ async function performMove(destination) {
         const response = await apiFetch('/api/move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ destination: destination }) // Send desired destination to server
+            body: JSON.stringify({ destination, skip_move: skipMove })
         });
         
         if (response.ok) {
@@ -196,12 +207,19 @@ async function performMove(destination) {
             // Waiting for other players to act
             if (data.status === "pending") {
                 state.waitingForStep = true;
-                state.pendingActionLog = { step: data.timestep, message: `You moved from ${source} to ${destination}`, type: 'info', observations: [], ventObservations: [] };
+                state.pendingActionLog = {
+                    step: data.timestep,
+                    message: skipMove ? `You stayed in ${source}` : `You moved from ${source} to ${destination}`,
+                    type: 'info',
+                    observations: [],
+                    ventObservations: [],
+                };
                 return;
             }
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Turn ${data.timestep}] You moved from ${source} to ${destination}`, 'info');
+            const actionMessage = skipMove ? `You stayed in ${source}` : `You moved from ${source} to ${destination}`;
+            addLogMessage(`[Turn ${data.timestep}] ${actionMessage}`, 'info');
 
             // Log who was seen leaving the room
             if (data.observations && data.observations.length > 0){

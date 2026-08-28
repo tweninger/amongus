@@ -2,7 +2,7 @@
 import { state } from './state.js';
 import { apiFetch, addLogMessage, unlockActions } from './helpers.js';
 import { showEjectionBanner, renderMeetingChat, updateMeetingUI } from './meeting.js';
-import { updateTaskProgressBar, updateMapUI } from './ui.js';
+import { showKilledModal, updateTaskProgressBar, updateMapUI } from './ui.js';
 import { refreshRoomContext } from './actions.js';
 
 // --- WEBSOCKET ---
@@ -50,6 +50,7 @@ let _timerLastTimestep = -1;
 let _timerLastPhase = null;
 let _timerLastTurnSeq = -1;
 let _timerLastCanVote = null;
+let _lastPlayerStateSignature = null;
 
 function _renderTimer(s) {
     const colorClass = s <= 10 ? 'text-danger' : 'text-warning';
@@ -216,6 +217,30 @@ function renderGameEvents(data) {
     });
 }
 
+async function refreshImmediatePlayerState(data) {
+    const signature = (data.players || [])
+        .map((player) => `${player.color}:${player.is_alive}:${player.body_location || ''}:${player.reported_death}`)
+        .sort()
+        .join('|');
+    const changed = signature !== _lastPlayerStateSignature;
+    _lastPlayerStateSignature = signature;
+
+    // A kill can change player/body state without advancing the shared turn.
+    // Refresh the map in that case so every client sees the body immediately.
+    if (!changed || data.timestep > state.lastTimestep) {
+        return;
+    }
+
+    if (state.isAlive && !data.is_alive) {
+        state.isAlive = false;
+        state.wasAlive = false;
+        addLogMessage('YOU WERE KILLED', 'danger');
+        showKilledModal();
+    }
+    await refreshRoomContext();
+    await updateMapUI();
+}
+
 // Multiplayer sync. Wait for every player to put in an action.
 // The server only runs game_step() once ALL alive humans have queued an action, so we are locked until so.
 async function resolveStepIfReady(data) {
@@ -240,6 +265,7 @@ async function resolveStepIfReady(data) {
         else {
             const killer = data.killed_by.charAt(0).toUpperCase() + data.killed_by.slice(1);
             addLogMessage(`YOU WERE KILLED BY ${killer.toUpperCase()}`, 'danger');
+            showKilledModal();
         }
     }
     state.wasAlive = data.is_alive;
@@ -295,6 +321,7 @@ async function handleWsStateUpdate(data) {
     updateHUD(data);
     renderGameEvents(data);
     updateTurnTimer(data);
+    await refreshImmediatePlayerState(data);
     await resolveStepIfReady(data);
     await handlePhaseUpdate(data);
 }

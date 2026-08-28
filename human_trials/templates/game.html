@@ -139,7 +139,7 @@
 
         <!-- Status Strip -->
         <div id="status-strip">
-            <span>You: <span id="user-display" class="status-val">—</span></span>
+            <span>You: <span id="user-display" class="status-val">—</span><span id="role-reminder" class="fw-bold"></span></span>
             <span>Location: <span id="location-display" class="status-val">—</span></span>
             <span>Turn: <span id="step-counter" class="status-val">0</span></span>
             <span id="turn-timer-strip" class="d-none">⏱ <span id="turn-timer-val" class="fw-bold">60</span>s</span>
@@ -180,14 +180,13 @@
                         <div class="col-md-6 mb-3">
                             <h6 class="text-info fw-bold text-uppercase">Informed Consent</h6>
                             <p class="text-light">
-                                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer non justo vitae
-                                lectus posuere luctus. Vivamus vitae sem at erat congue facilisis, and this text
-                                is a placeholder for the study purpose, procedures, and expected participation.
+                                You are invited to participate in a research study examining gameplay and communication in a turn-based version of the game Among Us. In this study, you will play a turn-based version of the game and make decisions during gameplay.
                             </p>
-                            <p class="text-light mb-0">
-                                Praesent sed magna nec lorem pulvinar finibus. Curabitur at ipsum vitae nibh
-                                ullamcorper posuere, and this text is a placeholder for risks, benefits,
-                                privacy, and voluntary participation details.
+                            <p class="text-light">
+                                During the study, the system will record gameplay actions and in-game communications for research purposes. No personally identifying information will be collected beyond what is necessary to conduct the study.
+                            </p>
+                            <p class="text-light">
+                                The purpose of this research is to examine differences in gameplay, communication, and deception strategies across different types of players in a turn-based social deduction game environment.
                             </p>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -195,8 +194,7 @@
                             <ul class="text-light ps-3">
                                 <li>Join a short online social-deduction game.</li>
                                 <li>Interact with other players through game actions and discussion.</li>
-                                <li>Make decisions during timed turns and meetings.</li>
-                                <li>Continue only if you choose to participate.</li>
+                                <li>Make decisions during timed turns and meetings.</li>                                
                             </ul>
                         </div>
                     </div>
@@ -209,22 +207,21 @@
                             <ul class="text-light ps-3">
                                 <li>Participation is voluntary.</li>
                                 <li>You may stop playing at any time.</li>
-                                <li>Only continue if you understand and agree.</li>
+                                <li>Only continue if you are 18 years old and agree.</li>
                             </ul>
                         </div>
                         <div class="col-md-6 mb-3">
                             <h6 class="text-light fw-bold text-uppercase">Questions</h6>
                             <ul class="text-muted ps-3">
-                                <li>Contact information and study details can go here.</li>
-                                <li>Eligibility, compensation, and data-use details can go here.</li>
-                                <li>This placeholder content should be replaced before deployment.</li>
+                                <li>Contact Prof. Tim Weninger: tweninger@nd.edu with questions</li>
+                                <li>Upon the completion of the game you will receive a link that can be used to register your completion</li>
                             </ul>
                         </div>
                     </div>
 
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">I Agree</button>
+                    <button id="consent-agree-btn" type="button" class="btn btn-primary fw-bold px-4">I Agree</button>
                 </div>
             </div>
         </div>
@@ -293,6 +290,19 @@
                 </div>
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-primary fw-bold px-4" data-bs-dismiss="modal">Got it</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Death Modal -->
+    <div id="killed-modal" class="modal fade" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white text-center border-danger">
+                <div class="modal-body p-5">
+                    <h2 class="display-5 fw-bold text-danger mb-3">YOU WERE KILLED</h2>
+                    <p class="text-light mb-4">You are now a ghost. You can continue moving and completing tasks.</p>
+                    <button type="button" class="btn btn-outline-light px-4" data-bs-dismiss="modal">Continue as Ghost</button>
                 </div>
             </div>
         </div>
