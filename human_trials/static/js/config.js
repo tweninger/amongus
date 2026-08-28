@@ -36,7 +36,9 @@ export const roomViewBounds = {
     "admin": { x: 615, y: 260, width: 121, height: 109 },
     "electrical": { x: 357, y: 283, width: 122, height: 159 },
     "lower engine": { x: 165, y: 323, width: 116, height: 123 },
-    "security": { x: 267, y: 182, width: 70, height: 125 },
+    // Include surrounding corridor space so Security's doorway and vent fit in
+    // the same uncropped room view.
+    "security": { x: 160, y: 145, width: 300, height: 180 },
     "reactor": { x: 70, y: 163, width: 119, height: 177 },
     "upper engine": { x: 163, y: 59, width: 115, height: 133 },
     "medbay": { x: 340, y: 145, width: 140, height: 129 },

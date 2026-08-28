@@ -16,7 +16,8 @@ function getRoomViewProjection(roomView, roomName) {
 
     const viewWidth = roomView.clientWidth || 1;
     const viewHeight = roomView.clientHeight || 1;
-    const scale = Math.max(viewWidth / bounds.width, viewHeight / bounds.height);
+    // Preserve the entire room instead of cropping its edges to fill the stage.
+    const scale = Math.min(viewWidth / bounds.width, viewHeight / bounds.height);
     const offsetX = -bounds.x * scale + ((viewWidth - (bounds.width * scale)) / 2);
     const offsetY = -bounds.y * scale + ((viewHeight - (bounds.height * scale)) / 2);
 
@@ -192,14 +193,61 @@ function createEmergencyHotspot(point) {
     return button;
 }
 
-function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null) {
+function getMovementArrowPoints(contextData, roomView) {
+    if (!contextData?.adjacent?.length || !roomView) {
+        return [];
+    }
+
+    return contextData.adjacent
+        .map((destination) => movementEdgeCoordinates[edgeKey(contextData.current_room, destination)])
+        .filter(Boolean)
+        .map((point) => projectMapPoint(contextData.current_room, point, roomView))
+        .filter(Boolean);
+}
+
+function getPlayerPlacementArea(contextData, roomView) {
+    const arrowPoints = getMovementArrowPoints(contextData, roomView);
+    const viewCenter = {
+        x: (roomView?.clientWidth || 1) / 2,
+        y: (roomView?.clientHeight || 1) / 2,
+    };
+    const anchors = arrowPoints.length === 1 ? [...arrowPoints, viewCenter] : arrowPoints;
+
+    if (anchors.length === 0) {
+        return {
+            left: viewCenter.x * 0.3,
+            right: viewCenter.x * 1.7,
+            top: viewCenter.y * 0.35,
+            bottom: viewCenter.y * 1.65,
+        };
+    }
+
+    const inset = 64;
+    const left = Math.max(inset, Math.min(...anchors.map((point) => point.x)) + inset);
+    const right = Math.min(roomView.clientWidth - inset, Math.max(...anchors.map((point) => point.x)) - inset);
+    const top = Math.max(inset, Math.min(...anchors.map((point) => point.y)) + inset);
+    const bottom = Math.min(roomView.clientHeight - inset, Math.max(...anchors.map((point) => point.y)) - inset);
+
+    return {
+        left: Math.min(left, right),
+        right: Math.max(left, right),
+        top: Math.min(top, bottom),
+        bottom: Math.max(top, bottom),
+    };
+}
+
+function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null, placementArea = null) {
     const wrapper = document.createElement('div');
     wrapper.className = 'room-player-sprite-wrap';
-    const horizontalPos = 20 + (Math.random() * 60);
-    const verticalPos = 40 + (Math.random() * 40);
+    const horizontalPos = placementArea
+        ? placementArea.left + (Math.random() * (placementArea.right - placementArea.left))
+        : 50;
+    const verticalPos = placementArea
+        ? placementArea.top + (Math.random() * (placementArea.bottom - placementArea.top))
+        : 50;
     wrapper.style.position = 'absolute';
-    wrapper.style.top = `${verticalPos}%`;
-    wrapper.style.left = `${horizontalPos}%`;
+    wrapper.style.top = `${verticalPos}px`;
+    wrapper.style.left = `${horizontalPos}px`;
     wrapper.style.transform = 'translate(-50%, -50%)';
 
     const img = document.createElement('img');
@@ -417,6 +465,7 @@ async function updateMapUI() {
             });
         }
 
+        const playerPlacementArea = getPlayerPlacementArea(contextData, roomView);
         data.players.forEach(player => {
             if (player.is_connected === false) {
                 return;
@@ -499,7 +548,7 @@ async function updateMapUI() {
                     };
                 }
                 roomPlayerLayer.appendChild(
-                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig),
+                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig, playerPlacementArea),
                 );
             }
         });
