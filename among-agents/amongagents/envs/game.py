@@ -459,6 +459,9 @@ class AmongUs:
             self.current_phase = "task"
             self.discussion_rounds_left = self.game_config["discussion_rounds"]
             self.external_discussion_complete = False
+            system_logger = getattr(self, "record_game_system_event", None)
+            if callable(system_logger):
+                system_logger(self, "EJECTION_RESULT", {"ejected_player": None, "votes": [], "vote_count": 0})
             return
 
         round = self.game_config["discussion_rounds"] - self.discussion_rounds_left
@@ -483,6 +486,7 @@ class AmongUs:
                 "player": "all players",
             }
             ejection_broadcast = f"MEETING RESULT: {player.name} was ejected by vote. They are no longer in the game."
+            ejected_player = player
             print(f"== {player.name} was voted out ==")
         else:
             import_event = {
@@ -493,6 +497,7 @@ class AmongUs:
                 "player": "all players",
             }
             ejection_broadcast = "MEETING RESULT: No one was ejected."
+            ejected_player = None
             print("== No one was voted out ==")
         self.important_activity_log.append(import_event)
         # Push ejection result to every surviving player's observation history
@@ -504,6 +509,17 @@ class AmongUs:
         self.votes = {}
         self.update_map()
         self.check_actions()
+        system_logger = getattr(self, "record_game_system_event", None)
+        if callable(system_logger):
+            system_logger(
+                self,
+                "EJECTION_RESULT",
+                {
+                    "ejected_player": getattr(ejected_player, "name", None),
+                    "votes": vote_info,
+                    "vote_count": max_votes,
+                },
+            )
 
     def check_monitor(self, room):
         players = self.map.get_players_in_room(room)
@@ -543,6 +559,9 @@ class AmongUs:
         # print(record)
         # print('.', end='', flush=True)
         self.message_system.route_real_time_message(self, record)
+        action_logger = getattr(self, "record_game_action", None)
+        if callable(action_logger):
+            action_logger(self, player, action, additional_info)
         if str(record["action"]).startswith("COMPLETE TASK"):
             imprtant_event = {
                 "timestep": self.timestep,

@@ -101,7 +101,8 @@ def _gemini_contents(messages: list[dict]) -> tuple[dict | None, list[dict]]:
     return system_instruction, contents
 
 
-# Write one agent turn to the db
+# Write one LLM request/response to the analysis database. The web server creates
+# the full schema; this local CREATE keeps standalone engine runs usable too.
 def _log_interaction_to_db(entry: dict):
     db_path = os.path.join(_experiment_path(), "game_data.db")
     player = entry.get("player", {})
@@ -109,12 +110,38 @@ def _log_interaction_to_db(entry: dict):
     try:
         conn = sqlite3.connect(db_path)
         conn.execute(
-            "INSERT INTO agent_interactions VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?)",
+            """
+            CREATE TABLE IF NOT EXISTS llm_interactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                timestep INTEGER,
+                player_name TEXT NOT NULL,
+                player_role TEXT NOT NULL,
+                player_personality TEXT,
+                player_model TEXT NOT NULL,
+                player_location TEXT,
+                system_prompt TEXT,
+                prompt TEXT NOT NULL,
+                response TEXT NOT NULL,
+                full_response TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO llm_interactions (
+                game_id, occurred_at, timestep, player_name, player_role,
+                player_personality, player_model, player_location, system_prompt,
+                prompt, response, full_response
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
             (
-                entry.get("game_index"), entry.get("step"), entry.get("timestamp"),
-                player.get("name"), player.get("identity"), player.get("personality"), player.get("model"), player.get("location"),
-                interaction.get("system_prompt"), json.dumps(interaction.get("prompt")),
-                json.dumps(interaction.get("response")), interaction.get("full_response"),
+                entry.get("game_index"), entry.get("timestamp"), entry.get("step"),
+                player.get("name"), player.get("identity"), player.get("personality"),
+                player.get("model"), player.get("location"), interaction.get("system_prompt"),
+                json.dumps(interaction.get("prompt")), json.dumps(interaction.get("response")),
+                interaction.get("full_response") or "",
             ),
         )
         conn.commit()
@@ -254,7 +281,7 @@ class LLMAgent(Agent):
 
         # Create the interaction object with proper nesting
         interaction = {
-            'game_index': f"{os.environ.get('SESSION_ID', 'unknown')}_Game {self.game_index}",
+            'game_index': str(self.game_index),
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},

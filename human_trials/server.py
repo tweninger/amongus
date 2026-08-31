@@ -3,7 +3,9 @@ import asyncio
 import os
 import random
 import string
+import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,6 +35,9 @@ from server_helpers import (
     log_game_outcome,
     log_human_action,
     parse_meeting_messages,
+    persist_game_start,
+    record_engine_action,
+    record_system_event,
     setup_log_directory,
 )
 
@@ -50,6 +55,21 @@ CONSENT_TOKEN_TTL_SECONDS = 60 * 60
 ROUND_DURATION_SECONDS = int(os.getenv("ROUND_DURATION_SECONDS", "90"))
 MEETING_DISCUSSION_SECONDS = int(os.getenv("MEETING_DISCUSSION_SECONDS", "60"))
 MEETING_VOTING_SECONDS = int(os.getenv("MEETING_VOTING_SECONDS", "60"))
+
+
+def get_code_revision() -> str | None:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent.parent,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+CODE_REVISION = get_code_revision()
 
 # Short-lived, one-time browser tokens prove consent was explicitly accepted before matchmaking.
 consent_tokens: dict[str, float] = {}
@@ -79,6 +99,8 @@ def build_agent_config() -> dict:
 class GameRoom:
     def __init__(self, size_config, total_slots, host_token, host_color):
         self.game_instance = None
+        self.game_id: str | None = None
+        self.code: str | None = None
         self.status = "open" # "open" = joinable, "active" = game running
         self.size_config = size_config
         self.total_slots = total_slots # max num players
@@ -86,6 +108,7 @@ class GameRoom:
         self.host_color = host_color # For show in the lobby list
         self.lobby_deadline: float = 0.0 # Unix timestamp when lobby countdown expires
         self.consented_tokens: set[str] = set()
+        self.consented_at_by_slot: dict[int, str] = {}
         self.ai_filled_slots: set[int] = set()
         self.lobby_fill_task: asyncio.Task | None = None
         self.sessions = {} # token -> agent index
@@ -106,6 +129,7 @@ class GameRoom:
         self.meeting_last_idle_roll_at: float = 0.0
         self.game_finished: bool = False
         self.game_outcome_logged: bool = False
+        self.game_started_logged: bool = False
         self.game_events: list[dict] = []
         self.next_game_event_id: int = 1
 
@@ -199,6 +223,23 @@ async def activate_room(room: GameRoom, reason: str) -> None:
     room.status = "active"
     room.game_instance.game_phase = "active"
     room.game_instance.activity_log.append(reason)
+    if not room.game_started_logged:
+        persist_game_start(
+            room.game_instance,
+            room.code or "unknown",
+            {
+                "lobby_countdown_seconds": LOBBY_COUNTDOWN_SECONDS,
+                "round_duration_seconds": ROUND_DURATION_SECONDS,
+                "meeting_discussion_seconds": MEETING_DISCUSSION_SECONDS,
+                "meeting_voting_seconds": MEETING_VOTING_SECONDS,
+                "llm_provider": os.getenv("LLM_PROVIDER"),
+                "llm_models": env_model_choices("crewmate"),
+                "impostor_llm_models": env_model_choices("impostor"),
+            },
+            CODE_REVISION,
+            room.consented_at_by_slot,
+        )
+        room.game_started_logged = True
 
     await broadcast_lobby(room, event="game_started")
     start_task_timer(room)
@@ -667,6 +708,7 @@ async def run_meeting_step(room: GameRoom) -> None:
         room.task_timeout_task = None
 
     gi = room.game_instance
+    gi.meeting_number = getattr(gi, "meeting_number", 0) + 1
     room.voting_deadline_set = False
     room.meeting_voting_open = False
     gi.external_discussion_complete = False
@@ -856,10 +898,16 @@ def create_room(selected_config, consent_token: object) -> tuple[str, GameRoom]:
     total_slots = selected_config.get("num_players", 5)
     host_token = str(uuid4())
 
+    game_id = f"web_{uuid4().hex}"
     gi = AmongUs(
         game_config=selected_config,
         agent_config=build_agent_config(),
+        game_index=game_id,
     )
+    gi.game_id = game_id
+    gi.meeting_number = 0
+    gi.record_game_action = record_engine_action
+    gi.record_game_system_event = record_system_event
     gi.initialize_game()
     gi.agents[0] = WebPlayerAgent(gi.players[0])
     host_agent = gi.agents[0]
@@ -878,8 +926,11 @@ def create_room(selected_config, consent_token: object) -> tuple[str, GameRoom]:
         host_color=host_color,
     )
     room.game_instance = gi
+    room.game_id = game_id
+    room.code = code
     room.sessions[host_token] = 0
     room.consented_tokens.add(host_token)
+    room.consented_at_by_slot[0] = datetime.now(timezone.utc).isoformat()
     games[code] = room
     token_to_room[host_token] = code
     start_lobby_countdown_if_ready(room)
@@ -897,6 +948,7 @@ async def add_human_to_room(room: GameRoom, player_idx: int, consent_token: obje
     token = str(uuid4())
     room.sessions[token] = player_idx
     room.consented_tokens.add(token)
+    room.consented_at_by_slot[player_idx] = datetime.now(timezone.utc).isoformat()
     token_to_room[token] = next((code for code, candidate in games.items() if candidate is room), "")
 
     start_lobby_countdown_if_ready(room)
@@ -1147,6 +1199,12 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     old_room = player.location
 
     human_agent.queued_action = MoveTo(current_location=old_room, new_location=new_room)
+    log_human_action(
+        gi,
+        player,
+        "SKIP_MOVE" if skip_move else "MOVE",
+        {"from": old_room, "to": new_room},
+    )
 
     # Await AI agent run waiting for all humans to be ready
     # Pattern - This shows up for most human actions
@@ -1162,12 +1220,6 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     observations = generate_room_observations(gi, initial_neighbors, old_room) if is_alive else []
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room) if is_alive else []
     vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors) if is_alive else []
-    log_human_action(
-        gi,
-        player,
-        "SKIP_MOVE" if skip_move else "MOVE",
-        {"from": old_room, "to": new_room},
-    )
     return {
         "status": "success",
         "current_room": new_room,
@@ -1198,6 +1250,7 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
     task_room = player.location
 
     human_agent.queued_action = CompleteTask(current_location=player.location, task=task_to_complete)
+    log_human_action(gi, player, "COMPLETE_TASK", {"task": task_name, "location": task_room})
 
     step_ran = await maybe_step_and_broadcast(room)
 
@@ -1218,8 +1271,6 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
     observations = generate_room_observations(gi, initial_neighbors, player.location) if is_alive else []
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, task_room) if is_alive else []
     vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors) if is_alive else []
-    log_human_action(gi, player, "COMPLETE_TASK", {"task": task_name, "location": task_room, "progress": f"{steps_done}/{max_dur}"})
-
     return {
         "status": "success",
         "message": msg,
@@ -1264,6 +1315,7 @@ async def report_body(request: Request, x_player_token: str = Header(...)) -> di
 
     # Tell engine to call meeting
     human_agent.queued_action = CallMeeting(current_location=player.location)
+    log_human_action(gi, player, "REPORT", {"body": dead_name, "location": player.location})
 
     # Important: Clear any messages from pre-existing meetings
     if hasattr(gi, 'meeting_messages'):
@@ -1271,8 +1323,6 @@ async def report_body(request: Request, x_player_token: str = Header(...)) -> di
 
     queue_null_actions_for_idle_humans(room)  # Don't block on humans who haven't acted
     await step_and_broadcast(room)
-
-    log_human_action(gi, player, "REPORT", {"body": dead_name, "location": player.location})
 
     return {
         "status": "success",
@@ -1302,14 +1352,13 @@ async def call_meeting(request: Request, x_player_token: str = Header(...)) -> d
         return {"status": "error", "message": "No emergency meetings remaining!"}
 
     human_agent.queued_action = CallMeeting(current_location=player.location)
+    log_human_action(gi, player, "CALL_MEETING", {"location": player.location})
 
     if hasattr(gi, 'meeting_messages'):
         gi.meeting_messages = []
 
     queue_null_actions_for_idle_humans(room)  # Don't block on humans who haven't acted
     await step_and_broadcast(room)
-
-    log_human_action(gi, player, "CALL_MEETING", {"location": player.location})
 
     return {
         "status": "success",
@@ -1374,6 +1423,12 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
     kill_room = human_player.location
     initial_neighbors = get_players_in_room_except_human(gi, kill_room, human_player)
     kill_action = Kill(current_location=kill_room, other_player=target_player)
+    log_human_action(
+        gi,
+        human_player,
+        "KILL",
+        {"target": target_color.capitalize(), "location": human_player.location},
+    )
 
     # Kills are immediate: reveal the body before the rest of the turn resolves.
     kill_action.execute(gi, human_player)
@@ -1397,8 +1452,6 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
     observations = generate_room_observations(gi, initial_neighbors, kill_room)
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, kill_room)
     vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors)
-
-    log_human_action(gi, human_player, "KILL", {"target": target_color.capitalize(), "location": human_player.location})
 
     return{
         "status": "success",
@@ -1473,9 +1526,9 @@ async def human_speak(request: Request, x_player_token: str = Header(...)) -> di
     room.meeting_thinking_players.discard(player.name)
     action = Speak(current_location=player.location)
     action.provide_message(chat_msg)
+    log_human_action(gi, player, "SPEAK", {"message": chat_msg, "phase": str(gi.current_phase)})
     gi.record_activity(player, action)
     room.meeting_last_message_at = time.time()
-    log_human_action(gi, player, "SPEAK", {"message": chat_msg, "phase": str(gi.current_phase)})
     schedule_llm_speech_rolls(room)
     await broadcast_state(room)
 
@@ -1603,6 +1656,7 @@ async def perform_vent(request: Request, x_player_token: str = Header(...)):
 
     # Vent
     human_agent.queued_action = Vent(current_location=human_agent.player.location, new_location=target_room)
+    log_human_action(gi, player, "VENT", {"from": old_room, "to": target_room})
 
     step_ran = await maybe_step_and_broadcast(room)
 
@@ -1612,8 +1666,6 @@ async def perform_vent(request: Request, x_player_token: str = Header(...)):
     observations = generate_room_observations(gi, initial_neighbors, old_room)
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room)
     vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors)
-    log_human_action(gi, player, "VENT", {"from": old_room, "to": target_room})
-
     return {
         "status": "success",
         "current_room": target_room,

@@ -1,10 +1,16 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME
-from db import insert_game_outcome, insert_human_action
+from db import (
+    finish_game as finish_game_record,
+    insert_discussion_message,
+    insert_game,
+    insert_game_event,
+    upsert_game_players,
+)
 from models import WebPlayerAgent
 
 HUMAN_TRIALS_DIR = Path(__file__).resolve().parent
@@ -21,16 +27,260 @@ def setup_log_directory():
     os.environ["EXPERIMENT_PATH"] = get_experiment_path()
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _game_id(game_instance) -> str:
+    return str(getattr(game_instance, "game_id", game_instance.game_index))
+
+
+def _player_slot(game_instance, player) -> int | None:
+    try:
+        return game_instance.players.index(player)
+    except ValueError:
+        return None
+
+
+def _agent_for_slot(game_instance, slot: int | None):
+    if slot is None:
+        return None
+    agents = game_instance.agents
+    if isinstance(agents, dict):
+        return agents.get(slot)
+    return agents[slot] if slot < len(agents) else None
+
+
+def _player_type(game_instance, player) -> str:
+    return "human" if isinstance(_agent_for_slot(game_instance, _player_slot(game_instance, player)), WebPlayerAgent) else "ai"
+
+
+def _color(player) -> str:
+    return player.name.split()[-1].lower()
+
+
+def _player_record(game_instance, player, *, consented_at=None, joined_at=None, disconnected_at=None, final=False) -> dict:
+    slot = _player_slot(game_instance, player)
+    agent = _agent_for_slot(game_instance, slot)
+    return {
+        "game_id": _game_id(game_instance),
+        "player_slot": slot,
+        "player_name": player.name,
+        "player_color": _color(player),
+        "participant_type": _player_type(game_instance, player),
+        "role": getattr(player, "identity", "Unknown"),
+        "model": getattr(agent, "model", None),
+        "personality": getattr(player, "personality", None),
+        "consented_at": consented_at,
+        "joined_at": joined_at,
+        "disconnected_at": disconnected_at,
+        "final_is_alive": int(bool(getattr(player, "is_alive", True))) if final else None,
+        "final_is_connected": int(bool(getattr(player, "is_connected", True))) if final else None,
+    }
+
+
+def snapshot_game_state(game_instance) -> dict:
+    """Capture the decision context needed for later longitudinal analysis."""
+    players = []
+    for slot, player in enumerate(game_instance.players):
+        tasks = [
+            {
+                "name": task.name,
+                "location": task.location,
+                "complete": task.check_completion(),
+                "remaining_duration": getattr(task, "duration", None),
+            }
+            for task in getattr(player, "tasks", [])
+        ]
+        players.append(
+            {
+                "slot": slot,
+                "name": player.name,
+                "color": _color(player),
+                "participant_type": _player_type(game_instance, player),
+                "role": getattr(player, "identity", "Unknown"),
+                "alive": bool(getattr(player, "is_alive", True)),
+                "connected": bool(getattr(player, "is_connected", True)),
+                "location": getattr(player, "location", None),
+                "body_location": getattr(player, "body_location", None),
+                "reported_death": bool(getattr(player, "reported_death", False)),
+                "kill_cooldown": getattr(player, "kill_cooldown", None),
+                "available_actions": [repr(action) for action in player.get_available_actions()],
+                "tasks": tasks,
+            }
+        )
+    return {
+        "phase": str(getattr(game_instance, "current_phase", "")),
+        "timestep": getattr(game_instance, "timestep", None),
+        "meeting_number": getattr(game_instance, "meeting_number", 0),
+        "emergency_buttons_used": getattr(game_instance, "button_num", None),
+        "players": players,
+    }
+
+
+def _action_payload(action, additional_info=None) -> dict:
+    payload = {"action_repr": repr(action)}
+    for attribute in ("current_location", "new_location", "message"):
+        value = getattr(action, attribute, None)
+        if value not in (None, "..."):
+            payload[attribute] = value
+    target = getattr(action, "other_player", None)
+    if target is not None:
+        payload["target_name"] = getattr(target, "name", str(target))
+    task = getattr(action, "task", None)
+    if task is not None:
+        payload["task_name"] = getattr(task, "name", str(task))
+    if additional_info:
+        payload["additional_info"] = additional_info
+    return payload
+
+
+def _event_type_for_action(action) -> str:
+    action_name = getattr(action, "name", "UNKNOWN")
+    if action_name == "CALL MEETING":
+        return "REPORT" if "REPORT DEAD BODY" in repr(action) else "CALL_MEETING"
+    return action_name
+
+
+def record_engine_action(game_instance, player, action, additional_info=None) -> int | None:
+    """Persist the engine's authoritative action record for both humans and AIs."""
+    if not getattr(game_instance, "game_id", None):
+        return None
+    slot = _player_slot(game_instance, player)
+    target = getattr(action, "other_player", None)
+    event = {
+        "game_id": _game_id(game_instance),
+        "occurred_at": _now(),
+        "timestep": getattr(game_instance, "timestep", None),
+        "phase": str(getattr(game_instance, "current_phase", "")),
+        "meeting_number": getattr(game_instance, "meeting_number", 0),
+        "event_type": _event_type_for_action(action),
+        "event_status": "executed",
+        "actor_slot": slot,
+        "actor_name": player.name,
+        "actor_type": _player_type(game_instance, player),
+        "actor_role": getattr(player, "identity", "Unknown"),
+        "target_slot": _player_slot(game_instance, target) if target is not None else None,
+        "target_name": getattr(target, "name", None),
+        "location": getattr(player, "location", None),
+        "action_name": getattr(action, "name", None),
+        "payload": _action_payload(action, additional_info),
+        "state_snapshot": snapshot_game_state(game_instance),
+    }
+    event_id = insert_game_event(event)
+    message = getattr(action, "message", "").strip() if getattr(action, "name", None) == "SPEAK" else ""
+    if message:
+        agent = _agent_for_slot(game_instance, slot)
+        insert_discussion_message(
+            {
+                "game_id": _game_id(game_instance),
+                "event_id": event_id,
+                "occurred_at": event["occurred_at"],
+                "timestep": event["timestep"],
+                "meeting_number": event["meeting_number"],
+                "speaker_slot": slot,
+                "speaker_name": player.name,
+                "speaker_type": event["actor_type"],
+                "speaker_role": event["actor_role"],
+                "speaker_model": getattr(agent, "model", None),
+                "message_text": message,
+                "payload": {"action_event_id": event_id},
+            }
+        )
+    return event_id
+
+
+def record_system_event(
+    game_instance,
+    event_type: str,
+    payload=None,
+    *,
+    status="executed",
+    actor=None,
+    target=None,
+    action_name=None,
+    location=None,
+) -> int | None:
+    if not getattr(game_instance, "game_id", None):
+        return None
+    actor_slot = _player_slot(game_instance, actor) if actor is not None else None
+    target_slot = _player_slot(game_instance, target) if target is not None else None
+    return insert_game_event(
+        {
+            "game_id": _game_id(game_instance),
+            "occurred_at": _now(),
+            "timestep": getattr(game_instance, "timestep", None),
+            "phase": str(getattr(game_instance, "current_phase", "")),
+            "meeting_number": getattr(game_instance, "meeting_number", 0),
+            "event_type": event_type,
+            "event_status": status,
+            "actor_slot": actor_slot,
+            "actor_name": getattr(actor, "name", None),
+            "actor_type": _player_type(game_instance, actor) if actor is not None else None,
+            "actor_role": getattr(actor, "identity", None),
+            "target_slot": target_slot,
+            "target_name": getattr(target, "name", None),
+            "location": location if location is not None else getattr(actor, "location", None),
+            "action_name": action_name,
+            "payload": payload or {},
+            "state_snapshot": snapshot_game_state(game_instance),
+        }
+    )
+
+
+def _find_player(game_instance, identifier):
+    if not isinstance(identifier, str):
+        return None
+    normalized = identifier.strip().lower()
+    if normalized in {"", "none", "skip"}:
+        return None
+    return next(
+        (
+            player
+            for player in game_instance.players
+            if normalized == _color(player) or normalized == player.name.lower()
+        ),
+        None,
+    )
+
+
+def persist_game_start(game_instance, room_code: str, runtime_config: dict, code_revision: str | None, consented_at_by_slot: dict[int, str]):
+    started_at = _now()
+    insert_game(
+        {
+            "game_id": _game_id(game_instance),
+            "room_code": room_code,
+            "server_session_id": os.environ.get("SESSION_ID"),
+            "started_at": started_at,
+            "game_config": game_instance.game_config,
+            "runtime_config": runtime_config,
+            "code_revision": code_revision,
+        }
+    )
+    upsert_game_players(
+        [
+            _player_record(
+                game_instance,
+                player,
+                consented_at=consented_at_by_slot.get(slot),
+                joined_at=started_at if _player_type(game_instance, player) == "human" else None,
+            )
+            for slot, player in enumerate(game_instance.players)
+        ]
+    )
+    record_system_event(game_instance, "GAME_STARTED", {"room_code": room_code})
+
+
 def log_human_action(game_instance, player, action_type, details=None):
     log_dir = get_experiment_path()
     log_path = os.path.join(log_dir, "human-logs.json")
     entry = {
-        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
+        "game_index": _game_id(game_instance),
         "step": game_instance.timestep,
         "timestamp": str(datetime.now()),
         "player": {
             "name": player.name,
-            "identity": player.__class__.__name__,
+            "identity": getattr(player, "identity", "Unknown"),
             "location": player.location,
         },
         "action": {
@@ -41,8 +291,22 @@ def log_human_action(game_instance, player, action_type, details=None):
     with open(log_path, "a") as f:
         f.write(json.dumps(entry, indent=2) + "\n")
 
-    # Log to sqlite db too
-    insert_human_action(entry)
+    # This describes browser input. The engine separately records the executed
+    # action, so analysis can distinguish submitted, timed-out, and executed work.
+    details = details or {}
+    target = _find_player(game_instance, details.get("target") or details.get("body"))
+    record_system_event(
+        game_instance,
+        "ACTION_SUBMITTED",
+        {"details": details},
+        status="submitted",
+        actor=player,
+        target=target,
+        action_name=action_type,
+        location=getattr(player, "location", None),
+    )
+    if action_type == "disconnect" and getattr(game_instance, "game_id", None):
+        upsert_game_players([_player_record(game_instance, player, disconnected_at=_now())])
 
 def get_killer_of(gi, victim_name):
     for killer_name, action in gi.camera_record.items():
@@ -64,7 +328,7 @@ def log_game_outcome(game_instance):
     winner, win_condition = win_map.get(win_code, ("Unknown", "unknown"))
 
     entry = {
-        "game_index": f"{os.environ.get('SESSION_ID', 'unknown')}_Game {game_instance.game_index}",
+        "game_index": _game_id(game_instance),
         "timestamp": str(datetime.now()),
         "winner": winner,
         "win_condition": win_condition,
@@ -72,7 +336,7 @@ def log_game_outcome(game_instance):
         "players": [
             {
                 "name": p.name.split()[-1].capitalize(),
-                "identity": p.__class__.__name__,
+                "identity": getattr(p, "identity", "Unknown"),
                 "is_alive": getattr(p, "is_alive", True),
                 "is_connected": getattr(p, "is_connected", True),
             }
@@ -83,7 +347,17 @@ def log_game_outcome(game_instance):
     with open(log_path, "a") as f:
         f.write(json.dumps(entry, indent=2) + "\n")
 
-    insert_game_outcome(entry)
+    upsert_game_players([_player_record(game_instance, player, final=True) for player in game_instance.players])
+    finish_game_record(
+        {
+            "game_id": _game_id(game_instance),
+            "ended_at": entry["timestamp"],
+            "winner": winner,
+            "win_condition": win_condition,
+            "total_steps": game_instance.timestep,
+        }
+    )
+    record_system_event(game_instance, "GAME_ENDED", {"winner": winner, "win_condition": win_condition})
 
 def get_game_config(game_size_str):
     return FIVE_MEMBER_GAME
