@@ -575,7 +575,10 @@ async function updateMapUI() {
                 renderFilter = null;
             }
 
-            if (skeldLayer){
+            // The minimap is for living player positions only. Bodies and ghosts
+            // remain visible in the room view when relevant, but do not reveal a
+            // death location on the Skeld diagram.
+            if (skeldLayer && isAlivePlayer){
                 const coords = roomCoordinates[renderLoc];
                 if (coords){
                     const miniImg = document.createElement('img');

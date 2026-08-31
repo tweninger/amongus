@@ -674,6 +674,10 @@ async def run_meeting_step(room: GameRoom) -> None:
     room.turn_deadline = room.meeting_discussion_deadline
     room.meeting_last_message_at = time.time()
     room.meeting_last_idle_roll_at = room.meeting_last_message_at
+    # A meeting clears the previous task phase's kill cooldown.
+    for player in gi.players:
+        if player.identity == "Impostor":
+            player.kill_cooldown = 0
     # Keep SPEAK available while the server manages the shared discussion window.
     gi.discussion_rounds_left = gi.game_config["discussion_rounds"]
     # Meetings are global conversations: placing everyone in Cafeteria means the
