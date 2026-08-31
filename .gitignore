@@ -5,6 +5,7 @@
 
 # game logs and database
 human_trials/logs/
+/data/
 *.zip
 
 # deception-detection
