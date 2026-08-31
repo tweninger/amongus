@@ -1,5 +1,7 @@
 # environment file
 .env
+.DS_Store
+*:Zone.Identifier
 
 # game logs and database
 human_trials/logs/
@@ -100,6 +102,8 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+/.matplotlib/
+/notebooks/.matplotlib/
 
 # IPython
 profile_default/
@@ -197,3 +201,4 @@ cython_debug/
 CLAUDE.md
 Miniconda3-latest-Linux-x86_64.sh
 reports/*.ipynb
+derived/

@@ -3,7 +3,7 @@ import { state } from './state.js';
 import { apiFetch, addLogMessage, unlockActions } from './helpers.js';
 import { showEjectionBanner, renderMeetingChat, updateMeetingUI } from './meeting.js';
 import { showKilledModal, updateTaskProgressBar, updateMapUI } from './ui.js';
-import { refreshRoomContext } from './actions.js';
+import { performMove, refreshRoomContext } from './actions.js';
 
 // --- WEBSOCKET ---
 // Open persistent connection to the server.
@@ -81,6 +81,16 @@ function _hideTimer() {
     if (meetingEl) meetingEl.style.display = 'none';
 }
 
+function submitTimedSkipMove() {
+    if (state.actionLocked || state.waitingForStep || !state.isAlive) {
+        return;
+    }
+    const currentRoom = document.getElementById('location-display')?.innerText;
+    if (currentRoom) {
+        performMove(currentRoom, true);
+    }
+}
+
 function updateTurnTimer(data) {
     const isTask = data.phase === 'task';
     const isMeeting = data.phase === 'meeting';
@@ -120,10 +130,20 @@ function updateTurnTimer(data) {
     // Reset timer
     if (_turnTimerInterval !== null) { clearInterval(_turnTimerInterval); _turnTimerInterval = null; }
     let remaining = data.turn_seconds_left ?? (isTask ? 90 : 60);
+    let timedSkipSubmitted = false;
+
+    const submitTimedSkipAtOneSecond = () => {
+        if (isTask && remaining <= 1 && !timedSkipSubmitted) {
+            timedSkipSubmitted = true;
+            submitTimedSkipMove();
+        }
+    };
 
     _renderTimer(remaining);
+    submitTimedSkipAtOneSecond();
     _turnTimerInterval = setInterval(() => {
         remaining -= 1;
+        submitTimedSkipAtOneSecond();
         if (remaining <= 0) {
             _renderTimerExpired();
             clearInterval(_turnTimerInterval);

@@ -21,9 +21,17 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "jupyterlab",
+  "matplotlib",
+  "pandas",
+  "pyarrow",
   "playwright",
   "pytest",
   "ruff",
+  "scikit-learn",
+  "scipy",
+  "seaborn",
+  "statsmodels",
 ]
 
 [tool.setuptools]

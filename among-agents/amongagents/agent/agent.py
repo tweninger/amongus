@@ -102,16 +102,16 @@ def _gemini_contents(messages: list[dict]) -> tuple[dict | None, list[dict]]:
 
 
 # Write one agent turn to the db
-def _log_interaction_to_db(interaction: dict):
+def _log_interaction_to_db(entry: dict):
     db_path = os.path.join(_experiment_path(), "game_data.db")
-    player = interaction.get("player", {})
-    interaction = interaction.get("interaction", {})
+    player = entry.get("player", {})
+    interaction = entry.get("interaction", {})
     try:
         conn = sqlite3.connect(db_path)
         conn.execute(
             "INSERT INTO agent_interactions VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                interaction.get("game_index"), interaction.get("step"), interaction.get("timestamp"),
+                entry.get("game_index"), entry.get("step"), entry.get("timestamp"),
                 player.get("name"), player.get("identity"), player.get("personality"), player.get("model"), player.get("location"),
                 interaction.get("system_prompt"), json.dumps(interaction.get("prompt")),
                 json.dumps(interaction.get("response")), interaction.get("full_response"),

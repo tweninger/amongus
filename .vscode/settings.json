@@ -1,0 +1,6 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/among-agents",
+    "${workspaceFolder}/human_trials"
+  ]
+}

@@ -106,18 +106,18 @@ def insert_game_outcome(entry: dict):
     except Exception as e:
         print(f"[DB] game_outcomes insert error: {e}")
 
-def insert_agent_interaction(interaction: dict):
+def insert_agent_interaction(entry: dict):
     # Mirrors agent-logs.json entry structure.
-    player = interaction.get("player", {})
-    interaction = interaction.get("interaction", {})
+    player = entry.get("player", {})
+    interaction = entry.get("interaction", {})
     try:
         conn = sqlite3.connect(_db_file())
         conn.execute(
             "INSERT INTO agent_interactions VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                interaction.get("game_index"),
-                interaction.get("step"),
-                interaction.get("timestamp"),
+                entry.get("game_index"),
+                entry.get("step"),
+                entry.get("timestamp"),
                 player.get("name"),
                 player.get("identity"),
                 player.get("personality"),
