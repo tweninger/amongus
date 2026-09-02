@@ -1,7 +1,7 @@
 // websocket.js
 import { state } from './state.js';
 import { apiFetch, addLogMessage, unlockActions } from './helpers.js';
-import { showEjectionBanner, renderMeetingChat, updateMeetingUI } from './meeting.js';
+import { hideMeetingVoteModals, showEjectionBanner, renderMeetingChat, updateMeetingUI } from './meeting.js';
 import { showKilledModal, updateTaskProgressBar, updateMapUI } from './ui.js';
 import { performMove, refreshRoomContext } from './actions.js';
 
@@ -404,6 +404,7 @@ async function handleGlobalPhaseTransition(data) {
     }
 
     else if (phase === "task") {
+        hideMeetingVoteModals();
         // Cancel any in-progress countdown if available
         if (state.meetingCountdownTimer !== null) {
             clearTimeout(state.meetingCountdownTimer);

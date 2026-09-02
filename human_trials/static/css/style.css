@@ -329,6 +329,21 @@ body:has(#lobby-screen:not(.d-none)) {
     z-index: 6;
 }
 
+.room-current-player-marker {
+    position: absolute;
+    top: -17px;
+    left: 50%;
+    z-index: 2;
+    transform: translateX(-50%);
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1;
+    text-shadow: 0 1px 3px #000000, 0 0 5px #000000;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
 .room-player-sprite-wrap .player-sprite {
     transition: filter 0.18s ease, transform 0.18s ease, brightness 0.18s ease;
 }
@@ -612,6 +627,81 @@ body:has(#lobby-screen:not(.d-none)) {
 
 #meeting-overlay > .row {
     min-height: 0;
+}
+
+.vote-modal-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.vote-modal-option {
+    display: flex;
+    align-items: center;
+    min-height: 64px;
+    padding: 10px;
+    border: 2px solid #5b6670;
+    border-radius: 6px;
+    background: #15191d;
+    color: #f5f7fa;
+    text-align: left;
+}
+
+.vote-modal-option:hover:not(:disabled) {
+    border-color: #f6c344;
+    background: #252d33;
+}
+
+.vote-modal-option:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.vote-modal-option img {
+    width: 42px;
+    height: 42px;
+    margin-right: 10px;
+    object-fit: contain;
+}
+
+.vote-modal-option.vote-modal-selected {
+    border-color: #32b9ff;
+    background: #164e72;
+    color: #fff;
+}
+
+.vote-influence-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+}
+
+.vote-influence-option {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 8px 10px;
+    border: 1px solid #5b6670;
+    border-radius: 6px;
+    background: #15191d;
+}
+
+.vote-influence-option input {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+}
+
+#vote-influence-modal .vote-influence-dialog {
+    max-width: min(560px, calc(100vw - 24px));
+}
+
+#vote-influence-modal .vote-influence-dialog.vote-influence-anchored {
+    position: fixed;
+    display: block;
+    min-height: 0;
+    width: min(560px, calc(100vw - 24px));
+    margin: 0;
 }
 
 .meeting-thinking-row {

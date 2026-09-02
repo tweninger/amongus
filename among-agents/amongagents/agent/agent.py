@@ -378,11 +378,21 @@ class LLMAgent(Agent):
         async with aiohttp.ClientSession() as session:
             for attempt in range(10):
                 try:
+                    print(
+                        f"LLM API request ({attempt + 1}/10) for "
+                        f"{self.provider}/{self.provider_model}",
+                        flush=True,
+                    )
                     async with session.post(url, headers=headers, json=payload) as response:
                         if response.status == 200:
                             data = await response.json()
                             text = self._extract_llm_text(data)
                             if text:
+                                print(
+                                    f"LLM API response received for "
+                                    f"{self.provider}/{self.provider_model}",
+                                    flush=True,
+                                )
                                 return text
                             print(f"LLM API returned no text for {self.provider}/{self.provider_model}.")
                         else:
@@ -582,6 +592,64 @@ class LLMAgent(Agent):
             else:
                 action.message = '...'
         return action
+
+    async def choose_private_vote(self, timestep, candidates, stage):
+        """Choose a private meeting assessment without exposing it to other players."""
+        all_info = self.player.all_info_prompt()
+        candidate_text = "\n".join(f"- {candidate}" for candidate in candidates)
+        instruction = (
+            f"{stage}. This response is private and will not be shown to other players.\n"
+            f"Choose one option from this list:\n{candidate_text}\n\n"
+            "Return your normal sections, and end the Action section with exactly "
+            f"{stage.upper()}: <one option>."
+        )
+        prompt = (
+            f"Summarization: {self.summarization}\n\n{all_info}\n\n"
+            f"Memory: {self.processed_memory}\n\n{instruction}"
+        )
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        full_prompt = {
+            "Summarization": self.summarization,
+            "All Info": all_info,
+            "Memory": self.processed_memory,
+            "Phase": stage,
+            "Candidates": candidates,
+        }
+        response = await self.send_request(messages)
+        response_text = response.get("content", str(response)) if isinstance(response, dict) else str(response)
+        self.log_interaction(self.system_prompt, full_prompt, response_text, timestep)
+        return response_text
+
+    async def choose_private_influences(self, timestep, candidates):
+        """Identify zero or more private influences on a completed vote."""
+        all_info = self.player.all_info_prompt()
+        candidate_text = "\n".join(f"- {candidate}" for candidate in candidates)
+        prompt = (
+            f"Summarization: {self.summarization}\n\n{all_info}\n\n"
+            f"Memory: {self.processed_memory}\n\n"
+            "Vote influence attribution. This response is private. Select any number of "
+            f"living ship-mates from:\n{candidate_text}\n\n"
+            "Return your normal sections, and end the Action section with "
+            "INFLUENCES: <comma-separated names>, or INFLUENCES: No one."
+        )
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        full_prompt = {
+            "Summarization": self.summarization,
+            "All Info": all_info,
+            "Memory": self.processed_memory,
+            "Phase": "Vote influence attribution",
+            "Candidates": candidates,
+        }
+        response = await self.send_request(messages)
+        response_text = response.get("content", str(response)) if isinstance(response, dict) else str(response)
+        self.log_interaction(self.system_prompt, full_prompt, response_text, timestep)
+        return response_text
 
     def choose_observation_location(self, map):
         if isinstance(map, (list, tuple)):

@@ -279,7 +279,7 @@ function getPlayerPlacementArea(contextData, roomView) {
     };
 }
 
-function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null, placementArea = null) {
+function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null, placementArea = null, isSelf = false) {
     const wrapper = document.createElement('div');
     wrapper.className = 'room-player-sprite-wrap';
     const horizontalPos = placementArea
@@ -303,6 +303,13 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
     img.style.transition = 'all 0.5s ease';
     img.title = player.name;
     wrapper.appendChild(img);
+
+    if (isSelf) {
+        const marker = document.createElement('span');
+        marker.className = 'room-current-player-marker';
+        marker.textContent = '(YOU)';
+        wrapper.appendChild(marker);
+    }
 
     if (actionConfig) {
         const actionBtn = document.createElement('button');
@@ -506,8 +513,7 @@ async function updateMapUI() {
         renderRoomTasks(contextData);
 
         const currentRoomStr = contextData.current_room.toLowerCase();
-        const userDisplayEl = document.getElementById('user-display');
-        const myColor = userDisplayEl ? userDisplayEl.innerText.toLowerCase() : "";
+        const myColor = (state.myColor || '').toLowerCase();
         const isHumanImpostor = state.myRole && state.myRole.toLowerCase() === 'impostor' && state.isAlive;
 
         // Render player images over minimap and room map with jitter
@@ -575,10 +581,8 @@ async function updateMapUI() {
                 renderFilter = null;
             }
 
-            // The minimap is for living player positions only. Bodies and ghosts
-            // remain visible in the room view when relevant, but do not reveal a
-            // death location on the Skeld diagram.
-            if (skeldLayer && isAlivePlayer){
+            // The minimap shows only the current living player's position.
+            if (skeldLayer && isAlivePlayer && isSelf){
                 const coords = roomCoordinates[renderLoc];
                 if (coords){
                     const miniImg = document.createElement('img');
@@ -589,8 +593,8 @@ async function updateMapUI() {
                     const miniJitterY = (Math.random() * 4) - 2;
                     miniImg.style.top = `${coords.top + miniJitterY}%`;
                     miniImg.style.left = `${coords.left + miniJitterX}%`;
-                    miniImg.style.width = '52px';
-                    miniImg.style.height = '52px';
+                    miniImg.style.width = '26px';
+                    miniImg.style.height = '26px';
                     miniImg.style.objectFit = 'contain';
                     miniImg.style.transform = 'translate(-50%, -50%)';
                     miniImg.style.zIndex = '10';
@@ -618,7 +622,7 @@ async function updateMapUI() {
                     };
                 }
                 roomPlayerLayer.appendChild(
-                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig, playerPlacementArea),
+                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig, playerPlacementArea, isSelf),
                 );
             }
         });

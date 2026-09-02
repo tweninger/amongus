@@ -298,8 +298,12 @@ class AmongUs:
         if self.interviewer is not None:
             await self.interviewer.auto_question(self, agent)
         try:
-            # Enforce a 10.0 second timeout for AI players
-            if is_human:
+            queued_action = getattr(agent, "queued_action", None)
+            if queued_action is not None:
+                action = queued_action
+                agent.queued_action = None
+            # Enforce a 120 second timeout for AI players.
+            elif is_human:
                 action = await agent.choose_action(self.timestep)
             else:
                 action = await asyncio.wait_for(agent.choose_action(self.timestep), timeout=120.0)

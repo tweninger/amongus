@@ -92,7 +92,7 @@
             <div class="row flex-grow-1 overflow-hidden gx-3">
 
                 <!-- Discussion Chat -->
-                <div class="col-md-7 d-flex flex-column h-100">
+                <div class="col-12 d-flex flex-column h-100">
                     <div class="card bg-dark border-secondary flex-grow-1 mb-2 overflow-hidden">
                         <div class="card-header text-info small fw-bold">CREW DISCUSSION</div>
                         <div id="discussion-chat" class="card-body text-start" style="min-height: 0; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; background: #050505;"></div>
@@ -105,17 +105,50 @@
                     </div>
                 </div>
 
-                <!-- Voting Roster -->
-                <div class="col-md-5 d-flex flex-column h-100">
-                    <div class="card bg-dark border-secondary flex-grow-1">
-                        <div class="card-header text-success small fw-bold">SELECT A TARGET</div>
-                        <div id="voting-roster-container" class="list-group list-group-flush p-2 overflow-auto flex-grow-1"></div>
-                        <div class="card-footer bg-transparent border-0">
-                            <button class="btn btn-outline-warning w-100 fw-bold" id="skip-vote-btn">SKIP VOTE</button>
-                        </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="pre-vote-modal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content bg-dark text-light border-secondary">
+                    <div class="modal-header border-secondary d-flex align-items-center">
+                        <h5 class="modal-title text-warning fw-bold">Vote Before the Chat Phase</h5>
+                        <span id="pre-vote-timer" class="ms-auto fw-bold text-warning">--s</span>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3"><em>If the vote were right now, who would you vote to eject?</em><br><span class="text-secondary">This vote is private.</span></p>
+                        <div id="pre-vote-options" class="vote-modal-options"></div>
+                        <div id="pre-vote-waiting" class="text-center text-secondary fw-bold d-none">Waiting for the remaining private pre-votes...</div>
                     </div>
                 </div>
+            </div>
+        </div>
 
+        <div class="modal fade" id="final-vote-modal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content bg-dark text-light border-secondary">
+                    <div class="modal-header border-secondary d-flex align-items-center">
+                        <h5 class="modal-title text-success fw-bold">Cast Your Vote</h5>
+                        <span id="final-vote-timer" class="ms-auto fw-bold text-warning">--s</span>
+                    </div>
+                    <div class="modal-body">
+                        <div id="final-vote-options" class="vote-modal-options"></div>
+                        <button id="final-skip-vote" type="button" class="btn btn-outline-warning w-100 mt-3 fw-bold">Skip Vote</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="vote-influence-modal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg vote-influence-dialog">
+                <div class="modal-content bg-dark text-light border-secondary">
+                    <div class="modal-header border-secondary"><h5 class="modal-title text-info fw-bold">Vote After the Chat Phase</h5></div>
+                    <div class="modal-body">
+                        <p><em>Which of the other players (if any) influenced your vote?</em></p>
+                        <div id="vote-influence-options" class="vote-influence-options"></div>
+                        <button id="submit-vote-influence" type="button" class="btn btn-info w-100 mt-3 fw-bold">Confirm Influence</button>
+                    </div>
+                </div>
             </div>
         </div>
 

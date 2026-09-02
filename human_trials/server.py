@@ -123,6 +123,12 @@ class GameRoom:
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
         self.meeting_discussion_deadline: float = 0.0
         self.meeting_voting_open: bool = False
+        self.meeting_prevote_open: bool = False
+        self.meeting_discussion_started: bool = False
+        self.meeting_final_vote_preparing: bool = False
+        self.pre_votes: dict[str, str] = {}
+        self.pending_final_votes: dict[str, str] = {}
+        self.vote_influences: dict[str, list[str]] = {}
         self.meeting_thinking_players: set[str] = set()
         self.meeting_llm_tasks: set[asyncio.Task] = set()
         self.meeting_last_message_at: float = 0.0
@@ -353,6 +359,12 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
         room.turn_deadline = 0
         room.meeting_discussion_deadline = 0
         room.meeting_voting_open = False
+        room.meeting_prevote_open = False
+        room.meeting_discussion_started = False
+        room.meeting_final_vote_preparing = False
+        room.pre_votes.clear()
+        room.pending_final_votes.clear()
+        room.vote_influences.clear()
         if room.task_timeout_task and not room.task_timeout_task.done():
             room.task_timeout_task.cancel()
             room.task_timeout_task = None
@@ -362,6 +374,9 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
         room.discussion_turn_seq = 0
         room.meeting_discussion_deadline = 0
         room.meeting_voting_open = False
+        room.meeting_prevote_open = False
+        room.meeting_discussion_started = False
+        room.meeting_final_vote_preparing = False
         cancel_meeting_llm_tasks(room)
 
     room.last_phase = current_phase
@@ -460,6 +475,8 @@ async def broadcast_state(room: GameRoom):
         "vote_result": get_latest_vote_result(gi),
         "meeting_messages": parse_meeting_messages(gi, room.meeting_start_step) if current_phase == "meeting" else [],
         "can_vote": can_vote,
+        "pre_vote_open": current_phase == "meeting" and room.meeting_prevote_open,
+        "final_vote_preparing": current_phase == "meeting" and room.meeting_final_vote_preparing,
         "discussion_open": (
             current_phase == "meeting"
             and room.meeting_running
@@ -499,7 +516,17 @@ async def broadcast_state(room: GameRoom):
             )
             is_my_turn = _is_player_turn(agent, is_alive, current_phase, can_vote)
             killed_by = get_killer_of(gi, agent.player.name) if agent and not is_alive else None
-            await ws.send_json({**payload, "is_alive": is_alive, "is_my_turn": is_my_turn, "killed_by": killed_by})
+            player_name = agent.player.name if agent else ""
+            await ws.send_json({
+                **payload,
+                "is_alive": is_alive,
+                "is_my_turn": is_my_turn,
+                "killed_by": killed_by,
+                "pre_vote_submitted": player_name in room.pre_votes,
+                "pre_votes_remaining": max(0, len(_meeting_voters(gi)) - len(room.pre_votes)),
+                "final_vote_selected": player_name in room.pending_final_votes,
+                "vote_influence_submitted": player_name in room.vote_influences,
+            })
         except Exception:
             # Mark for removal if send fails (client disconnected)
             dead.append(token)
@@ -664,6 +691,182 @@ def get_meeting_reporter(gi):
     return None
 
 
+def _meeting_voters(gi):
+    return [
+        agent for agent in gi.agents
+        if getattr(agent.player, "is_alive", True) and is_connected_player(agent.player)
+    ]
+
+
+def _find_vote_target(gi, choice, *, allow_self=True, actor=None):
+    if not isinstance(choice, str):
+        return None
+    normalized = choice.strip().lower()
+    if normalized in {"", "none", "unknown", "i do not know", "skip"}:
+        return None
+    for player in gi.players:
+        if (
+            getattr(player, "is_alive", True)
+            and is_connected_player(player)
+            and (allow_self or player is not actor)
+            and (normalized == player.name.lower() or normalized == player.name.split()[-1].lower())
+        ):
+            return player
+    return None
+
+
+def _parse_llm_choice(response, candidates):
+    text = str(response).lower()
+    for candidate in candidates:
+        if candidate.lower() in text:
+            return candidate
+    return "unknown"
+
+
+async def collect_llm_prevote(room: GameRoom, agent) -> None:
+    gi = room.game_instance
+    player = agent.player
+    candidates = [candidate.player.name for candidate in _meeting_voters(gi)] + ["I do not know"]
+    room.meeting_thinking_players.add(player.name)
+    started_at = time.perf_counter()
+    print(f"[AI pre-vote] request started for {player.name} (meeting {gi.meeting_number})", flush=True)
+    try:
+        response = await asyncio.wait_for(
+            agent.choose_private_vote(gi.timestep, candidates, "Private pre-discussion vote"),
+            timeout=120.0,
+        )
+        choice = _parse_llm_choice(response, candidates)
+        print(
+            f"[AI pre-vote] response received from {player.name} after "
+            f"{time.perf_counter() - started_at:.1f}s: {choice}",
+            flush=True,
+        )
+    except asyncio.CancelledError:
+        print(
+            f"[AI pre-vote] request cancelled for {player.name} after "
+            f"{time.perf_counter() - started_at:.1f}s",
+            flush=True,
+        )
+        raise
+    except Exception as error:
+        print(
+            f"[AI pre-vote] request failed for {player.name} after "
+            f"{time.perf_counter() - started_at:.1f}s: {error}",
+            flush=True,
+        )
+        choice = "unknown"
+    finally:
+        room.meeting_thinking_players.discard(player.name)
+    if player.name in room.pre_votes or not room.meeting_prevote_open:
+        return
+    target = _find_vote_target(gi, choice, actor=player)
+    room.pre_votes[player.name] = target.name if target else "unknown"
+    record_system_event(
+        gi,
+        "PRE_VOTE",
+        {"choice": room.pre_votes[player.name], "private": True},
+        status="private",
+        actor=player,
+        target=target,
+        action_name="PRE_VOTE",
+    )
+
+
+async def prepare_llm_final_vote(room: GameRoom, agent) -> None:
+    gi = room.game_instance
+    player = agent.player
+    candidates = [
+        candidate.player.name
+        for candidate in _meeting_voters(gi)
+        if candidate.player is not player
+    ] + ["Skip vote"]
+    room.meeting_thinking_players.add(player.name)
+    started_at = time.perf_counter()
+    print(f"[AI final vote] request started for {player.name} (meeting {gi.meeting_number})", flush=True)
+    try:
+        response = await asyncio.wait_for(
+            agent.choose_private_vote(gi.timestep, candidates, "Final vote"),
+            timeout=120.0,
+        )
+        choice = _parse_llm_choice(response, candidates)
+        print(
+            f"[AI final vote] response received from {player.name} after "
+            f"{time.perf_counter() - started_at:.1f}s: {choice}",
+            flush=True,
+        )
+    except asyncio.CancelledError:
+        print(
+            f"[AI final vote] request cancelled for {player.name} after "
+            f"{time.perf_counter() - started_at:.1f}s",
+            flush=True,
+        )
+        raise
+    except Exception as error:
+        print(
+            f"[AI final vote] request failed for {player.name} after "
+            f"{time.perf_counter() - started_at:.1f}s: {error}",
+            flush=True,
+        )
+        choice = "unknown"
+    target = _find_vote_target(gi, choice, allow_self=False, actor=player)
+    agent.queued_action = Vote(current_location=player.location, other_player=target)
+    record_system_event(
+        gi,
+        "AI_FINAL_VOTE_SELECTED",
+        {"choice": target.name if target else "none", "private": True},
+        status="private",
+        actor=player,
+        target=target,
+        action_name="VOTE",
+    )
+    influence_options = [candidate.player.name for candidate in _meeting_voters(gi)] + ["No one"]
+    influence_started_at = time.perf_counter()
+    print(f"[AI vote influence] request started for {player.name} (meeting {gi.meeting_number})", flush=True)
+    try:
+        influence_response = await asyncio.wait_for(
+            agent.choose_private_influences(gi.timestep, influence_options),
+            timeout=120.0,
+        )
+        response_text = str(influence_response).lower()
+        influences = [
+            candidate
+            for candidate in influence_options[:-1]
+            if candidate.lower() in response_text
+        ]
+        if "no one" in response_text or not influences:
+            influences = ["No one"]
+        print(
+            f"[AI vote influence] response received from {player.name} after "
+            f"{time.perf_counter() - influence_started_at:.1f}s: {', '.join(influences)}",
+            flush=True,
+        )
+    except asyncio.CancelledError:
+        print(
+            f"[AI vote influence] request cancelled for {player.name} after "
+            f"{time.perf_counter() - influence_started_at:.1f}s",
+            flush=True,
+        )
+        raise
+    except Exception as error:
+        print(
+            f"[AI vote influence] request failed for {player.name} after "
+            f"{time.perf_counter() - influence_started_at:.1f}s: {error}",
+            flush=True,
+        )
+        influences = ["No one"]
+    finally:
+        room.meeting_thinking_players.discard(player.name)
+    room.vote_influences[player.name] = influences
+    record_system_event(
+        gi,
+        "VOTE_INFLUENCE",
+        {"influences": influences, "private": True},
+        status="private",
+        actor=player,
+        action_name="VOTE_INFLUENCE",
+    )
+
+
 async def generate_llm_meeting_speech(room: GameRoom, agent) -> None:
     gi = room.game_instance
     player = agent.player
@@ -711,9 +914,16 @@ async def run_meeting_step(room: GameRoom) -> None:
     gi.meeting_number = getattr(gi, "meeting_number", 0) + 1
     room.voting_deadline_set = False
     room.meeting_voting_open = False
+    room.meeting_prevote_open = True
+    room.meeting_discussion_started = False
+    room.meeting_final_vote_preparing = False
+    room.pre_votes.clear()
+    room.pending_final_votes.clear()
+    room.vote_influences.clear()
     gi.external_discussion_complete = False
-    room.meeting_discussion_deadline = time.time() + MEETING_DISCUSSION_SECONDS
-    room.turn_deadline = room.meeting_discussion_deadline
+    room.meeting_discussion_deadline = 0
+    # The private pre-vote uses the same bounded response window as the final vote.
+    room.turn_deadline = time.time() + MEETING_VOTING_SECONDS
     room.meeting_last_message_at = time.time()
     room.meeting_last_idle_roll_at = room.meeting_last_message_at
     # A meeting clears the previous task phase's kill cooldown.
@@ -729,15 +939,22 @@ async def run_meeting_step(room: GameRoom) -> None:
             player.location = "Cafeteria"
     gi.update_map()
     gi.check_actions()
-    reporter = get_meeting_reporter(gi)
-    reporter_agent = next((agent for agent in gi.agents if agent.player is reporter), None)
-    if (
-        reporter_agent
-        and not isinstance(reporter_agent, WebPlayerAgent)
-        and getattr(reporter_agent.player, "is_alive", True)
-    ):
-        start_llm_meeting_speech(room, reporter_agent, "meeting reporter")
     await broadcast_state(room)
+
+    ai_prevote_agents = [
+        agent for agent in _meeting_voters(gi)
+        if not isinstance(agent, WebPlayerAgent)
+    ]
+    print(
+        "[AI pre-vote] scheduling "
+        f"{len(ai_prevote_agents)} request(s): "
+        f"{', '.join(agent.player.name for agent in ai_prevote_agents) or 'none'}",
+        flush=True,
+    )
+    ai_prevote_tasks = [
+        asyncio.create_task(collect_llm_prevote(room, agent))
+        for agent in ai_prevote_agents
+    ]
 
     async def broadcast_loop():
         while (
@@ -747,12 +964,28 @@ async def run_meeting_step(room: GameRoom) -> None:
         ):
             now = time.time()
             if (
-                not room.meeting_voting_open
+                room.meeting_discussion_started
+                and not room.meeting_voting_open
                 and now - room.meeting_last_message_at >= 5
                 and now - room.meeting_last_idle_roll_at >= 5
             ):
                 room.meeting_last_idle_roll_at = now
                 schedule_llm_speech_rolls(room)
+            if room.meeting_prevote_open and room.turn_deadline and now >= room.turn_deadline:
+                for agent in _meeting_voters(gi):
+                    player = agent.player
+                    if player.name in room.pre_votes:
+                        continue
+                    room.pre_votes[player.name] = "unknown"
+                    record_system_event(
+                        gi,
+                        "PRE_VOTE",
+                        {"choice": "unknown", "private": True, "timed_out": True},
+                        status="private",
+                        actor=player,
+                        action_name="PRE_VOTE",
+                    )
+                room.turn_deadline = 0
             if room.meeting_voting_open and room.turn_deadline and time.time() >= room.turn_deadline:
                 for idx in room.sessions.values():
                     agent = gi.agents[idx]
@@ -762,8 +995,26 @@ async def run_meeting_step(room: GameRoom) -> None:
                         and getattr(agent.player, "is_alive", True)
                         and is_connected_player(agent.player)
                     ):
-                        agent.queued_action = Vote(current_location=agent.player.location, other_player=None)
-                        log_human_action(gi, agent.player, "TIMEOUT_VOTE", {"target": "none"})
+                        selected_choice = room.pending_final_votes.get(agent.player.name, "none")
+                        selected_target = _find_vote_target(
+                            gi,
+                            selected_choice,
+                            allow_self=False,
+                            actor=agent.player,
+                        )
+                        room.pending_final_votes[agent.player.name] = selected_target.name if selected_target else "none"
+                        room.vote_influences[agent.player.name] = ["No one"]
+                        agent.queued_action = Vote(current_location=agent.player.location, other_player=selected_target)
+                        if selected_choice == "none":
+                            log_human_action(gi, agent.player, "TIMEOUT_VOTE", {"target": "none"})
+                        record_system_event(
+                            gi,
+                            "VOTE_INFLUENCE",
+                            {"influences": ["No one"], "private": True, "timed_out": True},
+                            status="private",
+                            actor=agent.player,
+                            action_name="VOTE_INFLUENCE",
+                        )
                 room.turn_deadline = 0
             await broadcast_state(room)
             await asyncio.sleep(1.0)
@@ -773,12 +1024,55 @@ async def run_meeting_step(room: GameRoom) -> None:
         while (
             not room.game_finished
             and str(gi.current_phase).lower() == "meeting"
+            and not all(agent.player.name in room.pre_votes for agent in _meeting_voters(gi))
+        ):
+            await asyncio.sleep(0.25)
+
+        if not room.game_finished and str(gi.current_phase).lower() == "meeting":
+            for task in ai_prevote_tasks:
+                if not task.done():
+                    task.cancel()
+            pre_vote_results = await asyncio.gather(*ai_prevote_tasks, return_exceptions=True)
+            for agent, result in zip(ai_prevote_agents, pre_vote_results):
+                if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                    print(
+                        f"[AI pre-vote] task failed for {agent.player.name}: {result}",
+                        flush=True,
+                    )
+            room.meeting_prevote_open = False
+            room.meeting_discussion_started = True
+            room.meeting_discussion_deadline = time.time() + MEETING_DISCUSSION_SECONDS
+            room.turn_deadline = room.meeting_discussion_deadline
+            reporter = get_meeting_reporter(gi)
+            reporter_agent = next((agent for agent in gi.agents if agent.player is reporter), None)
+            if (
+                reporter_agent
+                and not isinstance(reporter_agent, WebPlayerAgent)
+                and getattr(reporter_agent.player, "is_alive", True)
+            ):
+                start_llm_meeting_speech(room, reporter_agent, "meeting reporter")
+            await broadcast_state(room)
+
+        while (
+            not room.game_finished
+            and str(gi.current_phase).lower() == "meeting"
             and time.time() < room.meeting_discussion_deadline
         ):
             await asyncio.sleep(0.25)
 
         if not room.game_finished and str(gi.current_phase).lower() == "meeting":
             cancel_meeting_llm_tasks(room)
+            room.meeting_final_vote_preparing = True
+            await broadcast_state(room)
+            await asyncio.gather(
+                *[
+                    prepare_llm_final_vote(room, agent)
+                    for agent in _meeting_voters(gi)
+                    if not isinstance(agent, WebPlayerAgent)
+                ],
+                return_exceptions=True,
+            )
+            room.meeting_final_vote_preparing = False
             room.meeting_voting_open = True
             room.voting_deadline_set = True
             room.turn_deadline = time.time() + MEETING_VOTING_SECONDS
@@ -1563,6 +1857,40 @@ async def next_step(x_player_token: str = Header(...)) -> dict:
 async def set_nudge(x_player_token: str = Header(...)) -> dict:
     return {"status": "ignored", "message": "Ghost turns are skipped automatically."}
 
+
+@app.post("/api/pre-vote")
+async def submit_pre_vote(request: Request, x_player_token: str = Header(...)) -> dict:
+    room = get_room(x_player_token)
+    gi = room.game_instance
+    if not room.meeting_prevote_open or str(gi.current_phase).lower() != "meeting":
+        raise HTTPException(status_code=400, detail="The private pre-vote is not open.")
+    if room.turn_deadline and time.time() >= room.turn_deadline:
+        raise HTTPException(status_code=400, detail="The private pre-vote has ended.")
+    agent = get_human_agent(x_player_token)
+    player = agent.player
+    if not getattr(player, "is_alive", True):
+        raise HTTPException(status_code=403, detail="Ghosts cannot cast a pre-vote.")
+    if player.name in room.pre_votes:
+        raise HTTPException(status_code=400, detail="Your private pre-vote has already been recorded.")
+
+    choice = (await request.json()).get("target", "unknown")
+    target = _find_vote_target(gi, choice, actor=player)
+    if target is None and str(choice).strip().lower() not in {"unknown", "i do not know", "none"}:
+        raise HTTPException(status_code=400, detail="Choose a living player or I do not know.")
+    room.pre_votes[player.name] = target.name if target else "unknown"
+    record_system_event(
+        gi,
+        "PRE_VOTE",
+        {"choice": room.pre_votes[player.name], "private": True},
+        status="private",
+        actor=player,
+        target=target,
+        action_name="PRE_VOTE",
+    )
+    await broadcast_state(room)
+    return {"status": "success"}
+
+
 # Endpoint for submitting votes during meetings.
 # Expects target player color or "none" for skip.
 @app.post("/api/vote")
@@ -1582,30 +1910,74 @@ async def handle_vote(request: Request, x_player_token: str = Header(...)) -> di
 
     if not getattr(player, 'is_alive', True):
         raise HTTPException(status_code=403, detail="Ghosts cannot vote.")
+    if player.name in room.pending_final_votes:
+        raise HTTPException(status_code=400, detail="Your final vote has already been selected.")
 
-    # Vote for target player and execute action
+    # Select a vote now; it is queued only after influence attribution is complete.
     if target_color != "none":
-        target_player = next((
-            p for p in gi.players
-            if is_connected_player(p) and target_color.lower() in p.name.lower()
-        ), None)
+        target_player = _find_vote_target(gi, target_color, allow_self=False, actor=player)
+        if target_player is None:
+            raise HTTPException(status_code=400, detail="Choose a living ship-mate or skip the vote.")
 
-    human_agent.queued_action = Vote(current_location=human_agent.player.location, other_player=target_player)
+    room.pending_final_votes[player.name] = target_player.name if target_player else "none"
     log_human_action(gi, player, "VOTE", {"target": target_color})
+    record_system_event(
+        gi,
+        "FINAL_VOTE_SELECTED",
+        {"choice": room.pending_final_votes[player.name], "private": True},
+        status="private",
+        actor=player,
+        target=target_player,
+        action_name="VOTE",
+    )
+    await broadcast_state(room)
 
-    # If meeting_phase is already running, the queued_action will be picked up
-    # automatically. Calling game_step() here would start a second meeting phase which is bad
-    if getattr(gi, 'meeting_in_progress', False):
-        return {"status": "success", "new_phase": "meeting"}
+    return {"status": "success", "next": "influence"}
 
-    # Return new phase to JS to hide discussion screen UI
-    new_phase = str(gi.current_phase).lower()
 
-    return {
-        "status": "success",
-        "new_phase": new_phase,
-        "message": f"Voting complete. Phase is now {new_phase}"
-    }
+@app.post("/api/vote-influence")
+async def submit_vote_influence(request: Request, x_player_token: str = Header(...)) -> dict:
+    room = get_room(x_player_token)
+    gi = room.game_instance
+    if not room.meeting_voting_open:
+        raise HTTPException(status_code=400, detail="Voting is not open.")
+    human_agent = get_human_agent(x_player_token)
+    player = human_agent.player
+    if player.name not in room.pending_final_votes:
+        raise HTTPException(status_code=400, detail="Select your final vote before identifying influences.")
+    if player.name in room.vote_influences:
+        raise HTTPException(status_code=400, detail="Your vote influence response has already been recorded.")
+
+    submitted = (await request.json()).get("influences", [])
+    if not isinstance(submitted, list):
+        raise HTTPException(status_code=400, detail="Influences must be a list.")
+    no_one = any(str(value).strip().lower() == "no one" for value in submitted)
+    if no_one and len(submitted) != 1:
+        raise HTTPException(status_code=400, detail="No one cannot be combined with ship-mates.")
+    influences = ["No one"] if no_one else []
+    if not no_one:
+        for value in submitted:
+            influence_player = _find_vote_target(gi, value, actor=player)
+            if influence_player is None:
+                raise HTTPException(status_code=400, detail="Influences must be living ship-mates.")
+            if influence_player.name not in influences:
+                influences.append(influence_player.name)
+        if not influences:
+            influences = ["No one"]
+
+    selected_target = _find_vote_target(gi, room.pending_final_votes[player.name], allow_self=False, actor=player)
+    room.vote_influences[player.name] = influences
+    human_agent.queued_action = Vote(current_location=player.location, other_player=selected_target)
+    record_system_event(
+        gi,
+        "VOTE_INFLUENCE",
+        {"influences": influences, "private": True},
+        status="private",
+        actor=player,
+        action_name="VOTE_INFLUENCE",
+    )
+    await broadcast_state(room)
+    return {"status": "success"}
 
 # 
 @app.get("/api/vent-options")

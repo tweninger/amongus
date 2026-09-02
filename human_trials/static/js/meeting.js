@@ -6,6 +6,8 @@ import { apiFetch, displayColor } from './helpers.js';
 
 let typingStopTimer = null;
 let humanTypingAnnounced = false;
+let influenceAnchor = null;
+let influenceRendered = false;
 
 function removeThinkingIndicator() {
     const existing = document.getElementById('meeting-thinking-indicator');
@@ -111,121 +113,234 @@ function renderMeetingChat(messages) {
     state.processedMessageCount = messages.length;
 }
 
-// Update the shared-discussion and voting controls for the current meeting state.
+function modal(id) {
+    const element = document.getElementById(id);
+    return element && typeof bootstrap !== 'undefined' ? bootstrap.Modal.getOrCreateInstance(element) : null;
+}
+
+function showModal(id) { modal(id)?.show(); }
+function hideModal(id) { modal(id)?.hide(); }
+
+function showInfluenceModal() {
+    const element = document.getElementById('vote-influence-modal');
+    const dialog = element?.querySelector('.modal-dialog');
+    if (!element || !dialog) return;
+    showModal('vote-influence-modal');
+    if (!influenceAnchor) return;
+
+    requestAnimationFrame(() => {
+        const margin = 12;
+        const rect = dialog.getBoundingClientRect();
+        const left = Math.min(
+            Math.max(margin, influenceAnchor.x + margin),
+            window.innerWidth - rect.width - margin,
+        );
+        const top = Math.min(
+            Math.max(margin, influenceAnchor.y + margin),
+            window.innerHeight - rect.height - margin,
+        );
+        dialog.classList.add('vote-influence-anchored');
+        dialog.style.left = `${left}px`;
+        dialog.style.top = `${top}px`;
+    });
+}
+
+function resetInfluenceModalPosition() {
+    const dialog = document.querySelector('#vote-influence-modal .modal-dialog');
+    if (!dialog) return;
+    dialog.classList.remove('vote-influence-anchored');
+    dialog.style.left = '';
+    dialog.style.top = '';
+}
+
+function playerButton(player, text, { disabled = false, dead = false } = {}) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'vote-modal-option';
+    button.disabled = disabled;
+    const sprite = dead
+        ? `/assets/player_sprites/dead/${player.color}_body.png`
+        : `/assets/player_sprites/alive/player_${player.color}.png`;
+    button.innerHTML = `<img src="${sprite}" alt=""><span>${text}</span>`;
+    return button;
+}
+
+function setOptionsDisabled(container) {
+    container?.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+}
+
+function renderPreVote(data) {
+    const timer = document.getElementById('pre-vote-timer');
+    if (timer) timer.textContent = `${data.turn_seconds_left ?? 0}s`;
+    if (!data.pre_vote_open) {
+        hideModal('pre-vote-modal');
+        return;
+    }
+    showModal('pre-vote-modal');
+    const options = document.getElementById('pre-vote-options');
+    const waiting = document.getElementById('pre-vote-waiting');
+    if (!options || !waiting) return;
+    if (data.pre_vote_submitted) {
+        options.innerHTML = '';
+        waiting.classList.remove('d-none');
+        return;
+    }
+    waiting.classList.add('d-none');
+    options.innerHTML = '';
+    (data.players || []).forEach((player) => {
+        const dead = !player.is_alive;
+        const isCurrentPlayer = player.color === state.myColor;
+        const label = dead
+            ? `${player.name} (Ghost)`
+            : (isCurrentPlayer ? `${player.name} (You)` : player.name);
+        const button = playerButton(player, label, {
+            disabled: dead || !data.is_alive,
+            dead,
+        });
+        button.addEventListener('click', async () => {
+            setOptionsDisabled(options);
+            button.classList.add('vote-modal-selected');
+            const response = await apiFetch('/api/pre-vote', {
+                method: 'POST', body: JSON.stringify({ target: player.color }),
+            });
+            if (!response.ok) button.disabled = false;
+        });
+        options.appendChild(button);
+    });
+    const unknown = document.createElement('button');
+    unknown.type = 'button';
+    unknown.className = 'vote-modal-option justify-content-center';
+    unknown.textContent = 'I do not know';
+    unknown.disabled = !data.is_alive;
+    unknown.addEventListener('click', async () => {
+        setOptionsDisabled(options);
+        unknown.classList.add('vote-modal-selected');
+        await apiFetch('/api/pre-vote', { method: 'POST', body: JSON.stringify({ target: 'unknown' }) });
+    });
+    options.appendChild(unknown);
+}
+
+function renderInfluence(data) {
+    const options = document.getElementById('vote-influence-options');
+    const submit = document.getElementById('submit-vote-influence');
+    if (!options || !submit) return;
+    options.innerHTML = '';
+    (data.players || []).filter((player) => player.is_alive).forEach((player) => {
+        const label = document.createElement('label');
+        label.className = 'vote-influence-option';
+        const labelText = player.color === state.myColor ? `${player.name} (You)` : player.name;
+        label.innerHTML = `<input type="checkbox" value="${player.color}"><img src="/assets/player_sprites/alive/player_${player.color}.png" width="30" height="30" alt="">${labelText}`;
+        options.appendChild(label);
+    });
+    const noOne = document.createElement('label');
+    noOne.className = 'vote-influence-option';
+    noOne.innerHTML = '<input type="checkbox" value="No one">No one';
+    options.appendChild(noOne);
+    noOne.querySelector('input').addEventListener('change', (event) => {
+        if (event.target.checked) options.querySelectorAll('input:not([value="No one"])').forEach((input) => { input.checked = false; });
+    });
+    options.querySelectorAll('input:not([value="No one"])').forEach((input) => input.addEventListener('change', () => { noOne.querySelector('input').checked = false; }));
+    submit.onclick = async () => {
+        submit.disabled = true;
+        const influences = [...options.querySelectorAll('input:checked')].map((input) => input.value);
+        const response = await apiFetch('/api/vote-influence', {
+            method: 'POST', body: JSON.stringify({ influences }),
+        });
+        if (response.ok) hideModal('vote-influence-modal');
+        else submit.disabled = false;
+    };
+}
+
+function renderFinalVote(data) {
+    const timer = document.getElementById('final-vote-timer');
+    if (timer) timer.textContent = `${data.turn_seconds_left ?? 0}s`;
+    if (!data.can_vote || !data.is_alive) {
+        hideModal('final-vote-modal');
+        if (!data.is_alive) hideModal('vote-influence-modal');
+        return;
+    }
+    if (data.vote_influence_submitted) {
+        hideModal('final-vote-modal');
+        hideModal('vote-influence-modal');
+        influenceAnchor = null;
+        influenceRendered = false;
+        resetInfluenceModalPosition();
+        return;
+    }
+    if (data.final_vote_selected) {
+        if (!influenceRendered) {
+            renderInfluence(data);
+            influenceRendered = true;
+        }
+        showInfluenceModal();
+        return;
+    }
+    showModal('final-vote-modal');
+    const options = document.getElementById('final-vote-options');
+    const skip = document.getElementById('final-skip-vote');
+    if (!options || !skip) return;
+    options.innerHTML = '';
+    (data.players || []).filter((player) => player.is_alive && player.color !== state.myColor).forEach((player) => {
+        const button = playerButton(player, player.name);
+        button.addEventListener('click', async (event) => {
+            influenceAnchor = { x: event.clientX, y: event.clientY };
+            setOptionsDisabled(options);
+            skip.disabled = true;
+            button.classList.add('vote-modal-selected');
+            await apiFetch('/api/vote', { method: 'POST', body: JSON.stringify({ target: player.color }) });
+        });
+        options.appendChild(button);
+    });
+    skip.onclick = async (event) => {
+        influenceAnchor = { x: event.clientX, y: event.clientY };
+        setOptionsDisabled(options);
+        skip.disabled = true;
+        skip.classList.remove('btn-outline-warning');
+        skip.classList.add('btn-warning');
+        await apiFetch('/api/vote', { method: 'POST', body: JSON.stringify({ target: 'none' }) });
+    };
+}
+
+function hideMeetingVoteModals() {
+    hideModal('pre-vote-modal');
+    hideModal('final-vote-modal');
+    hideModal('vote-influence-modal');
+    influenceAnchor = null;
+    influenceRendered = false;
+    resetInfluenceModalPosition();
+}
+
 function updateMeetingUI(data) {
     const chatInputGroup = document.getElementById('chat-input-group');
-    const votingRoster = document.getElementById('voting-roster-container');
     const sendBtn = document.getElementById('send-chat-btn');
     const chatInput = document.getElementById('chat-input');
-    renderThinkingIndicator(data);
-
+    const turnPrompt = document.getElementById('turn-prompt');
     const meetingOverlayEl = document.getElementById('meeting-overlay');
     if (meetingOverlayEl) meetingOverlayEl.classList.remove('d-none');
-    const turnPrompt = document.getElementById('turn-prompt');
-    const skipBtn = document.getElementById('skip-vote-btn');
+    renderThinkingIndicator(data);
+    renderPreVote(data);
+    renderFinalVote(data);
 
-    if (data.can_vote && data.is_alive) {
-        if (chatInputGroup) chatInputGroup.style.display = 'none';
-        if (turnPrompt) turnPrompt.style.display = 'none';
-        if (skipBtn) skipBtn.style.display = 'block';
-        if (votingRoster && votingRoster.innerHTML.trim() === '') populateVotingRoster();
-    } else if (data.discussion_open && data.is_alive) {
-        if (votingRoster) votingRoster.innerHTML = '';
-        if (skipBtn) skipBtn.style.display = 'none';
+    if (data.discussion_open && data.is_alive) {
         if (turnPrompt) {
             turnPrompt.style.display = 'block';
             turnPrompt.innerText = 'Discussion is open. Speak whenever you are ready.';
             turnPrompt.className = 'text-success fw-bold small text-center mb-1';
         }
         if (chatInputGroup) chatInputGroup.style.display = 'flex';
-        if (sendBtn) {
-            sendBtn.disabled = state.chatInputLocked;
-            sendBtn.innerText = state.chatInputLocked ? 'Sending...' : 'Send';
-        }
+        if (sendBtn) sendBtn.disabled = state.chatInputLocked;
         if (chatInput) chatInput.disabled = false;
-    } else if (!data.is_alive) {
-        if (chatInputGroup) chatInputGroup.style.display = 'none';
-        if (turnPrompt) {
-            turnPrompt.style.display = 'block';
-            turnPrompt.innerText = 'You are a ghost and cannot speak or vote.';
-            turnPrompt.className = 'text-secondary fw-bold small text-center mb-1';
-        }
-        if (skipBtn) skipBtn.style.display = 'none';
     } else {
         if (chatInputGroup) chatInputGroup.style.display = 'none';
         if (turnPrompt) {
             turnPrompt.style.display = 'block';
-            turnPrompt.innerText = 'Discussion is starting...';
-            turnPrompt.className = 'text-danger fw-bold small text-center mb-1';
+            turnPrompt.innerText = data.pre_vote_open
+                ? (data.is_alive ? 'Enter your private pre-vote.' : 'You are a ghost and cannot vote.')
+                : (data.final_vote_preparing ? 'Final votes are being prepared...' : 'Waiting for the vote.');
+            turnPrompt.className = 'text-secondary fw-bold small text-center mb-1';
         }
-        if (skipBtn) skipBtn.style.display = 'none';
     }
-
     state.lastDiscussionTurnSeq = data.discussion_turn_seq;
-}
-
-
-// Create and handle voting roster during voting phase
-async function populateVotingRoster() {
-    const response = await apiFetch('/api/player-states'); // Get current states of all players to populate voting roster with alive players
-    const data = await response.json();
-    const container = document.getElementById('voting-roster-container');
-    const userDisplayEl = document.getElementById('user-display');
-    const myColor = userDisplayEl ? userDisplayEl.innerText.toLowerCase() : "";
-
-    if (!container || !data.players){
-        return;
-    }
-    container.innerHTML = '';
-
-    data.players.forEach(player => {
-        // Don't show yourself in the voting roster
-        if (player.color === myColor){
-            return;
-        }
-        // Only show alive players as voting options
-        if (!player.is_alive){
-            return;
-        }
-
-        // Create the vote button for this player
-        const btn = document.createElement('button');
-        btn.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary d-flex align-items-center mb-1';
-        btn.style.cursor = "pointer";
-        btn.innerHTML = `<img src="/assets/player_sprites/alive/player_${player.color}.png" style="width: 30px; margin-right: 15px;"><span>Vote for <strong>${player.name}</strong></span>`;
-
-        // Handles voting when target is clicked
-        btn.onclick = async () => {
-            container.querySelectorAll('button').forEach(b => b.disabled = true);
-            document.getElementById('skip-vote-btn').disabled = true;
-            btn.classList.remove('bg-dark', 'border-secondary');
-            btn.classList.add('vote-selected', 'text-white');
-
-            // Send vote to server.
-            await apiFetch('/api/vote', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target: player.color })
-            });
-        };
-        container.appendChild(btn);
-    });
-
-    // FIX NEEDED
-    const skipBtn = document.getElementById('skip-vote-btn');
-    if (skipBtn) {
-        skipBtn.onclick = async () => {
-            container.querySelectorAll('button').forEach(b => b.disabled = true);
-            skipBtn.disabled = true;
-            skipBtn.classList.remove('btn-outline-warning');
-            skipBtn.classList.add('vote-skip-selected', 'text-dark');
-            await apiFetch('/api/vote', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target: "none" })
-            });
-        };
-    }
 }
 
 // Send a discussion message. The short lock prevents duplicate requests only.
@@ -295,4 +410,4 @@ function handleChatTyping() {
     typingStopTimer = setTimeout(() => setHumanTyping(false), 1200);
 }
 
-export { showEjectionBanner, renderMeetingChat, updateMeetingUI, handleSendChat, handleChatTyping };
+export { hideMeetingVoteModals, showEjectionBanner, renderMeetingChat, updateMeetingUI, handleSendChat, handleChatTyping };
