@@ -7,6 +7,8 @@ const SKELD_MAP_PATH = '/assets/map/The_Skeld_map_hq.webp';
 const SKELD_MAP_WIDTH = 1000;
 const SKELD_MAP_HEIGHT = 560;
 let lastMapActionContextKey = null;
+const roomSpritePlacements = new Map();
+let roomSpritePlacementScope = null;
 
 function getRoomViewProjection(roomView, roomName) {
     const bounds = roomViewBounds[roomName.toLowerCase()];
@@ -76,12 +78,20 @@ function renderRoomTasks(contextData) {
     const assignedTaskMap = new Map(
         (contextData.room_task_statuses || []).map((task) => [task.name, task]),
     );
+    const activeTask = state.activeTask;
 
     roomTasks.forEach((taskName) => {
         const taskStatus = assignedTaskMap.get(taskName);
+        const isActiveTask = Boolean(
+            activeTask
+            && activeTask.name === taskName
+            && activeTask.location === contextData.current_room,
+        );
         const chip = document.createElement(taskStatus && !taskStatus.completed ? 'button' : 'div');
         chip.className = 'room-task-chip';
-        const progress = taskStatus && taskStatus.max_duration > 1
+        const progress = isActiveTask
+            ? ` (${Math.max(0, Math.ceil((activeTask.deadline - Date.now()) / 1000))}s)`
+            : taskStatus && taskStatus.max_duration > 1
             ? ` (${taskStatus.steps_done}/${taskStatus.max_duration})`
             : '';
         chip.textContent = `${taskName}${progress}`;
@@ -92,10 +102,13 @@ function renderRoomTasks(contextData) {
             chip.classList.add('room-task-complete');
         } else {
             chip.classList.add('room-task-active');
-            chip.classList.add(taskStatus.steps_done > 0 ? 'room-task-in-progress' : 'room-task-ready');
+            chip.classList.add(isActiveTask || taskStatus.steps_done > 0 ? 'room-task-in-progress' : 'room-task-ready');
             if (chip instanceof HTMLButtonElement) {
                 chip.type = 'button';
-                chip.disabled = state.actionLocked || state.waitingForStep;
+                chip.disabled = state.actionLocked || Boolean(activeTask);
+                if (isActiveTask) {
+                    chip.dataset.activeTaskName = taskName;
+                }
                 chip.title = `Complete ${taskName}`;
                 chip.setAttribute('aria-label', `Complete ${taskName}`);
                 chip.addEventListener('click', (event) => {
@@ -112,22 +125,6 @@ function renderRoomTasks(contextData) {
         overlay.appendChild(chip);
     });
 
-    if (contextData.is_alive && contextData.phase.toLowerCase() === 'task') {
-        const skipMove = document.createElement('button');
-        skipMove.type = 'button';
-        skipMove.className = 'room-task-chip room-task-active room-skip-move';
-        skipMove.textContent = 'Skip Move';
-        skipMove.disabled = state.actionLocked || state.waitingForStep;
-        skipMove.title = 'Stay in this room for this turn';
-        skipMove.setAttribute('aria-label', 'Skip move');
-        skipMove.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            commitRoomTaskSelection(skipMove);
-            document.dispatchEvent(new CustomEvent('amongus:skip-move-request'));
-        });
-        overlay.appendChild(skipMove);
-    }
 }
 
 function commitMapActionSelection(button) {
@@ -149,7 +146,7 @@ function commitRoomTaskSelection(button) {
         return;
     }
 
-    overlay.querySelectorAll('.room-task-active, .room-skip-move').forEach((task) => {
+    overlay.querySelectorAll('.room-task-active').forEach((task) => {
         task.disabled = true;
         task.classList.remove('committed');
     });
@@ -166,11 +163,12 @@ function commitRoomPlayerActionSelection(button) {
 
 function syncMapActionHotspots(contextKey) {
     const hotspots = document.querySelectorAll('.map-action-hotspot');
-    const shouldEnable = !state.actionLocked && !state.waitingForStep;
+    const moveCooldownActive = Date.now() < state.moveCooldownUntil;
     const shouldResetCommit = contextKey !== lastMapActionContextKey;
 
     hotspots.forEach((hotspot) => {
-        hotspot.disabled = !shouldEnable;
+        const isMovementArrow = hotspot.classList.contains('move-arrow-hotspot');
+        hotspot.disabled = state.actionLocked || (isMovementArrow && moveCooldownActive);
         if (shouldResetCommit) {
             hotspot.classList.remove('committed');
         }
@@ -193,7 +191,7 @@ function createMapArrow({ destination, point, currentRoom, variant = 'move', eve
     button.style.top = `${point.y}px`;
     button.title = `${variant === 'vent' ? 'Vent' : 'Move'} to ${destination}`;
     button.setAttribute('aria-label', `${variant === 'vent' ? 'Vent' : 'Move'} to ${destination}`);
-    button.disabled = state.actionLocked || state.waitingForStep;
+    button.disabled = state.actionLocked || Date.now() < state.moveCooldownUntil;
 
     if (variant !== 'vent') {
         const glyph = document.createElement('span');
@@ -223,7 +221,7 @@ function createEmergencyHotspot(point) {
     button.style.top = `${point.y}px`;
     button.title = 'Call emergency meeting';
     button.setAttribute('aria-label', 'Call emergency meeting');
-    button.disabled = state.actionLocked || state.waitingForStep;
+    button.disabled = state.actionLocked;
     button.textContent = '!';
 
     button.addEventListener('click', (event) => {
@@ -279,18 +277,31 @@ function getPlayerPlacementArea(contextData, roomView) {
     };
 }
 
-function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null, placementArea = null, isSelf = false) {
+function getRoomSpritePlacement(player, renderLoc, placementArea) {
+    const placementKey = `${player.color}:${renderLoc}`;
+    const existing = roomSpritePlacements.get(placementKey);
+    if (existing) {
+        return existing;
+    }
+
+    const placement = {
+        x: placementArea
+            ? placementArea.left + (Math.random() * (placementArea.right - placementArea.left))
+            : 50,
+        y: placementArea
+            ? placementArea.top + (Math.random() * (placementArea.bottom - placementArea.top))
+            : 50,
+    };
+    roomSpritePlacements.set(placementKey, placement);
+    return placement;
+}
+
+function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = null, placement = null, isSelf = false) {
     const wrapper = document.createElement('div');
     wrapper.className = 'room-player-sprite-wrap';
-    const horizontalPos = placementArea
-        ? placementArea.left + (Math.random() * (placementArea.right - placementArea.left))
-        : 50;
-    const verticalPos = placementArea
-        ? placementArea.top + (Math.random() * (placementArea.bottom - placementArea.top))
-        : 50;
     wrapper.style.position = 'absolute';
-    wrapper.style.top = `${verticalPos}px`;
-    wrapper.style.left = `${horizontalPos}px`;
+    wrapper.style.top = `${placement?.y ?? 50}px`;
+    wrapper.style.left = `${placement?.x ?? 50}px`;
     wrapper.style.transform = 'translate(-50%, -50%)';
 
     const img = document.createElement('img');
@@ -318,7 +329,7 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
         actionBtn.textContent = actionConfig.label;
         actionBtn.title = actionConfig.title || actionConfig.label;
         actionBtn.disabled = Boolean(actionConfig.disabled) || (
-            !actionConfig.allowWhilePending && (state.actionLocked || state.waitingForStep)
+            !actionConfig.allowWhilePending && state.actionLocked
         );
         actionBtn.addEventListener('click', (event) => {
             event.preventDefault();
@@ -536,6 +547,11 @@ async function updateMapUI() {
         }
 
         const playerPlacementArea = getPlayerPlacementArea(contextData, roomView);
+        const placementScope = [roomView?.clientWidth, roomView?.clientHeight].join(':');
+        if (placementScope !== roomSpritePlacementScope) {
+            roomSpritePlacements.clear();
+            roomSpritePlacementScope = placementScope;
+        }
         data.players.forEach(player => {
             if (player.is_connected === false) {
                 return;
@@ -589,10 +605,8 @@ async function updateMapUI() {
                     miniImg.src = renderSrc;
                     if (renderFilter) miniImg.style.filter = renderFilter;
                     miniImg.style.position = 'absolute';
-                    const miniJitterX = (Math.random() * 4) - 2;
-                    const miniJitterY = (Math.random() * 4) - 2;
-                    miniImg.style.top = `${coords.top + miniJitterY}%`;
-                    miniImg.style.left = `${coords.left + miniJitterX}%`;
+                    miniImg.style.top = `${coords.top}%`;
+                    miniImg.style.left = `${coords.left}%`;
                     miniImg.style.width = '26px';
                     miniImg.style.height = '26px';
                     miniImg.style.objectFit = 'contain';
@@ -603,6 +617,7 @@ async function updateMapUI() {
             }
 
             if (renderLoc === currentRoomStr && roomPlayerLayer) {
+                const placement = getRoomSpritePlacement(player, renderLoc, playerPlacementArea);
                 let actionConfig = null;
                 if (isHumanImpostor && player.is_alive && !isSelf) {
                     actionConfig = {
@@ -622,7 +637,7 @@ async function updateMapUI() {
                     };
                 }
                 roomPlayerLayer.appendChild(
-                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig, playerPlacementArea, isSelf),
+                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig, placement, isSelf),
                 );
             }
         });

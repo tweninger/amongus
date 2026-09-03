@@ -242,7 +242,7 @@ class AmongUs:
             return 2  # Crewmates win
         elif self.task_assignment.check_task_completion() == 1.0:
             return 3  # Crewmates win (task completed)
-        elif self.timestep >= self.game_config["max_timesteps"]:
+        elif getattr(self, "match_time_expired", False) or self.timestep >= self.game_config["max_timesteps"]:
             return 4  # Impostors win (time limit)
         return 0  # Game continues
 
@@ -268,6 +268,11 @@ class AmongUs:
 
     def filter_recently_killed_action(self, player, action):
         if self.current_phase != "task" or action is None:
+            return action
+        # A killed human continues as a ghost and may still move or complete tasks.
+        # The realtime server does not run task_phase_step(), which formerly reset
+        # this flag at the start of the next synchronized step.
+        if not player.is_alive:
             return action
         if not player.killed_this_step:
             return action
@@ -597,10 +602,9 @@ class MessageSystem:
         player = record["player"]
         action = record["action"]
         if current_phase == "task":
-            message = f"Timestep {timestep}: [{current_phase}] {player.name} {action.action_text()}"
+            message = f"Event {timestep}: [{current_phase}] {player.name} {action.action_text()}"
         elif current_phase == "meeting":
-            round = record["round"]
-            message = f"Timestep {timestep}: [{current_phase} phase - round {round}] {player.name} {action.action_text()}"
+            message = f"Event {timestep}: [{current_phase} phase] {player.name} {action.action_text()}"
         return message
 
     def create_location_message(self, record, env):
@@ -616,7 +620,7 @@ class MessageSystem:
                 round = max_rounds - env.discussion_rounds_left
                 phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
                 instruction = MEETING_PHASE_INSTRUCTION
-        message = f"Game Time: {env.timestep}/{env.game_config['max_timesteps']}\n"
+        message = f"Action sequence: {env.timestep}\n"
         message += f"Current phase: {phase_info}\n"
         message += f"{instruction}\n"
         players_text = ", ".join(record["players"])

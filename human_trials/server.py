@@ -1,10 +1,12 @@
 # server.py
 import asyncio
+import math
 import os
 import random
 import string
 import subprocess
 import time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -52,9 +54,14 @@ LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
 LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
 PARTICIPATION_COMPLETION_URL = os.getenv("PARTICIPATION_COMPLETION_URL", "").strip()
 CONSENT_TOKEN_TTL_SECONDS = 60 * 60
-ROUND_DURATION_SECONDS = int(os.getenv("ROUND_DURATION_SECONDS", "90"))
 MEETING_DISCUSSION_SECONDS = int(os.getenv("MEETING_DISCUSSION_SECONDS", "60"))
 MEETING_VOTING_SECONDS = int(os.getenv("MEETING_VOTING_SECONDS", "60"))
+AI_INITIAL_ACTION_INTERVAL_SECONDS = float(os.getenv("AI_INITIAL_ACTION_INTERVAL_SECONDS", "12"))
+AI_MIN_ACTION_INTERVAL_SECONDS = float(os.getenv("AI_MIN_ACTION_INTERVAL_SECONDS", "2"))
+AI_MAX_ACTION_INTERVAL_SECONDS = float(os.getenv("AI_MAX_ACTION_INTERVAL_SECONDS", "60"))
+TASK_DURATION_SECONDS = max(1, int(os.getenv("TASK_DURATION_SECONDS", "20")))
+MATCH_DURATION_SECONDS = max(1, int(os.getenv("MATCH_DURATION_SECONDS", "500")))
+REALTIME_ACTION_SAFETY_LIMIT = 1_000_000
 
 
 def get_code_revision() -> str | None:
@@ -95,6 +102,13 @@ def build_agent_config() -> dict:
         "CREWMATE_LLM_CHOICES": env_model_choices("crewmate"),
     }
 
+
+def build_realtime_game_config(selected_config: dict) -> dict:
+    """Disable the legacy turn cap in favor of the server's wall-clock match timer."""
+    realtime_config = dict(selected_config)
+    realtime_config["max_timesteps"] = REALTIME_ACTION_SAFETY_LIMIT
+    return realtime_config
+
 # Each GameRoom holds one game's engine, sessions, and WebSocket connections.
 class GameRoom:
     def __init__(self, size_config, total_slots, host_token, host_color):
@@ -107,6 +121,8 @@ class GameRoom:
         self.host_token = host_token # Only the host can start the game
         self.host_color = host_color # For show in the lobby list
         self.lobby_deadline: float = 0.0 # Unix timestamp when lobby countdown expires
+        self.game_started_monotonic: float | None = None
+        self.match_deadline_monotonic: float | None = None
         self.consented_tokens: set[str] = set()
         self.consented_at_by_slot: dict[int, str] = {}
         self.ai_filled_slots: set[int] = set()
@@ -120,6 +136,13 @@ class GameRoom:
         self.discussion_turn_seq = 0 # Increments each time the discussion baton passes to a new human
         self.turn_deadline: float = 0.0 # Unix timestamp when current turn expires
         self.task_timeout_task: asyncio.Task | None = None # Background sleep task for task-phase auto-submit
+        self.match_timeout_task: asyncio.Task | None = None
+        self.realtime_ai_scheduler_task: asyncio.Task | None = None
+        self.realtime_ai_action_tasks: set[asyncio.Task] = set()
+        self.realtime_ai_action_due: dict[str, float] = {}
+        self.human_map_action_intervals: deque[float] = deque(maxlen=40)
+        self.human_last_map_action_at: dict[str, float] = {}
+        self.active_human_tasks: dict[str, dict] = {}
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
         self.meeting_discussion_deadline: float = 0.0
         self.meeting_voting_open: bool = False
@@ -155,6 +178,14 @@ def finish_game(room: GameRoom) -> None:
     if room.task_timeout_task and not room.task_timeout_task.done():
         room.task_timeout_task.cancel()
     room.task_timeout_task = None
+    if (
+        room.match_timeout_task
+        and not room.match_timeout_task.done()
+        and room.match_timeout_task is not asyncio.current_task()
+    ):
+        room.match_timeout_task.cancel()
+    room.match_timeout_task = None
+    stop_realtime_task_phase(room)
     cancel_meeting_llm_tasks(room)
 
 # Generates 4 letter random key code
@@ -227,6 +258,8 @@ async def activate_room(room: GameRoom, reason: str) -> None:
     room.lobby_fill_task = None
     room.lobby_deadline = 0
     room.status = "active"
+    room.game_started_monotonic = time.monotonic()
+    room.match_deadline_monotonic = room.game_started_monotonic + MATCH_DURATION_SECONDS
     room.game_instance.game_phase = "active"
     room.game_instance.activity_log.append(reason)
     if not room.game_started_logged:
@@ -235,7 +268,11 @@ async def activate_room(room: GameRoom, reason: str) -> None:
             room.code or "unknown",
             {
                 "lobby_countdown_seconds": LOBBY_COUNTDOWN_SECONDS,
-                "round_duration_seconds": ROUND_DURATION_SECONDS,
+                "task_play_mode": "realtime",
+                "ai_initial_action_interval_seconds": AI_INITIAL_ACTION_INTERVAL_SECONDS,
+                "ai_min_action_interval_seconds": AI_MIN_ACTION_INTERVAL_SECONDS,
+                "ai_max_action_interval_seconds": AI_MAX_ACTION_INTERVAL_SECONDS,
+                "match_duration_seconds": MATCH_DURATION_SECONDS,
                 "meeting_discussion_seconds": MEETING_DISCUSSION_SECONDS,
                 "meeting_voting_seconds": MEETING_VOTING_SECONDS,
                 "llm_provider": os.getenv("LLM_PROVIDER"),
@@ -248,8 +285,21 @@ async def activate_room(room: GameRoom, reason: str) -> None:
         room.game_started_logged = True
 
     await broadcast_lobby(room, event="game_started")
-    start_task_timer(room)
+    start_realtime_task_phase(room)
+    room.match_timeout_task = asyncio.create_task(run_match_countdown(room))
     await broadcast_state(room)
+
+
+async def run_match_countdown(room: GameRoom) -> None:
+    """End an active match when its wall-clock duration expires."""
+    try:
+        await asyncio.sleep(MATCH_DURATION_SECONDS)
+        if room.game_finished or not room.game_instance or room.status != "active":
+            return
+        room.game_instance.match_time_expired = True
+        await broadcast_state(room)
+    except asyncio.CancelledError:
+        return
 
 
 async def run_lobby_countdown(room: GameRoom) -> None:
@@ -455,6 +505,11 @@ async def broadcast_state(room: GameRoom):
     _update_meeting_tracking(room, gi, current_phase)
 
     turn_seconds_left = max(0, int(room.turn_deadline - time.time())) if room.turn_deadline > 0 else None
+    match_seconds_left = (
+        max(0, math.ceil(room.match_deadline_monotonic - time.monotonic()))
+        if room.match_deadline_monotonic is not None
+        else MATCH_DURATION_SECONDS
+    )
     winner = get_win_message(gi)
     players_data = [
         format_player_data(agent.player)
@@ -493,6 +548,7 @@ async def broadcast_state(room: GameRoom):
             and is_connected_player(agent.player)
         ],
         "turn_seconds_left": turn_seconds_left,
+        "match_seconds_left": match_seconds_left,
         "game_events": room.game_events,
     }
 
@@ -554,86 +610,212 @@ async def broadcast_lobby(room: GameRoom, event: str = "lobby_update") -> None:
         room.connections.pop(t, None)
 
 
-# Queue a stay-in-place null action for every alive human who hasn't acted yet.
-# Called before meeting-triggering steps so game_step() doesn't block waiting for idle humans.
-def queue_null_actions_for_idle_humans(room: GameRoom) -> None:
-    gi = room.game_instance
-    for idx in room.sessions.values():
-        agent = gi.agents[idx]
-        if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-            if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
-                agent.queued_action = MoveTo(current_location=agent.player.location, new_location=agent.player.location)
+def _matching_current_task_action(gi, player, proposed_action):
+    """Return a fresh equivalent action, or None if a delayed decision is stale."""
+    gi.check_actions()
+    for candidate in player.get_available_actions():
+        if candidate.name != getattr(proposed_action, "name", None):
+            continue
+        if hasattr(candidate, "new_location"):
+            if candidate.new_location == getattr(proposed_action, "new_location", None):
+                return candidate
+        elif hasattr(candidate, "task"):
+            proposed_task = getattr(proposed_action, "task", None)
+            if proposed_task and candidate.task.name == proposed_task.name:
+                return candidate
+        elif hasattr(candidate, "other_player"):
+            proposed_target = getattr(proposed_action, "other_player", None)
+            if proposed_target and candidate.other_player is proposed_target:
+                return candidate
+        else:
+            return candidate
+    return None
 
-# Returns True if every human has a queued action
-def all_humans_ready(room: GameRoom) -> bool:
-    gi = room.game_instance
-    for idx in room.sessions.values():
-        agent = gi.agents[idx]
-        if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-            if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
-                return False
-    return True
 
-# Checks if all humans have queued actions, and if so steps the game and broadcasts state.
-# If not, just broadcast current state
-async def maybe_step_and_broadcast(room: GameRoom) -> bool:
-    if room.game_finished:
-        await broadcast_state(room)
-        return False
-    if not all_humans_ready(room):
-        await broadcast_state(room)
-        return False
+def _record_human_map_action(room: GameRoom, player) -> None:
+    now = time.monotonic()
+    previous = room.human_last_map_action_at.get(player.name)
+    if previous is not None:
+        interval = now - previous
+        if interval <= AI_MAX_ACTION_INTERVAL_SECONDS * 2:
+            room.human_map_action_intervals.append(interval)
+    room.human_last_map_action_at[player.name] = now
+
+
+def _human_map_action_interval(room: GameRoom) -> float:
+    if not room.human_map_action_intervals:
+        return AI_INITIAL_ACTION_INTERVAL_SECONDS
+    average = sum(room.human_map_action_intervals) / len(room.human_map_action_intervals)
+    return min(AI_MAX_ACTION_INTERVAL_SECONDS, max(AI_MIN_ACTION_INTERVAL_SECONDS, average))
+
+
+async def start_meeting_if_needed(room: GameRoom) -> None:
     async with room.step_lock:
-        if not all_humans_ready(room): # Re-check after acquiring lock
-            await broadcast_state(room)
-            return False
-        await room.game_instance.game_step()
-    # Reset the timer BEFORE broadcasting so clients receive the fresh 60s deadline
-    if room.game_instance and str(room.game_instance.current_phase).lower() == "task":
-        start_task_timer(room)
-    await broadcast_state(room)
-    return True
+        if (
+            room.game_finished
+            or not room.game_instance
+            or str(room.game_instance.current_phase).lower() != "meeting"
+            or room.meeting_running
+        ):
+            return
+        room.meeting_running = True
+        asyncio.create_task(run_meeting_step(room))
 
-# Step and broadcast, but only if still in task phase.
-# Guards against two players reporting the same body (or double-clicking emergency):
-# the second caller waits on the lock, finds the phase already flipped to meeting, and skips.
-async def step_and_broadcast(room: GameRoom) -> None:
-    if room.game_finished:
-        await broadcast_state(room)
-        return
+
+async def execute_realtime_task_action(
+    room: GameRoom,
+    agent,
+    proposed_action,
+    *,
+    human_submission: tuple[str, dict] | None = None,
+    track_human_rate: bool = True,
+):
+    """Validate and apply one task action without waiting for other players."""
+    gi = room.game_instance
+    player = agent.player
+    meeting_started = False
     async with room.step_lock:
-        if str(room.game_instance.current_phase).lower() != "meeting":
-            await room.game_instance.game_step()
+        if room.game_finished or str(gi.current_phase).lower() != "task":
+            raise HTTPException(status_code=400, detail="The task phase is no longer active.")
+        if not is_connected_player(player):
+            raise HTTPException(status_code=403, detail="Disconnected players cannot act.")
+
+        action = _matching_current_task_action(gi, player, proposed_action)
+        if action is None:
+            raise HTTPException(status_code=400, detail="That action is no longer available.")
+
+        if human_submission is not None:
+            action_type, details = human_submission
+            if action_type != "COMPLETE_TASK":
+                room.active_human_tasks.pop(player.name, None)
+            log_human_action(gi, player, action_type, details)
+            if track_human_rate:
+                _record_human_map_action(room, player)
+
+        gi.camera_record = {
+            current_player.name: "stand quietly and do nothing"
+            for current_player in gi.players
+            if is_connected_player(current_player)
+        }
+        agent.queued_action = action
+        await gi.agent_step(agent)
+        gi.timestep += 1
+        meeting_started = str(gi.current_phase).lower() == "meeting"
+
+    if meeting_started:
+        await start_meeting_if_needed(room)
     await broadcast_state(room)
+    return action
 
 
-# Start (or restart) the configured task-phase round timer.
-# Cancels any running timer and starts a new one.
-def start_task_timer(room: GameRoom) -> None:
-    if room.game_finished:
-        return
-    if room.task_timeout_task and not room.task_timeout_task.done():
-        room.task_timeout_task.cancel()
-    room.turn_deadline = time.time() + ROUND_DURATION_SECONDS
-    room.task_timeout_task = asyncio.create_task(task_phase_timeout(room))
-
-# Auto-submits a null MoveTo (stay in place) when the configured round expires.
-async def task_phase_timeout(room: GameRoom) -> None:
+async def run_realtime_ai_action(room: GameRoom, agent) -> None:
+    gi = room.game_instance
+    player = agent.player
     try:
-        await asyncio.sleep(ROUND_DURATION_SECONDS)
+        if (
+            room.game_finished
+            or str(gi.current_phase).lower() != "task"
+            or not getattr(player, "is_alive", True)
+            or not is_connected_player(player)
+        ):
+            return
+        gi.check_actions()
+        print(f"[AI map action] request started for {player.name}", flush=True)
+        action = await asyncio.wait_for(agent.choose_action(gi.timestep), timeout=120.0)
+        if action is not None:
+            if getattr(action, "name", None) in {"COMPLETE TASK", "COMPLETE FAKE TASK"}:
+                record_system_event(
+                    gi,
+                    "TASK_STARTED",
+                    {
+                        "task": action.task.name,
+                        "location": player.location,
+                        "duration_seconds": TASK_DURATION_SECONDS,
+                    },
+                    status="started",
+                    actor=player,
+                    action_name=action.name,
+                )
+                print(
+                    f"[AI map action] {player.name} is working on {action.task.name} "
+                    f"for {TASK_DURATION_SECONDS}s",
+                    flush=True,
+                )
+                await asyncio.sleep(TASK_DURATION_SECONDS)
+                if (
+                    room.game_finished
+                    or str(gi.current_phase).lower() != "task"
+                    or not getattr(player, "is_alive", True)
+                ):
+                    return
+            await execute_realtime_task_action(room, agent, action)
+    except asyncio.CancelledError:
+        raise
+    except HTTPException as error:
+        print(f"[AI map action] stale action discarded for {player.name}: {error.detail}", flush=True)
+    except Exception as error:
+        print(f"[AI map action] failed for {player.name}: {error}", flush=True)
+    finally:
+        room.realtime_ai_action_due[player.name] = (
+            time.monotonic() + _human_map_action_interval(room) * random.uniform(0.8, 1.2)
+        )
+
+
+async def realtime_ai_action_loop(room: GameRoom) -> None:
+    try:
+        while (
+            not room.game_finished
+            and room.game_instance
+            and str(room.game_instance.current_phase).lower() == "task"
+        ):
+            now = time.monotonic()
+            for agent in room.game_instance.agents:
+                player = agent.player
+                if (
+                    isinstance(agent, WebPlayerAgent)
+                    or not getattr(player, "is_alive", True)
+                    or not is_connected_player(player)
+                ):
+                    continue
+                if player.name not in room.realtime_ai_action_due:
+                    room.realtime_ai_action_due[player.name] = (
+                        now + _human_map_action_interval(room) * random.uniform(0.6, 1.4)
+                    )
+                if now < room.realtime_ai_action_due[player.name]:
+                    continue
+                if any(not task.done() and task.get_name() == player.name for task in room.realtime_ai_action_tasks):
+                    continue
+                task = asyncio.create_task(run_realtime_ai_action(room, agent), name=player.name)
+                room.realtime_ai_action_tasks.add(task)
+                task.add_done_callback(room.realtime_ai_action_tasks.discard)
+            await asyncio.sleep(0.25)
     except asyncio.CancelledError:
         return
-    gi = room.game_instance
-    if room.game_finished or not gi or str(gi.current_phase).lower() != "task":
+
+
+def start_realtime_task_phase(room: GameRoom) -> None:
+    if room.game_finished or not room.game_instance or str(room.game_instance.current_phase).lower() != "task":
         return
-    for idx in room.sessions.values():
-        agent = gi.agents[idx]
-        if isinstance(agent, WebPlayerAgent) and agent.queued_action is None:
-            if getattr(agent.player, 'is_alive', True) and is_connected_player(agent.player):
-                agent.queued_action = MoveTo(current_location=agent.player.location, new_location=agent.player.location)
-                log_human_action(gi, agent.player, "TIMEOUT_TASK", {"location": agent.player.location})
-    room.task_timeout_task = None  # Clear before calling maybe_step_and_broadcast to avoid self-cancel
-    await maybe_step_and_broadcast(room)
+    room.turn_deadline = 0
+    if room.task_timeout_task and not room.task_timeout_task.done():
+        room.task_timeout_task.cancel()
+    room.task_timeout_task = None
+    if room.realtime_ai_scheduler_task and not room.realtime_ai_scheduler_task.done():
+        return
+    room.realtime_ai_action_due.clear()
+    room.realtime_ai_scheduler_task = asyncio.create_task(realtime_ai_action_loop(room))
+
+
+def stop_realtime_task_phase(room: GameRoom) -> None:
+    if room.realtime_ai_scheduler_task and not room.realtime_ai_scheduler_task.done():
+        room.realtime_ai_scheduler_task.cancel()
+    room.realtime_ai_scheduler_task = None
+    current_task = asyncio.current_task()
+    for task in tuple(room.realtime_ai_action_tasks):
+        if task is not current_task:
+            task.cancel()
+    room.realtime_ai_action_tasks.clear()
+    room.realtime_ai_action_due.clear()
 
 
 def cancel_meeting_llm_tasks(room: GameRoom) -> None:
@@ -906,9 +1088,7 @@ async def generate_llm_meeting_speech(room: GameRoom, agent) -> None:
 
 # Run a shared discussion window, then use the normal engine only for voting.
 async def run_meeting_step(room: GameRoom) -> None:
-    if room.task_timeout_task and not room.task_timeout_task.done():
-        room.task_timeout_task.cancel()
-        room.task_timeout_task = None
+    stop_realtime_task_phase(room)
 
     gi = room.game_instance
     gi.meeting_number = getattr(gi, "meeting_number", 0) + 1
@@ -1094,7 +1274,7 @@ async def run_meeting_step(room: GameRoom) -> None:
                 if ejected_color in player.name.lower() and not getattr(player, 'is_alive', True):
                     player.reported_death = True
     if not room.game_finished and room.game_instance and str(room.game_instance.current_phase).lower() == "task":
-        start_task_timer(room)
+        start_realtime_task_phase(room)
     await broadcast_state(room)  # Final broadcast after meeting ends
 
 # --- API ENDPOINTS ---
@@ -1129,10 +1309,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)) -> N
         gi = room.game_instance
         if gi and room.status == "active":
             mark_active_player_disconnected(room, token)
-            if str(gi.current_phase).lower() == "task":
-                await maybe_step_and_broadcast(room)
-            else:
-                await broadcast_state(room)
+            await broadcast_state(room)
         elif room.status == "open" and token != room.host_token:
             room.sessions.pop(token, None)
             await broadcast_lobby(room)
@@ -1193,8 +1370,9 @@ def create_room(selected_config, consent_token: object) -> tuple[str, GameRoom]:
     host_token = str(uuid4())
 
     game_id = f"web_{uuid4().hex}"
+    realtime_config = build_realtime_game_config(selected_config)
     gi = AmongUs(
-        game_config=selected_config,
+        game_config=realtime_config,
         agent_config=build_agent_config(),
         game_index=game_id,
     )
@@ -1479,36 +1657,24 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     room = get_room(x_player_token)
     gi = room.game_instance
     data = await request.json()
-    skip_move = bool(data.get("skip_move"))
     new_room = data.get("destination")
 
     human_agent = get_human_agent(x_player_token)
     player = human_agent.player
     is_alive = getattr(player, 'is_alive', True)
 
-    if skip_move:
-        new_room = player.location
-
     initial_neighbors = get_players_in_room_except_human(gi, player.location, player)
     old_room = player.location
 
-    human_agent.queued_action = MoveTo(current_location=old_room, new_location=new_room)
-    log_human_action(
-        gi,
-        player,
-        "SKIP_MOVE" if skip_move else "MOVE",
-        {"from": old_room, "to": new_room},
+    await execute_realtime_task_action(
+        room,
+        human_agent,
+        MoveTo(current_location=old_room, new_location=new_room),
+        human_submission=(
+            "MOVE",
+            {"from": old_room, "to": new_room},
+        ),
     )
-
-    # Await AI agent run waiting for all humans to be ready
-    # Pattern - This shows up for most human actions
-    # 1) Human queues action and hits submit, which triggers this endpoint
-    # 2) Server checks if all humans have queued actions. If not, just broadcast current state (with a "pending" status) and return.
-    # 3) If all humans are ready, step the game instance, which runs all queued actions including AIs, and then broadcast the new state.
-    step_ran = await maybe_step_and_broadcast(room)
-
-    if not step_ran:
-        return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
 
     # Generate movement observations (X was seen leaving towards Y)
     observations = generate_room_observations(gi, initial_neighbors, old_room) if is_alive else []
@@ -1516,14 +1682,61 @@ async def move_player(request: Request, x_player_token: str = Header(...)) -> di
     vent_observations += generate_kill_observations(gi.camera_record, initial_neighbors) if is_alive else []
     return {
         "status": "success",
-        "current_room": new_room,
+        "current_room": player.location,
         "timestep": gi.timestep,
         "observations": observations,
         "vent_observations": vent_observations,
         "is_alive" : is_alive
     }
 
-# Handles performing a task
+# Start a timed human task. Completion is accepted only after the full duration.
+@app.post("/api/start-task")
+async def start_task(request: Request, x_player_token: str = Header(...)) -> dict:
+    room = get_room(x_player_token)
+    if not room or not room.game_instance:
+        raise HTTPException(status_code=404, detail="No active game session")
+    gi = room.game_instance
+    data = await request.json()
+    task_name = data.get("task")
+    human_agent = get_human_agent(x_player_token)
+    player = human_agent.player
+
+    if not getattr(player, "is_alive", True):
+        raise HTTPException(status_code=403, detail="Ghosts cannot complete tasks.")
+    if str(gi.current_phase).lower() != "task":
+        raise HTTPException(status_code=400, detail="Tasks are only available during the map phase.")
+
+    task = next(
+        (
+            candidate
+            for candidate in player.tasks
+            if candidate.name == task_name
+            and not candidate.check_completion()
+            and candidate.location == player.location
+        ),
+        None,
+    )
+    if task is None:
+        raise HTTPException(status_code=400, detail="That task is no longer available here.")
+
+    room.active_human_tasks[player.name] = {
+        "task_name": task.name,
+        "location": player.location,
+        "started_at": time.monotonic(),
+    }
+    _record_human_map_action(room, player)
+    record_system_event(
+        gi,
+        "TASK_STARTED",
+        {"task": task.name, "location": player.location, "duration_seconds": TASK_DURATION_SECONDS},
+        status="started",
+        actor=player,
+        action_name="COMPLETE TASK",
+    )
+    return {"status": "started", "task": task.name, "duration_seconds": TASK_DURATION_SECONDS}
+
+
+# Complete a task after its human-visible timer reaches zero.
 @app.post("/api/do-task")
 async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
     room = get_room(x_player_token)
@@ -1535,21 +1748,33 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
     player = human_agent.player
     is_alive = getattr(human_agent.player, 'is_alive', True)
 
+    active_task = room.active_human_tasks.get(player.name)
+    if not active_task or active_task["task_name"] != task_name:
+        raise HTTPException(status_code=400, detail="Start the task before completing it.")
+    if active_task["location"] != player.location:
+        room.active_human_tasks.pop(player.name, None)
+        raise HTTPException(status_code=400, detail="You left the task before it was finished.")
+    elapsed = time.monotonic() - active_task["started_at"]
+    if elapsed < TASK_DURATION_SECONDS:
+        raise HTTPException(status_code=400, detail="That task is still in progress.")
+
     initial_neighbors = get_players_in_room_except_human(gi, player.location, player)
     task_to_complete = next((t for t in player.tasks if t.name == task_name and not t.check_completion() and t.location == player.location), None)
 
     if not task_to_complete:
+        room.active_human_tasks.pop(player.name, None)
         return {"status": "error", "message": "Error completing task", "observations": []}
 
     task_room = player.location
 
-    human_agent.queued_action = CompleteTask(current_location=player.location, task=task_to_complete)
-    log_human_action(gi, player, "COMPLETE_TASK", {"task": task_name, "location": task_room})
-
-    step_ran = await maybe_step_and_broadcast(room)
-
-    if not step_ran:
-        return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
+    await execute_realtime_task_action(
+        room,
+        human_agent,
+        CompleteTask(current_location=player.location, task=task_to_complete),
+        human_submission=("COMPLETE_TASK", {"task": task_name, "location": task_room}),
+        track_human_rate=False,
+    )
+    room.active_human_tasks.pop(player.name, None)
 
     # Build progress message for multi-step tasks.
     # If task is complete, just say completed. If not, show steps done out of total.
@@ -1588,8 +1813,6 @@ async def report_body(request: Request, x_player_token: str = Header(...)) -> di
 
     # Guard for ghosts
     if not is_alive:
-        await room.game_instance.game_step()
-        await broadcast_state(room)
         return {
             "status": "error",
             "message": "Ghosts cannot report bodies!",
@@ -1607,16 +1830,15 @@ async def report_body(request: Request, x_player_token: str = Header(...)) -> di
     ), None)
     dead_name = get_clean_name(dead_player) if dead_player else "Unknown"
 
-    # Tell engine to call meeting
-    human_agent.queued_action = CallMeeting(current_location=player.location)
-    log_human_action(gi, player, "REPORT", {"body": dead_name, "location": player.location})
-
     # Important: Clear any messages from pre-existing meetings
     if hasattr(gi, 'meeting_messages'):
         gi.meeting_messages = []
-
-    queue_null_actions_for_idle_humans(room)  # Don't block on humans who haven't acted
-    await step_and_broadcast(room)
+    await execute_realtime_task_action(
+        room,
+        human_agent,
+        CallMeeting(current_location=player.location),
+        human_submission=("REPORT", {"body": dead_name, "location": player.location}),
+    )
 
     return {
         "status": "success",
@@ -1645,14 +1867,14 @@ async def call_meeting(request: Request, x_player_token: str = Header(...)) -> d
     if gi.button_num >= gi.game_config["max_num_buttons"]:
         return {"status": "error", "message": "No emergency meetings remaining!"}
 
-    human_agent.queued_action = CallMeeting(current_location=player.location)
-    log_human_action(gi, player, "CALL_MEETING", {"location": player.location})
-
     if hasattr(gi, 'meeting_messages'):
         gi.meeting_messages = []
-
-    queue_null_actions_for_idle_humans(room)  # Don't block on humans who haven't acted
-    await step_and_broadcast(room)
+    await execute_realtime_task_action(
+        room,
+        human_agent,
+        CallMeeting(current_location=player.location),
+        human_submission=("CALL_MEETING", {"location": player.location}),
+    )
 
     return {
         "status": "success",
@@ -1678,8 +1900,6 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
 
     # Guard for Ghosts
     if not is_alive:
-        await room.game_instance.game_step()
-        await broadcast_state(room)
         return {
             "status": "error",
             "message": "Ghosts cannot kill others!",
@@ -1716,32 +1936,15 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
 
     kill_room = human_player.location
     initial_neighbors = get_players_in_room_except_human(gi, kill_room, human_player)
-    kill_action = Kill(current_location=kill_room, other_player=target_player)
-    log_human_action(
-        gi,
-        human_player,
-        "KILL",
-        {"target": target_color.capitalize(), "location": human_player.location},
+    await execute_realtime_task_action(
+        room,
+        human_agent,
+        Kill(current_location=kill_room, other_player=target_player),
+        human_submission=(
+            "KILL",
+            {"target": target_color.capitalize(), "location": human_player.location},
+        ),
     )
-
-    # Kills are immediate: reveal the body before the rest of the turn resolves.
-    kill_action.execute(gi, human_player)
-    target_agent = next((agent for agent in gi.agents if agent.player is target_player), None)
-    if isinstance(target_agent, WebPlayerAgent):
-        target_agent.queued_action = MoveTo(
-            current_location=target_player.location,
-            new_location=target_player.location,
-        )
-    gi.update_map()
-    await broadcast_state(room)
-
-    # Keep the original action queued so the normal turn engine records it for
-    # observations and the LLM-facing activity log when the turn resolves.
-    human_agent.queued_action = kill_action
-
-    step_ran = await maybe_step_and_broadcast(room)
-    if not step_ran:
-        return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
 
     observations = generate_room_observations(gi, initial_neighbors, kill_room)
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, kill_room)
@@ -1844,11 +2047,7 @@ async def next_step(x_player_token: str = Header(...)) -> dict:
     if current_phase != "meeting":
         return {"status": "not_meeting"}
 
-    async with room.step_lock:
-        if room.meeting_running:
-            return {"status": "meeting_in_progress"}
-        room.meeting_running = True
-        asyncio.create_task(run_meeting_step(room))
+    await start_meeting_if_needed(room)
 
     return {"status": "success"}
 
@@ -2026,14 +2225,12 @@ async def perform_vent(request: Request, x_player_token: str = Header(...)):
             "is_alive": False
         }
 
-    # Vent
-    human_agent.queued_action = Vent(current_location=human_agent.player.location, new_location=target_room)
-    log_human_action(gi, player, "VENT", {"from": old_room, "to": target_room})
-
-    step_ran = await maybe_step_and_broadcast(room)
-
-    if not step_ran:
-        return {"status": "pending", "timestep": gi.timestep, "is_alive": is_alive}
+    await execute_realtime_task_action(
+        room,
+        human_agent,
+        Vent(current_location=player.location, new_location=target_room),
+        human_submission=("VENT", {"from": old_room, "to": target_room}),
+    )
 
     observations = generate_room_observations(gi, initial_neighbors, old_room)
     vent_observations = generate_vent_observations(gi.camera_record, initial_neighbors, old_room)

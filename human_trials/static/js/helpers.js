@@ -38,7 +38,7 @@ function lockActions() {
     });
     const phaseDisplay = document.getElementById('current-phase');
     if (phaseDisplay) {
-        phaseDisplay.innerText = 'Action entered, waiting for others...';
+        phaseDisplay.innerText = 'Action entered...';
         phaseDisplay.className = 'text-warning fw-bold';
     }
     return true;
@@ -52,14 +52,15 @@ function unlockActions() {
         panel.querySelectorAll('button').forEach(btn => btn.disabled = false);
     }
     document.querySelectorAll('.map-action-hotspot').forEach((btn) => {
-        btn.disabled = false;
+        btn.disabled = btn.classList.contains('move-arrow-hotspot')
+            && Date.now() < state.moveCooldownUntil;
         btn.classList.remove('committed');
     });
     document.querySelectorAll('.room-hover-action-button').forEach((btn) => {
         btn.disabled = false;
     });
     document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
-        btn.disabled = false;
+        btn.disabled = Boolean(state.activeTask);
     });
     const phaseDisplay = document.getElementById('current-phase');
     if (phaseDisplay && state.isAlive) {

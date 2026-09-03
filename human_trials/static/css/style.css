@@ -269,27 +269,6 @@ body:has(#lobby-screen:not(.d-none)) {
     animation: room-task-pulse 1.35s ease-in-out infinite;
 }
 
-.room-task-chip.room-skip-move {
-    color: #f3e8ff;
-    background: rgba(126, 34, 206, 0.78);
-    border-color: rgba(216, 180, 254, 0.62);
-    animation: none;
-}
-
-.room-task-chip.room-skip-move:hover,
-.room-task-chip.room-skip-move:focus-visible {
-    background: rgba(147, 51, 234, 0.96);
-    color: #ffffff;
-    box-shadow: 0 0 0 1px rgba(233, 213, 255, 0.7), 0 10px 24px rgba(126, 34, 206, 0.24);
-}
-
-.room-task-chip.room-skip-move.committed {
-    background: rgba(88, 28, 135, 0.96);
-    border-color: rgba(233, 213, 255, 0.9);
-    color: #ffffff;
-    box-shadow: 0 0 0 2px rgba(107, 33, 168, 0.55), 0 10px 24px rgba(49, 10, 77, 0.4);
-}
-
 .room-task-chip.room-task-active:hover,
 .room-task-chip.room-task-active:focus-visible {
     background: rgba(202, 138, 4, 0.92);

@@ -461,9 +461,16 @@ class LLMAgent(Agent):
         if all(action.name == "VOTE" for action in available_actions) and available_actions:
             phase = "Meeting phase - Voting Round. You MUST cast a VOTE. Do NOT SPEAK."
         elif any(action.name == "SPEAK" for action in available_actions):
-            phase = "Meeting phase - Discussion Round. You MUST SPEAK. Do NOT VOTE yet. Keep your spoken message to 1-3 sentences, conversational and direct."
+            phase = (
+                "Meeting phase - Free discussion. A speaking opportunity is available. "
+                "Speak only if you have a useful concise contribution; otherwise return "
+                "[Action] SILENCE. Do NOT VOTE yet."
+            )
         else:
-            phase = "Task phase"
+            phase = (
+                "Real-time task phase. Make one independent action now. Other players "
+                "act independently, so an action can become unavailable before execution."
+            )
 
         # Iterate through each available action object and converts to bullet newline menu for LLM
         actions_str = "\n".join(f"- {repr(action)}" for action in available_actions)
@@ -476,7 +483,9 @@ class LLMAgent(Agent):
                     f"Summarization: {self.summarization}\n\n{all_info}\n\n"
                     f"Memory: {self.processed_memory}\n\n"
                     f"Phase: {phase}.\n"
-                    f"Available actions (choose EXACTLY one, copy the format exactly):\n{actions_str}\n\n"
+                    "Available actions (choose EXACTLY one listed action, unless the "
+                    "meeting instruction specifically permits SILENCE):\n"
+                    f"{actions_str}\n\n"
                     f"Return your output."
                 ),
             },
@@ -516,6 +525,12 @@ class LLMAgent(Agent):
         self.processed_memory = parsed_message.get('condensed memory', 'No memory.')
         self.summarization = parsed_message.get('thinking process', 'No thought.')
         output_action = parsed_message.get('action', 'SPEAK: ...')
+
+        if (
+            any(action.name == "SPEAK" for action in available_actions)
+            and output_action.strip().upper().rstrip(".!") == "SILENCE"
+        ):
+            return None
 
         # pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
         # searchMessage = response['message']

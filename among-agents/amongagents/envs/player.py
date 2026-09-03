@@ -129,11 +129,10 @@ class Player:
                     else:
                         action_text = action.action_text()
                     text += (
-                        f"Timestep {timestep}: [{current_phase} phase] {action_text}\n"
+                        f"Event {timestep}: [{current_phase} phase] {action_text}\n"
                     )
                 elif current_phase == "meeting":
-                    round = record["round"]
-                    text += f"Timestep {timestep}: [{current_phase} phase - round {round}] {action.action_text()}\n"
+                    text += f"Event {timestep}: [{current_phase} phase] {action.action_text()}\n"
         text += "\n"
         return text
 
@@ -149,6 +148,7 @@ class Player:
 
     def tasks_prompt(self):
         text = "Your Assigned Tasks:\n"
+        text += "Completing a task takes time, so remaining alive and in the task room matters.\n"
         if len(self.tasks) == 0:
             text += "No tasks have been assigned yet.\n"
         else:

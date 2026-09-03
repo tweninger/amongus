@@ -1,9 +1,9 @@
 // websocket.js
 import { state } from './state.js';
-import { apiFetch, addLogMessage, unlockActions } from './helpers.js';
+import { apiFetch, addLogMessage } from './helpers.js';
 import { hideMeetingVoteModals, showEjectionBanner, renderMeetingChat, updateMeetingUI } from './meeting.js';
 import { showKilledModal, updateTaskProgressBar, updateMapUI } from './ui.js';
-import { performMove, refreshRoomContext } from './actions.js';
+import { refreshRoomContext } from './actions.js';
 
 // --- WEBSOCKET ---
 // Open persistent connection to the server.
@@ -51,6 +51,45 @@ let _timerLastPhase = null;
 let _timerLastTurnSeq = -1;
 let _timerLastCanVote = null;
 let _lastPlayerStateSignature = null;
+let _matchClockInterval = null;
+let _matchClockDeadline = null;
+
+function formatCountdown(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const minuteSecond = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    return hours ? `${hours}:${minuteSecond}` : minuteSecond;
+}
+
+function stopMatchClock() {
+    if (_matchClockInterval !== null) {
+        clearInterval(_matchClockInterval);
+        _matchClockInterval = null;
+    }
+}
+
+function updateMatchClock(data) {
+    const clockEl = document.getElementById('game-clock-strip');
+    const valueEl = document.getElementById('game-clock-val');
+    if (!clockEl || !valueEl || !state.gameStarted) {
+        return;
+    }
+
+    if (_matchClockDeadline === null) {
+        _matchClockDeadline = Date.now() + ((data.match_seconds_left || 0) * 1000);
+    }
+    const render = () => {
+        const secondsLeft = Math.max(0, Math.ceil((_matchClockDeadline - Date.now()) / 1000));
+        valueEl.innerText = formatCountdown(secondsLeft);
+    };
+
+    clockEl.classList.remove('d-none');
+    render();
+    if (_matchClockInterval === null) {
+        _matchClockInterval = setInterval(render, 1000);
+    }
+}
 
 function _renderTimer(s) {
     const colorClass = s <= 10 ? 'text-danger' : 'text-warning';
@@ -81,36 +120,11 @@ function _hideTimer() {
     if (meetingEl) meetingEl.style.display = 'none';
 }
 
-function submitTimedSkipMove() {
-    if (state.actionLocked || state.waitingForStep || !state.isAlive) {
-        return;
-    }
-    const currentRoom = document.getElementById('location-display')?.innerText;
-    if (currentRoom) {
-        performMove(currentRoom, true);
-    }
-}
-
 function updateTurnTimer(data) {
-    const isTask = data.phase === 'task';
     const isMeeting = data.phase === 'meeting';
-    // The meeting intro has no server deadline yet. Waiting until discussion
-    // actually opens prevents the old 60s fallback from masking a configured
-    // discussion duration such as MEETING_DISCUSSION_SECONDS=120.
-    const shouldShow = isTask || (
-        isMeeting && data.is_alive && (data.discussion_open || data.can_vote)
-    );
+    const shouldShow = isMeeting && data.is_alive && (data.discussion_open || data.can_vote);
 
     if (!shouldShow) {_hideTimer(); return;}
-
-    // Pause timer after submitting an action.
-    if (isTask && state.waitingForStep) {
-        if (_turnTimerInterval !== null){
-            clearInterval(_turnTimerInterval);
-            _turnTimerInterval = null;
-        }
-        return;
-    }
 
     // Detect genuine timer resets
     // shouldReset if we enter a new timestep, phase, discussion turn, or voting state. 
@@ -129,21 +143,11 @@ function updateTurnTimer(data) {
 
     // Reset timer
     if (_turnTimerInterval !== null) { clearInterval(_turnTimerInterval); _turnTimerInterval = null; }
-    let remaining = data.turn_seconds_left ?? (isTask ? 90 : 60);
-    let timedSkipSubmitted = false;
-
-    const submitTimedSkipAtOneSecond = () => {
-        if (isTask && remaining <= 1 && !timedSkipSubmitted) {
-            timedSkipSubmitted = true;
-            submitTimedSkipMove();
-        }
-    };
+    let remaining = data.turn_seconds_left ?? 60;
 
     _renderTimer(remaining);
-    submitTimedSkipAtOneSecond();
     _turnTimerInterval = setInterval(() => {
         remaining -= 1;
-        submitTimedSkipAtOneSecond();
         if (remaining <= 0) {
             _renderTimerExpired();
             clearInterval(_turnTimerInterval);
@@ -159,6 +163,7 @@ function handleGameOver(data) {
     if (!data.winner){
         return false;
     }
+    stopMatchClock();
     const overlay = document.getElementById('gameover-overlay');
     const title = document.getElementById('gameover-title');
     const playersDiv = document.getElementById('gameover-players');
@@ -214,12 +219,8 @@ function handleGameOver(data) {
     return true;
 }
 
-// Update timestep counter and task progress bar
+// Update the shared task progress bar.
 function updateHUD(data) {
-    const timeStepCounter = document.getElementById('step-counter');
-    if (timeStepCounter){
-        timeStepCounter.innerText = data.timestep;
-    }
     updateTaskProgressBar(data.task_progress);
 }
 
@@ -233,8 +234,7 @@ function renderGameEvents(data) {
             return;
         }
         state.processedGameEventIds.add(event.id);
-        const turnPrefix = event.timestep !== undefined ? `[Turn ${event.timestep}] ` : '';
-        addLogMessage(`${turnPrefix}${event.message}`, event.type || 'info');
+        addLogMessage(event.message, event.type || 'info');
     });
 }
 
@@ -262,21 +262,10 @@ async function refreshImmediatePlayerState(data) {
     await updateMapUI();
 }
 
-// Multiplayer sync. Wait for every player to put in an action.
-// The server only runs game_step() once ALL alive humans have queued an action, so we are locked until so.
+// Apply each independently executed map action as it arrives.
 async function resolveStepIfReady(data) {
     if (data.timestep <= state.lastTimestep) return;
     state.lastTimestep = data.timestep;
-
-    // Save pending log but emit after refreshRoomContext so we have latest room context for accurate msgs.
-    let savedPendingLog = null;
-    if (state.waitingForStep) {
-        state.waitingForStep = false;
-        document.getElementById('waiting-indicator')?.classList.add('d-none');
-        unlockActions();
-        savedPendingLog = state.pendingActionLog;
-        state.pendingActionLog = null;
-    }
 
     // Differentiate between being killed vs ejected: killed_by is null for ejections
     if (state.wasAlive && !data.is_alive) {
@@ -292,33 +281,9 @@ async function resolveStepIfReady(data) {
     state.wasAlive = data.is_alive;
     state.isAlive = data.is_alive;
 
-    // Always refresh room context when step advances
-    let roomData = await refreshRoomContext();
+    // Every applied action can change the local room, available actions, or map.
+    await refreshRoomContext();
     await updateMapUI();
-
-    // Emit deferred log entry now that we have the post-step room context.
-    // For task actions, use the actual completion status to pick the right message.
-    if (savedPendingLog) {
-        const { step, message, type, observations, ventObservations, taskName } = savedPendingLog;
-        const logStep = step ?? data.timestep;
-
-        if (taskName && roomData) {
-            const stillIncomplete = roomData.personal_tasks?.some(task => task.name === taskName);
-            if (!stillIncomplete) {
-                addLogMessage(`[Turn ${logStep}] You completed ${taskName}!`, type);
-            }
-            else {
-                const taskInfo = roomData.personal_tasks.find(task => task.name === taskName);
-                const progress = taskInfo && taskInfo.max_duration > 1 ? ` (${taskInfo.steps_done}/${taskInfo.max_duration})` : '';
-                addLogMessage(`[Turn ${logStep}] Working on ${taskName}...${progress}`, type);
-            }
-        }
-        else {
-            addLogMessage(`[Turn ${logStep}] ${message}`, type);
-        }
-        observations?.forEach(observation => addLogMessage(`[Turn ${logStep}] ${observation}`, 'warning'));
-        ventObservations?.forEach(ventObservation => addLogMessage(`[Turn ${logStep}] ${ventObservation}`, 'danger'));
-    }
 }
 
 // Phase Transition Logic. Task -> Meeting, Meeting -> Task, etc.
@@ -340,6 +305,7 @@ async function handleWsStateUpdate(data) {
     if (!state.gameStarted) return;
     if (handleGameOver(data)) return;
     updateHUD(data);
+    updateMatchClock(data);
     renderGameEvents(data);
     updateTurnTimer(data);
     await refreshImmediatePlayerState(data);
@@ -398,7 +364,6 @@ async function handleGlobalPhaseTransition(data) {
         state.processedMessageCount = 0;
         state.chatInputLocked = false;
         state.lastDiscussionTurnSeq = -1;
-        state.pendingActionLog = null;
         // Advance the engine after a short visible meeting-intro beat.
         startMeetingCountdown();
     }

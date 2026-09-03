@@ -17,11 +17,13 @@ export const state = {
     deathModalShown: false,
     lastPhase: "active",
     actionLocked: false, // Global Lock for human actions
-    waitingForStep: false, // True when this current client submitted an action but other players haven't yet
-    lastTimestep: 0, // Used to detect when a new step is run
+    moveCooldownUntil: 0,
+    moveCooldownTimer: null,
+    activeTask: null, // { name, location, deadline, completing } while a timed task is running
+    taskCountdownTimer: null,
+    lastTimestep: 0, // Most recent action sequence number received from the server
     lastDiscussionTurnSeq: -1, // Server-issued counter. Increments each time the discussion passes to a new human in meetings
     processedGameEventIds: new Set(), // Server-issued event ids already shown in the game log
-    pendingActionLog: null, // Stores { message, type, observations, ventObservations } while waiting for step
     meetingCountdownTimer: null,
     lobbyCountdownTimer: null,
 };

@@ -5,19 +5,26 @@ import { state } from './state.js';
 import { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName } from './helpers.js';
 import { updateMapUI } from './ui.js';
 
+const MOVE_COOLDOWN_MS = 5_000;
+
+function startMoveCooldown() {
+    state.moveCooldownUntil = Date.now() + MOVE_COOLDOWN_MS;
+    if (state.moveCooldownTimer !== null) {
+        clearTimeout(state.moveCooldownTimer);
+    }
+    state.moveCooldownTimer = setTimeout(() => {
+        state.moveCooldownUntil = 0;
+        state.moveCooldownTimer = null;
+        updateMapUI();
+    }, MOVE_COOLDOWN_MS);
+}
+
 document.addEventListener('amongus:move-request', (event) => {
     const destination = event.detail?.destination;
     if (!destination) {
         return;
     }
     performMove(destination);
-});
-
-document.addEventListener('amongus:skip-move-request', () => {
-    const currentRoom = document.getElementById('location-display')?.innerText;
-    if (currentRoom) {
-        performMove(currentRoom, true);
-    }
 });
 
 document.addEventListener('amongus:vent-request', (event) => {
@@ -33,7 +40,7 @@ document.addEventListener('amongus:task-request', (event) => {
     if (!taskName) {
         return;
     }
-    completeTask(taskName);
+    startTask(taskName);
 });
 
 document.addEventListener('amongus:kill-request', (event) => {
@@ -59,13 +66,19 @@ async function refreshRoomContext() {
     const data = await response.json();
     const isAlive = data.is_alive;
 
+    if (
+        state.activeTask
+        && (data.phase.toLowerCase() !== 'task' || data.current_room !== state.activeTask.location)
+    ) {
+        clearActiveTask();
+    }
+
     if (state.gameStarted && data.phase.toLowerCase() !== "meeting") {
         if (state.actionPanel) state.actionPanel.classList.remove('d-none');
     }
 
     // Update location, adjacent rooms, tasks, and players in room based on server response
     document.getElementById('location-display').innerText = data.current_room;
-    document.getElementById('step-counter').innerText = data.timestep;
     const phaseDisplayEl = document.getElementById('current-phase');
 
     // Meeting started
@@ -78,12 +91,8 @@ async function refreshRoomContext() {
     // Normal gameplay, task phase
     else{
         if (phaseDisplayEl) {
-            phaseDisplayEl.innerText = isAlive
-                ? (state.waitingForStep ? 'Action entered, waiting for others...' : 'Please make your choice')
-                : 'Spectating as Ghost';
-            phaseDisplayEl.className = isAlive && state.waitingForStep
-                ? 'text-warning fw-bold'
-                : (isAlive ? 'text-success fw-bold choice-prompt' : 'text-success fw-bold');
+            phaseDisplayEl.innerText = isAlive ? 'Please make your choice' : 'Spectating as Ghost';
+            phaseDisplayEl.className = isAlive ? 'text-success fw-bold choice-prompt' : 'text-success fw-bold';
         }
     }
 
@@ -101,7 +110,7 @@ async function refreshRoomContext() {
                 btn.disabled = state.actionLocked;
                 btn.onclick = () => {
                     btn.classList.add('btn-submitted');
-                    completeTask(taskName);
+                    startTask(taskName);
                 };
             }
             else {
@@ -185,12 +194,12 @@ async function refreshRoomContext() {
 // performMove, performVent, completeTask, triggerReport, performKill all follow a similar pattern:
 // 1) Lock actions to prevent repeated presses
 // 2) Send action request to server and await response
-// 3) If response indicates "pending", show waiting indicator and queue the action log until step resolves
-// 4) If response is successful, log the action and any observations, then refresh room context and map UI
-// 5) Unlock actions unless we're waiting for a step to resolve, in which case unlock when new state arrives from the server
+// 3) If the action succeeds, log it and refresh the immediate game state.
+// 4) Unlock once the request completes so the player can keep acting.
 
-async function performMove(destination, skipMove = false) {
+async function performMove(destination) {
     const source = document.getElementById('location-display')?.innerText || 'Unknown';
+    let moved = false;
     if (!lockActions()){
         return;
     }
@@ -199,51 +208,47 @@ async function performMove(destination, skipMove = false) {
         const response = await apiFetch('/api/move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ destination, skip_move: skipMove })
+            body: JSON.stringify({ destination })
         });
         
         if (response.ok) {
             const data = await response.json();
-            // Waiting for other players to act
-            if (data.status === "pending") {
-                state.waitingForStep = true;
-                state.pendingActionLog = {
-                    step: data.timestep,
-                    message: skipMove ? `You stayed in ${source}` : `You moved from ${source} to ${destination}`,
-                    type: 'info',
-                    observations: [],
-                    ventObservations: [],
-                };
-                return;
-            }
+            clearActiveTask();
+            startMoveCooldown();
+            moved = true;
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            const actionMessage = skipMove ? `You stayed in ${source}` : `You moved from ${source} to ${destination}`;
-            addLogMessage(`[Turn ${data.timestep}] ${actionMessage}`, 'info');
+            const actionMessage = `You moved from ${source} to ${destination}`;
+            addLogMessage(actionMessage, 'info');
 
             // Log who was seen leaving the room
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(observation, 'warning');
                 });
             }
             // Log who was seen venting from room
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(observation => {
-                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'danger');
+                    addLogMessage(observation, 'danger');
                 });
             }
 
             await refreshRoomContext();
             await updateMapUI();
         }
+        else {
+            const data = await response.json().catch(() => ({}));
+            addLogMessage(data.detail || 'Move was not available.', 'warning');
+        }
     }
     catch (e) {
         console.error('performMove error:', e);
     }
     finally {
-        if (!state.waitingForStep){
-            unlockActions();
+        unlockActions();
+        if (moved) {
+            await updateMapUI();
         }
     }
 }
@@ -263,36 +268,107 @@ async function performVent(destination) {
 
         if (response.ok) {
             const data = await response.json();
-            if (data.status === "pending") {
-                state.waitingForStep = true;
-                state.pendingActionLog = { step: data.timestep, message: `You vented to ${destination}`, type: 'danger', observations: [], ventObservations: [] };
-                return;
-            }
+            clearActiveTask();
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
+            addLogMessage(data.message, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(observation, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(obs => {
-                    addLogMessage(`[Turn ${data.timestep}] ${obs}`, 'danger');
+                    addLogMessage(obs, 'danger');
                 });
             }
 
             await refreshRoomContext();
             await updateMapUI();
         }
+        else {
+            const data = await response.json().catch(() => ({}));
+            addLogMessage(data.detail || 'Vent was not available.', 'warning');
+        }
     }
     catch (e) {
         console.error('performVent error:', e);
     }
     finally {
-        if (!state.waitingForStep){
-            unlockActions();
+        unlockActions();
+    }
+}
+
+function updateTaskCountdownLabel() {
+    const activeTask = state.activeTask;
+    if (!activeTask) {
+        return;
+    }
+    const secondsLeft = Math.max(0, Math.ceil((activeTask.deadline - Date.now()) / 1000));
+    document.querySelectorAll('[data-active-task-name]').forEach((element) => {
+        if (element.dataset.activeTaskName === activeTask.name) {
+            element.textContent = `${activeTask.name} (${secondsLeft}s)`;
         }
+    });
+}
+
+function clearActiveTask() {
+    if (state.taskCountdownTimer !== null) {
+        clearInterval(state.taskCountdownTimer);
+        state.taskCountdownTimer = null;
+    }
+    state.activeTask = null;
+}
+
+function startTaskCountdown(taskName, location, durationSeconds) {
+    clearActiveTask();
+    state.activeTask = {
+        name: taskName,
+        location,
+        deadline: Date.now() + (durationSeconds * 1000),
+        completing: false,
+    };
+    updateTaskCountdownLabel();
+    state.taskCountdownTimer = setInterval(() => {
+        const activeTask = state.activeTask;
+        if (!activeTask) {
+            return;
+        }
+        updateTaskCountdownLabel();
+        if (Date.now() < activeTask.deadline || activeTask.completing) {
+            return;
+        }
+        activeTask.completing = true;
+        clearInterval(state.taskCountdownTimer);
+        state.taskCountdownTimer = null;
+        completeTask(activeTask.name);
+    }, 250);
+}
+
+async function startTask(taskName) {
+    if (state.activeTask || !lockActions()) {
+        return;
+    }
+    try {
+        const response = await apiFetch('/api/start-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task: taskName }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            addLogMessage(data.detail || 'That task is not available.', 'warning');
+            return;
+        }
+        const location = document.getElementById('location-display')?.innerText;
+        startTaskCountdown(data.task, location, data.duration_seconds);
+        await updateMapUI();
+    }
+    catch (error) {
+        console.error('startTask error:', error);
+    }
+    finally {
+        unlockActions();
     }
 }
 
@@ -310,25 +386,28 @@ async function completeTask(taskName) {
 
         if (response.ok) {
             const data = await response.json();
-            if (data.status === "pending") {
-                state.waitingForStep = true;
-                state.pendingActionLog = { step: data.timestep, message: `Working on ${taskName}...`, type: 'success', observations: [], ventObservations: [], taskName };
-                return;
-            }
+            clearActiveTask();
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'success');
+            addLogMessage(data.message, 'success');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(observation, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(obs => {
-                    addLogMessage(`[Turn ${data.timestep}] ${obs}`, 'danger');
+                    addLogMessage(obs, 'danger');
                 });
             }
 
+            await refreshRoomContext();
+            await updateMapUI();
+        }
+        else {
+            const data = await response.json().catch(() => ({}));
+            clearActiveTask();
+            addLogMessage(data.detail || 'Task completion was unavailable.', 'warning');
             await refreshRoomContext();
             await updateMapUI();
         }
@@ -337,22 +416,11 @@ async function completeTask(taskName) {
         console.error('completeTask error:', e);
     }
     finally {
-        if (!state.waitingForStep){
-            unlockActions();
-        }
+        unlockActions();
     }
 }
 
 async function triggerReport() {
-    // A killer may immediately report the body they created. Reporting replaces
-    // the queued kill with CallMeeting on the server, so release the local
-    // pending-action lock before submitting it.
-    if (state.waitingForStep) {
-        state.waitingForStep = false;
-        state.pendingActionLog = null;
-        document.getElementById('waiting-indicator')?.classList.add('d-none');
-        unlockActions();
-    }
     if (!lockActions()){
         return;
     }
@@ -360,7 +428,8 @@ async function triggerReport() {
         const response = await apiFetch('/api/report', { method: 'POST' });
         if (response.ok) {
             const data = await response.json();
-            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
+            clearActiveTask();
+            addLogMessage(data.message, 'danger');
         }
     }
     catch (e) {
@@ -379,7 +448,8 @@ async function triggerEmergencyMeeting() {
         const response = await apiFetch('/api/call-meeting', { method: 'POST' });
         if (response.ok) {
             const data = await response.json();
-            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
+            clearActiveTask();
+            addLogMessage(data.message, 'danger');
         }
     }
     catch (e) {
@@ -404,22 +474,18 @@ async function performKill(targetColor){
 
         if (response.ok){
             const data = await response.json();
-            if (data.status === "pending") {
-                state.waitingForStep = true;
-                state.pendingActionLog = { step: data.timestep, message: `You killed ${formatColorName(targetColor)}`, type: 'danger', observations: [], ventObservations: [] };
-                return;
-            }
+            clearActiveTask();
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
-            addLogMessage(`[Turn ${data.timestep}] ${data.message}`, 'danger');
+            addLogMessage(data.message, 'danger');
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
-                    addLogMessage(`[Turn ${data.timestep}] ${observation}`, 'warning');
+                    addLogMessage(observation, 'warning');
                 });
             }
             if (data.vent_observations && data.vent_observations.length > 0){
                 data.vent_observations.forEach(obs => {
-                    addLogMessage(`[Turn ${data.timestep}] ${obs}`, 'danger');
+                    addLogMessage(obs, 'danger');
                 });
             }
 
@@ -435,10 +501,8 @@ async function performKill(targetColor){
         console.error('performKill error:', e);
     }
     finally {
-        if (!state.waitingForStep){
-            unlockActions();
-        }
+        unlockActions();
     }
 }
 
-export { refreshRoomContext, performMove, performVent, completeTask, triggerReport, triggerEmergencyMeeting, performKill };
+export { refreshRoomContext, performMove, performVent, startTask, triggerReport, triggerEmergencyMeeting, performKill };

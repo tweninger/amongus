@@ -100,7 +100,7 @@
                     <p id="turn-prompt" class="text-success fw-bold small text-center mb-1" style="display: none;"></p>
                     <p id="turn-timer-meeting" class="fw-bold small text-center mb-1" style="display: none;"></p>
                     <div id="chat-input-group" class="input-group" style="display: none;">
-                        <input type="text" id="chat-input" class="form-control bg-dark text-light border-secondary" placeholder="Defend yourself or accuse others...">
+                        <input type="text" id="chat-input" name="discussion-message" class="form-control bg-dark text-light border-secondary" placeholder="Defend yourself or accuse others..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
                         <button class="btn btn-info fw-bold" id="send-chat-btn">SEND</button>
                     </div>
                 </div>
@@ -173,7 +173,7 @@
         <div id="status-strip">
             <span>You: <span id="user-display" class="status-val">—</span><span id="role-reminder" class="fw-bold"></span></span>
             <span>Location: <span id="location-display" class="status-val">—</span></span>
-            <span>Turn: <span id="step-counter" class="status-val">0</span></span>
+            <span id="game-clock-strip" class="d-none">Match: <span id="game-clock-val" class="fw-bold">00:00</span></span>
             <span id="turn-timer-strip" class="d-none">⏱ <span id="turn-timer-val" class="fw-bold">60</span>s</span>
             <span id="current-phase" class="fw-bold">Initializing...</span>
         </div>
@@ -212,13 +212,13 @@
                         <div class="col-md-6 mb-3">
                             <h6 class="text-info fw-bold text-uppercase">Informed Consent</h6>
                             <p class="text-light">
-                                You are invited to participate in a research study examining gameplay and communication in a turn-based version of the game Among Us. In this study, you will play a turn-based version of the game and make decisions during gameplay.
+                                You are invited to participate in a research study examining gameplay and communication in a real-time version of the game Among Us. In this study, you will make decisions during gameplay.
                             </p>
                             <p class="text-light">
                                 During the study, the system will record gameplay actions and in-game communications for research purposes. No personally identifying information will be collected beyond what is necessary to conduct the study.
                             </p>
                             <p class="text-light">
-                                The purpose of this research is to examine differences in gameplay, communication, and deception strategies across different types of players in a turn-based social deduction game environment.
+                                The purpose of this research is to examine differences in gameplay, communication, and deception strategies across different types of players in a social deduction game environment.
                             </p>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -226,7 +226,7 @@
                             <ul class="text-light ps-3">
                                 <li>Join a short online social-deduction game.</li>
                                 <li>Interact with other players through game actions and discussion.</li>
-                                <li>Make decisions during timed turns and meetings.</li>                                
+                                <li>Make decisions during gameplay and timed meetings.</li>
                             </ul>
                         </div>
                     </div>
@@ -279,14 +279,14 @@
                             <h6 class="text-danger fw-bold text-uppercase mt-3">Impostors</h6>
                             <ul class="text-light ps-3">
                                 <li>Kill Crewmates until they are outnumbered, <strong>or</strong></li>
-                                <li>Survive until the time limit runs out (Turn Count > 10)</li>
+                                <li>Survive until the game time limit runs out</li>
                             </ul>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <h6 class="text-info fw-bold text-uppercase">On Each Turn (90s)</h6>
+                            <h6 class="text-info fw-bold text-uppercase">During the Game</h6>
                             <ul class="text-light ps-3">
                                 <li><strong>Move</strong>: Travel to an adjacent room</li>
-                                <li><strong>Do Task</strong>: Complete a task in your room (Crewmates)</li>
+                                <li><strong>Do Task</strong>: Work at a task in your room until its timer ends (Crewmates)</li>
                                 <li><strong>Report</strong>: Report a dead body to call a meeting</li>
                                 <li><strong>Emergency Meeting</strong>: Call a meeting from the Cafeteria</li>
                                 <li><strong>Kill</strong>: Eliminate a nearby Crewmate (Impostors only)</li>
@@ -302,7 +302,7 @@
                             <h6 class="text-warning fw-bold text-uppercase">Emergency Meetings</h6>
                             <ul class="text-light ps-3">
                                 <li>Discuss who you think the Impostor is</li>
-                                <li>Each player speaks once per discussion round</li>
+                                <li>Discuss freely during the timed discussion</li>
                                 <li>Then everyone votes. Player with most votes gets ejected</li>
                                 <li>Ties result in no ejection</li>
                                 <li>Dead players must observe but cannot vote or speak</li>
