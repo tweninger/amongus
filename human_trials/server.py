@@ -764,6 +764,22 @@ def _human_map_action_interval(room: GameRoom) -> float:
     return min(AI_MAX_ACTION_INTERVAL_SECONDS, max(AI_MIN_ACTION_INTERVAL_SECONDS, average))
 
 
+def _route_task_started_observation(gi, player, task_name: str) -> None:
+    """Let present players observe task work just as they observe map actions."""
+    location = player.location
+    message = (
+        f"Event {gi.timestep}: [task phase] {player.name} started working on "
+        f"{task_name} in {location}."
+    )
+    for observer in gi.players:
+        if (
+            observer is not player
+            and is_connected_player(observer)
+            and getattr(observer, "location", None) == location
+        ):
+            observer.receive(message, "action")
+
+
 async def start_meeting_if_needed(room: GameRoom) -> None:
     async with room.step_lock:
         if (
@@ -883,6 +899,7 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
                     actor=player,
                     action_name=action.name,
                 )
+                _route_task_started_observation(gi, player, action.task.name)
                 await broadcast_state(room)
                 print(
                     f"[AI map action] {player.name} is working on {action.task.name} "
@@ -1904,6 +1921,7 @@ async def start_task(request: Request, x_player_token: str = Header(...)) -> dic
         actor=player,
         action_name="COMPLETE TASK",
     )
+    _route_task_started_observation(gi, player, task.name)
     await broadcast_state(room)
     return {"status": "started", "task": task.name, "duration_seconds": TASK_DURATION_SECONDS}
 

@@ -24,6 +24,7 @@ from server import (  # noqa: E402
     _is_silence_message,
     _matching_current_task_action,
     _record_human_map_action,
+    _route_task_started_observation,
     _start_action_cooldown,
     add_kill_event,
     add_vent_event,
@@ -119,6 +120,28 @@ def test_realtime_kill_cooldown_uses_elapsed_seconds(monkeypatch):
     assert _action_cooldown_seconds_left(room, player, "KILL") == 1
     monotonic_time[0] = 100.0 + KILL_COOLDOWN_SECONDS
     assert _action_cooldown_seconds_left(room, player, "KILL") == 0
+
+
+def test_task_start_is_observed_by_players_in_the_same_room():
+    game = AmongUs(
+        game_config=dict(FIVE_MEMBER_GAME),
+        agent_config={
+            "Impostor": "LLM",
+            "Crewmate": "LLM",
+            "IMPOSTOR_LLM_CHOICES": ["gemini/test-model"],
+            "CREWMATE_LLM_CHOICES": ["gemini/test-model"],
+        },
+    )
+    game.initialize_game()
+    actor, witness, elsewhere = game.players[:3]
+    actor.location = "Cafeteria"
+    witness.location = "Cafeteria"
+    elsewhere.location = "Admin"
+
+    _route_task_started_observation(game, actor, "Fix Wiring")
+
+    assert "started working on Fix Wiring" in witness.observation_history[-1]
+    assert elsewhere.observation_history == []
 
 
 def test_vent_event_identifies_the_venter_and_rooms():
