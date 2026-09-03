@@ -1,9 +1,14 @@
+import os
+
 from amongagents.envs.action import (
     COMMON_ACTIONS,
     CREWMATE_ACTIONS,
     IMPOSTER_ACTIONS,
     CompleteTask,
 )
+
+LLM_RECENT_OBSERVATIONS = max(1, int(os.getenv("LLM_RECENT_OBSERVATIONS", "40")))
+LLM_RECENT_ACTIONS = max(1, int(os.getenv("LLM_RECENT_ACTIONS", "10")))
 
 PLAYER_COLORS = [
     "red",
@@ -114,7 +119,7 @@ class Player:
             text += f"{i+1}. {action}\n"
         return text
 
-    def action_history_prompt(self, recent_num=4):
+    def action_history_prompt(self, recent_num=LLM_RECENT_ACTIONS):
         text = "Action history:\n"
         if len(self.action_history) == 0:
             text += "No actions have been taken yet.\n"
@@ -136,7 +141,7 @@ class Player:
         text += "\n"
         return text
 
-    def observation_history_prompt(self, recent_num=4):
+    def observation_history_prompt(self, recent_num=LLM_RECENT_OBSERVATIONS):
         text = "Observation history:\n"
         if len(self.observation_history) == 0:
             text += "No observations have been made yet.\n"

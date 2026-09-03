@@ -17,6 +17,8 @@ from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME  # noqa: E402
 from amongagents.envs.game import AmongUs  # noqa: E402
 from models import WebPlayerAgent  # noqa: E402
 from server import (  # noqa: E402
+    AI_MAX_ACTION_INTERVAL_SECONDS,
+    AI_MIN_ACTION_INTERVAL_SECONDS,
     KILL_COOLDOWN_SECONDS,
     GameRoom,
     _action_cooldown_seconds_left,
@@ -103,7 +105,9 @@ def test_ai_interval_tracks_human_action_intervals(monkeypatch):
     _record_human_map_action(room, player)
 
     assert list(room.human_map_action_intervals) == [8.0, 12.0]
-    assert _human_map_action_interval(room) == pytest.approx(10.0)
+    assert _human_map_action_interval(room) == pytest.approx(
+        min(AI_MAX_ACTION_INTERVAL_SECONDS, max(AI_MIN_ACTION_INTERVAL_SECONDS, 10.0))
+    )
 
 
 def test_realtime_kill_cooldown_uses_elapsed_seconds(monkeypatch):
