@@ -8,6 +8,8 @@ let typingStopTimer = null;
 let humanTypingAnnounced = false;
 let influenceAnchor = null;
 let influenceRendered = false;
+let preVoteSubmitting = false;
+let finalVoteSubmitting = false;
 
 function removeThinkingIndicator() {
     const existing = document.getElementById('meeting-thinking-indicator');
@@ -169,10 +171,16 @@ function setOptionsDisabled(container) {
     container?.querySelectorAll('button').forEach((button) => { button.disabled = true; });
 }
 
+function showPreVoteWaiting(options, waiting) {
+    if (options) options.innerHTML = '';
+    waiting?.classList.remove('d-none');
+}
+
 function renderPreVote(data) {
     const timer = document.getElementById('pre-vote-timer');
     if (timer) timer.textContent = `${data.turn_seconds_left ?? 0}s`;
     if (!data.pre_vote_open) {
+        preVoteSubmitting = false;
         hideModal('pre-vote-modal');
         return;
     }
@@ -180,9 +188,8 @@ function renderPreVote(data) {
     const options = document.getElementById('pre-vote-options');
     const waiting = document.getElementById('pre-vote-waiting');
     if (!options || !waiting) return;
-    if (data.pre_vote_submitted) {
-        options.innerHTML = '';
-        waiting.classList.remove('d-none');
+    if (data.pre_vote_submitted || preVoteSubmitting) {
+        showPreVoteWaiting(options, waiting);
         return;
     }
     waiting.classList.add('d-none');
@@ -198,12 +205,19 @@ function renderPreVote(data) {
             dead,
         });
         button.addEventListener('click', async () => {
+            if (preVoteSubmitting) return;
+            preVoteSubmitting = true;
             setOptionsDisabled(options);
             button.classList.add('vote-modal-selected');
             const response = await apiFetch('/api/pre-vote', {
                 method: 'POST', body: JSON.stringify({ target: player.color }),
             });
-            if (!response.ok) button.disabled = false;
+            if (response.ok) {
+                showPreVoteWaiting(options, waiting);
+            } else {
+                preVoteSubmitting = false;
+                renderPreVote(data);
+            }
         });
         options.appendChild(button);
     });
@@ -213,9 +227,19 @@ function renderPreVote(data) {
     unknown.textContent = 'I do not know';
     unknown.disabled = !data.is_alive;
     unknown.addEventListener('click', async () => {
+        if (preVoteSubmitting) return;
+        preVoteSubmitting = true;
         setOptionsDisabled(options);
         unknown.classList.add('vote-modal-selected');
-        await apiFetch('/api/pre-vote', { method: 'POST', body: JSON.stringify({ target: 'unknown' }) });
+        const response = await apiFetch('/api/pre-vote', {
+            method: 'POST', body: JSON.stringify({ target: 'unknown' }),
+        });
+        if (response.ok) {
+            showPreVoteWaiting(options, waiting);
+        } else {
+            preVoteSubmitting = false;
+            renderPreVote(data);
+        }
     });
     options.appendChild(unknown);
 }
@@ -255,11 +279,13 @@ function renderFinalVote(data) {
     const timer = document.getElementById('final-vote-timer');
     if (timer) timer.textContent = `${data.turn_seconds_left ?? 0}s`;
     if (!data.can_vote || !data.is_alive) {
+        finalVoteSubmitting = false;
         hideModal('final-vote-modal');
         if (!data.is_alive) hideModal('vote-influence-modal');
         return;
     }
     if (data.vote_influence_submitted) {
+        finalVoteSubmitting = false;
         hideModal('final-vote-modal');
         hideModal('vote-influence-modal');
         influenceAnchor = null;
@@ -267,7 +293,7 @@ function renderFinalVote(data) {
         resetInfluenceModalPosition();
         return;
     }
-    if (data.final_vote_selected) {
+    if (data.final_vote_selected || finalVoteSubmitting) {
         if (!influenceRendered) {
             renderInfluence(data);
             influenceRendered = true;
@@ -283,21 +309,39 @@ function renderFinalVote(data) {
     (data.players || []).filter((player) => player.is_alive && player.color !== state.myColor).forEach((player) => {
         const button = playerButton(player, player.name);
         button.addEventListener('click', async (event) => {
+            if (finalVoteSubmitting) return;
             influenceAnchor = { x: event.clientX, y: event.clientY };
             setOptionsDisabled(options);
             skip.disabled = true;
             button.classList.add('vote-modal-selected');
-            await apiFetch('/api/vote', { method: 'POST', body: JSON.stringify({ target: player.color }) });
+            const response = await apiFetch('/api/vote', {
+                method: 'POST', body: JSON.stringify({ target: player.color }),
+            });
+            if (response.ok) {
+                finalVoteSubmitting = true;
+                renderFinalVote(data);
+            } else {
+                renderFinalVote(data);
+            }
         });
         options.appendChild(button);
     });
     skip.onclick = async (event) => {
+        if (finalVoteSubmitting) return;
         influenceAnchor = { x: event.clientX, y: event.clientY };
         setOptionsDisabled(options);
         skip.disabled = true;
         skip.classList.remove('btn-outline-warning');
         skip.classList.add('btn-warning');
-        await apiFetch('/api/vote', { method: 'POST', body: JSON.stringify({ target: 'none' }) });
+        const response = await apiFetch('/api/vote', {
+            method: 'POST', body: JSON.stringify({ target: 'none' }),
+        });
+        if (response.ok) {
+            finalVoteSubmitting = true;
+            renderFinalVote(data);
+        } else {
+            renderFinalVote(data);
+        }
     };
 }
 
@@ -307,6 +351,8 @@ function hideMeetingVoteModals() {
     hideModal('vote-influence-modal');
     influenceAnchor = null;
     influenceRendered = false;
+    preVoteSubmitting = false;
+    finalVoteSubmitting = false;
     resetInfluenceModalPosition();
 }
 

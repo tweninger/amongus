@@ -3,6 +3,7 @@ import asyncio
 import math
 import os
 import random
+import re
 import string
 import subprocess
 import time
@@ -64,6 +65,12 @@ MATCH_DURATION_SECONDS = max(1, int(os.getenv("MATCH_DURATION_SECONDS", "500")))
 REALTIME_ACTION_SAFETY_LIMIT = 1_000_000
 
 
+def _is_silence_message(value: object) -> bool:
+    """Never send an LLM's explicit no-message choice to the discussion chat."""
+    normalized = re.sub(r"^\s*\[action\]\s*", "", str(value), flags=re.IGNORECASE).strip()
+    return bool(re.fullmatch(r'''(?:SPEAK\s*:\s*)?["'`]*SILENCE["'`]*[.!]?''', normalized, re.IGNORECASE))
+
+
 def get_code_revision() -> str | None:
     try:
         return subprocess.check_output(
@@ -123,6 +130,7 @@ class GameRoom:
         self.lobby_deadline: float = 0.0 # Unix timestamp when lobby countdown expires
         self.game_started_monotonic: float | None = None
         self.match_deadline_monotonic: float | None = None
+        self.match_seconds_remaining: float = float(MATCH_DURATION_SECONDS)
         self.consented_tokens: set[str] = set()
         self.consented_at_by_slot: dict[int, str] = {}
         self.ai_filled_slots: set[int] = set()
@@ -259,6 +267,7 @@ async def activate_room(room: GameRoom, reason: str) -> None:
     room.lobby_deadline = 0
     room.status = "active"
     room.game_started_monotonic = time.monotonic()
+    room.match_seconds_remaining = float(MATCH_DURATION_SECONDS)
     room.match_deadline_monotonic = room.game_started_monotonic + MATCH_DURATION_SECONDS
     room.game_instance.game_phase = "active"
     room.game_instance.activity_log.append(reason)
@@ -293,11 +302,20 @@ async def activate_room(room: GameRoom, reason: str) -> None:
 async def run_match_countdown(room: GameRoom) -> None:
     """End an active match when its wall-clock duration expires."""
     try:
-        await asyncio.sleep(MATCH_DURATION_SECONDS)
-        if room.game_finished or not room.game_instance or room.status != "active":
+        while not room.game_finished and room.game_instance and room.status == "active":
+            if room.match_deadline_monotonic is None:
+                await asyncio.sleep(0.25)
+                continue
+
+            seconds_left = room.match_deadline_monotonic - time.monotonic()
+            if seconds_left > 0:
+                await asyncio.sleep(min(seconds_left, 0.25))
+                continue
+
+            room.match_seconds_remaining = 0.0
+            room.game_instance.match_time_expired = True
+            await broadcast_state(room)
             return
-        room.game_instance.match_time_expired = True
-        await broadcast_state(room)
     except asyncio.CancelledError:
         return
 
@@ -399,11 +417,46 @@ def get_next_open_slot(room: GameRoom) -> int | None:
             return i
     return None
 
+def pause_match_clock(room: GameRoom) -> None:
+    """Preserve the remaining match time while a meeting is in progress."""
+    if room.match_deadline_monotonic is None:
+        return
+    room.match_seconds_remaining = max(0.0, room.match_deadline_monotonic - time.monotonic())
+    room.match_deadline_monotonic = None
+
+
+def resume_match_clock(room: GameRoom) -> None:
+    """Resume the match clock after a meeting without charging meeting time."""
+    if room.match_deadline_monotonic is not None or room.game_finished:
+        return
+    room.match_deadline_monotonic = time.monotonic() + room.match_seconds_remaining
+
+
+def _match_seconds_left(room: GameRoom) -> int:
+    return math.ceil(
+        max(
+            0.0,
+            room.match_deadline_monotonic - time.monotonic()
+            if room.match_deadline_monotonic is not None
+            else room.match_seconds_remaining,
+        )
+    )
+
+
+def _refresh_ai_match_time_context(room: GameRoom) -> None:
+    """Route the current wall-clock budget into each AI's next decision prompt."""
+    gi = room.game_instance
+    gi.match_seconds_left = _match_seconds_left(room)
+    gi.match_duration_seconds = MATCH_DURATION_SECONDS
+    gi.update_map()
+
+
 # Track meeting phase transitions on the room object.
 # Private helper used in broadcast_state.
 def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
     # Meeting start
     if current_phase == "meeting" and room.last_phase != "meeting":
+        pause_match_clock(room)
         room.meeting_start_step = gi.timestep
         room.discussion_turn_seq = 0
         room.turn_deadline = 0
@@ -420,6 +473,7 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
             room.task_timeout_task = None
     # Meeting end
     elif current_phase != "meeting" and room.last_phase == "meeting":
+        resume_match_clock(room)
         room.meeting_start_step = None
         room.discussion_turn_seq = 0
         room.meeting_discussion_deadline = 0
@@ -505,11 +559,7 @@ async def broadcast_state(room: GameRoom):
     _update_meeting_tracking(room, gi, current_phase)
 
     turn_seconds_left = max(0, int(room.turn_deadline - time.time())) if room.turn_deadline > 0 else None
-    match_seconds_left = (
-        max(0, math.ceil(room.match_deadline_monotonic - time.monotonic()))
-        if room.match_deadline_monotonic is not None
-        else MATCH_DURATION_SECONDS
-    )
+    match_seconds_left = _match_seconds_left(room)
     winner = get_win_message(gi)
     players_data = [
         format_player_data(agent.player)
@@ -549,6 +599,7 @@ async def broadcast_state(room: GameRoom):
         ],
         "turn_seconds_left": turn_seconds_left,
         "match_seconds_left": match_seconds_left,
+        "match_clock_paused": current_phase == "meeting",
         "game_events": room.game_events,
     }
 
@@ -719,6 +770,7 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
             or not is_connected_player(player)
         ):
             return
+        _refresh_ai_match_time_context(room)
         gi.check_actions()
         print(f"[AI map action] request started for {player.name}", flush=True)
         action = await asyncio.wait_for(agent.choose_action(gi.timestep), timeout=120.0)
@@ -1069,6 +1121,7 @@ async def generate_llm_meeting_speech(room: GameRoom, agent) -> None:
             and getattr(player, "is_alive", True)
             and getattr(action, "name", None) == "SPEAK"
             and getattr(action, "message", "").strip()
+            and not _is_silence_message(getattr(action, "message", ""))
         ):
             gi.record_activity(player, action)
             room.meeting_last_message_at = time.time()
@@ -1259,7 +1312,19 @@ async def run_meeting_step(room: GameRoom) -> None:
             gi.discussion_rounds_left = 0
             gi.external_discussion_complete = True
             await broadcast_state(room)
-            await gi.game_step()
+
+            # The final vote is not complete until every participant has also
+            # recorded its influence attribution (or the vote window expires).
+            # Only then let the engine tally and potentially end the game.
+            while (
+                not room.game_finished
+                and str(gi.current_phase).lower() == "meeting"
+                and not all(agent.player.name in room.vote_influences for agent in _meeting_voters(gi))
+            ):
+                await asyncio.sleep(0.25)
+
+            if not room.game_finished and str(gi.current_phase).lower() == "meeting":
+                await gi.game_step()
     finally:
         cancel_meeting_llm_tasks(room)
         broadcast_task.cancel()

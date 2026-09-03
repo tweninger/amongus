@@ -107,29 +107,6 @@ body:has(#lobby-screen:not(.d-none)) {
     font-weight: 600;
 }
 
-#status-strip #current-phase {
-    margin-left: auto;
-}
-
-#status-strip #current-phase.choice-prompt {
-    animation: choice-prompt-glow 1.6s ease-in-out 5s infinite;
-}
-
-@keyframes choice-prompt-glow {
-    0%, 100% {
-        text-shadow: 0 0 0 rgba(74, 222, 128, 0);
-    }
-    50% {
-        text-shadow: 0 0 10px rgba(74, 222, 128, 0.8);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    #status-strip #current-phase.choice-prompt {
-        animation: none;
-    }
-}
-
 #main-content-row {
     flex: 1;
     min-height: 0;
@@ -269,6 +246,23 @@ body:has(#lobby-screen:not(.d-none)) {
     animation: room-task-pulse 1.35s ease-in-out infinite;
 }
 
+/* A timed task stays visible while its button fills from left to right. */
+.room-task-chip.room-task-timing {
+    --task-progress: 0%;
+    min-width: min(300px, 78vw);
+    padding: 8px 14px;
+    color: #fff;
+    font-size: 0.78rem;
+    border: 2px solid #fde047;
+    background: linear-gradient(
+        90deg,
+        rgba(202, 138, 4, 0.98) 0 var(--task-progress),
+        rgba(39, 39, 42, 0.94) var(--task-progress) 100%
+    );
+    box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2), 0 10px 28px rgba(250, 204, 21, 0.28);
+    animation: room-task-timing-pulse 1.1s ease-in-out infinite;
+}
+
 .room-task-chip.room-task-active:hover,
 .room-task-chip.room-task-active:focus-visible {
     background: rgba(202, 138, 4, 0.92);
@@ -281,11 +275,20 @@ body:has(#lobby-screen:not(.d-none)) {
     cursor: default;
 }
 
-.room-task-chip.room-task-active:disabled:not(.committed) {
+.room-task-chip.room-task-active:disabled:not(.committed):not(.room-task-timing) {
     color: rgba(212, 212, 216, 0.55);
     background: rgba(63, 63, 70, 0.72);
     border-color: rgba(161, 161, 170, 0.3);
     animation: none;
+}
+
+@keyframes room-task-timing-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2), 0 10px 28px rgba(250, 204, 21, 0.28);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.38), 0 12px 34px rgba(250, 204, 21, 0.42);
+    }
 }
 
 @keyframes room-task-pulse {

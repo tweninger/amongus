@@ -18,6 +18,12 @@ DEFAULT_EXPERIMENT_PATH = REPO_ROOT / "human_trials" / "logs"
 SUPPORTED_LLM_PROVIDERS = {"openai", "gemini", "anthropic"}
 
 
+def _is_silence_response(value: object) -> bool:
+    """Recognize a model's explicit no-message choice in common output forms."""
+    normalized = re.sub(r"^\s*\[action\]\s*", "", str(value), flags=re.IGNORECASE).strip()
+    return bool(re.fullmatch(r'''(?:SPEAK\s*:\s*)?["'`]*SILENCE["'`]*[.!]?''', normalized, re.IGNORECASE))
+
+
 def _experiment_path() -> str:
     experiment_path = Path(os.environ.get("EXPERIMENT_PATH", DEFAULT_EXPERIMENT_PATH)).expanduser()
     experiment_path.mkdir(parents=True, exist_ok=True)
@@ -528,7 +534,7 @@ class LLMAgent(Agent):
 
         if (
             any(action.name == "SPEAK" for action in available_actions)
-            and output_action.strip().upper().rstrip(".!") == "SILENCE"
+            and _is_silence_response(output_action)
         ):
             return None
 

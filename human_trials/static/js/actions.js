@@ -79,23 +79,6 @@ async function refreshRoomContext() {
 
     // Update location, adjacent rooms, tasks, and players in room based on server response
     document.getElementById('location-display').innerText = data.current_room;
-    const phaseDisplayEl = document.getElementById('current-phase');
-
-    // Meeting started
-    if (data.phase.toLowerCase() === "meeting"){
-        if (phaseDisplayEl) {
-            phaseDisplayEl.innerText = "MEETING CALLED!";
-            phaseDisplayEl.className = "text-danger fw-bold";
-        }
-    }
-    // Normal gameplay, task phase
-    else{
-        if (phaseDisplayEl) {
-            phaseDisplayEl.innerText = isAlive ? 'Please make your choice' : 'Spectating as Ghost';
-            phaseDisplayEl.className = isAlive ? 'text-success fw-bold choice-prompt' : 'text-success fw-bold';
-        }
-    }
-
     // Generates buttons for tasks specifically available in the current room
     const tasksInRoom = document.getElementById('task-list');
     if (tasksInRoom) {
@@ -305,9 +288,13 @@ function updateTaskCountdownLabel() {
         return;
     }
     const secondsLeft = Math.max(0, Math.ceil((activeTask.deadline - Date.now()) / 1000));
+    const elapsedMilliseconds = Math.max(0, (activeTask.durationSeconds * 1000) - (activeTask.deadline - Date.now()));
+    const progressPercent = Math.min(100, (elapsedMilliseconds / (activeTask.durationSeconds * 1000)) * 100);
     document.querySelectorAll('[data-active-task-name]').forEach((element) => {
         if (element.dataset.activeTaskName === activeTask.name) {
             element.textContent = `${activeTask.name} (${secondsLeft}s)`;
+            element.style.setProperty('--task-progress', `${progressPercent}%`);
+            element.setAttribute('aria-label', `${activeTask.name}: ${secondsLeft} seconds remaining`);
         }
     });
 }
@@ -325,6 +312,7 @@ function startTaskCountdown(taskName, location, durationSeconds) {
     state.activeTask = {
         name: taskName,
         location,
+        durationSeconds,
         deadline: Date.now() + (durationSeconds * 1000),
         completing: false,
     };

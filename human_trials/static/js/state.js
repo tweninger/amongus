@@ -8,7 +8,6 @@ export const state = {
     myRole: null,
 
     actionPanel: null,
-    phaseDisplay: null,
     sendChatBtn: null,
     chatInput: null,
     chatInputLocked: false,

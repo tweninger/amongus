@@ -108,9 +108,17 @@ function renderRoomTasks(contextData) {
                 chip.disabled = state.actionLocked || Boolean(activeTask);
                 if (isActiveTask) {
                     chip.dataset.activeTaskName = taskName;
+                    const remainingMilliseconds = Math.max(0, activeTask.deadline - Date.now());
+                    const elapsedMilliseconds = Math.max(0, (activeTask.durationSeconds * 1000) - remainingMilliseconds);
+                    const progressPercent = Math.min(100, (elapsedMilliseconds / (activeTask.durationSeconds * 1000)) * 100);
+                    chip.classList.add('room-task-timing');
+                    chip.style.setProperty('--task-progress', `${progressPercent}%`);
+                    chip.setAttribute('aria-label', `${taskName}: ${Math.ceil(remainingMilliseconds / 1000)} seconds remaining`);
+                    chip.title = `${taskName}: ${Math.ceil(remainingMilliseconds / 1000)} seconds remaining`;
+                } else {
+                    chip.title = `Complete ${taskName}`;
+                    chip.setAttribute('aria-label', `Complete ${taskName}`);
                 }
-                chip.title = `Complete ${taskName}`;
-                chip.setAttribute('aria-label', `Complete ${taskName}`);
                 chip.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();

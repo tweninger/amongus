@@ -76,9 +76,16 @@ function updateMatchClock(data) {
         return;
     }
 
-    if (_matchClockDeadline === null) {
-        _matchClockDeadline = Date.now() + ((data.match_seconds_left || 0) * 1000);
+    const secondsLeft = data.match_seconds_left || 0;
+    if (data.match_clock_paused) {
+        stopMatchClock();
+        _matchClockDeadline = null;
+        valueEl.innerText = formatCountdown(secondsLeft);
+        clockEl.classList.remove('d-none');
+        return;
     }
+
+    _matchClockDeadline = Date.now() + (secondsLeft * 1000);
     const render = () => {
         const secondsLeft = Math.max(0, Math.ceil((_matchClockDeadline - Date.now()) / 1000));
         valueEl.innerText = formatCountdown(secondsLeft);
@@ -161,6 +168,11 @@ function updateTurnTimer(data) {
 // Display game over screen with winner and player statuses.
 function handleGameOver(data) {
     if (!data.winner){
+        return false;
+    }
+    // Let a vote-triggered end show its ejection result before the game-over
+    // overlay replaces the meeting view.
+    if (data.phase === 'task' && data.vote_result && state.lastPhase === 'meeting') {
         return false;
     }
     stopMatchClock();
@@ -320,16 +332,10 @@ async function handleGlobalPhaseTransition(data) {
 
     const actionPanelEl = document.getElementById('action-panel');
     const meetingOverlayEl = document.getElementById('meeting-overlay');
-    const phaseDisplayEl = document.getElementById('current-phase');
     const chatInputGroupEl = document.getElementById('chat-input-group');
     const skipBtnEl = document.getElementById('skip-vote-btn');
 
     if (phase === "meeting") {
-        // Update phase badge
-        if (phaseDisplayEl) {
-            phaseDisplayEl.innerText = "MEETING CALLED!";
-            phaseDisplayEl.className = "text-danger fw-bold";
-        }
         // Chat input visibility
         // Ghost observe only
         if (!is_alive) {
@@ -382,6 +388,10 @@ async function handleGlobalPhaseTransition(data) {
             if (state.lastPhase !== "task"){
                 return;
             }
+            if (data.winner) {
+                handleGameOver(data);
+                return;
+            }
         }
         // Restore task screen
         if (actionPanelEl){
@@ -395,10 +405,6 @@ async function handleGlobalPhaseTransition(data) {
         }
         if (meetingOverlayEl){
             meetingOverlayEl.classList.add('d-none');
-        }
-        if (phaseDisplayEl) {
-            phaseDisplayEl.innerText = is_alive ? "Active" : "Spectating (Ghost Mode)";
-            phaseDisplayEl.className = "text-success fw-bold";
         }
         await refreshRoomContext();
         await updateMapUI();

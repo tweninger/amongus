@@ -620,7 +620,16 @@ class MessageSystem:
                 round = max_rounds - env.discussion_rounds_left
                 phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
                 instruction = MEETING_PHASE_INSTRUCTION
-        message = f"Action sequence: {env.timestep}\n"
+        remaining_seconds = getattr(env, "match_seconds_left", None)
+        duration_seconds = getattr(env, "match_duration_seconds", None)
+        if remaining_seconds is not None and duration_seconds:
+            message = (
+                "Match time remaining: "
+                f"{remaining_seconds / 60:.1f} minutes of {duration_seconds / 60:.1f} minutes total.\n"
+            )
+            message += "Time is a win condition; prioritize efficient task progress as time runs low.\n"
+        else:
+            message = "Match time: no fixed wall-clock duration is configured.\n"
         message += f"Current phase: {phase_info}\n"
         message += f"{instruction}\n"
         players_text = ", ".join(record["players"])

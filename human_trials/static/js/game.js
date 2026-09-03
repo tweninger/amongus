@@ -12,7 +12,6 @@ import { connectWebSocket } from './websocket.js';
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Refs ---
     state.actionPanel = document.getElementById('action-panel');
-    state.phaseDisplay = document.getElementById('current-phase');
     state.sendChatBtn = document.getElementById('send-chat-btn');
     state.chatInput = document.getElementById('chat-input');
 
@@ -193,10 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (userDisplay){
             userDisplay.innerText = formatColorName(data.color);
         }
-        if (state.phaseDisplay){
-            state.phaseDisplay.innerText = "Staging";
-        }
-
         renderMatchmakingRoster(data.roster, data.color, data.total_slots);
 
         // Keep matchmaking visible; it is the visual connection state.

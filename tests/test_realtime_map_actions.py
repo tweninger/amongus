@@ -19,10 +19,13 @@ from models import WebPlayerAgent  # noqa: E402
 from server import (  # noqa: E402
     GameRoom,
     _human_map_action_interval,
+    _is_silence_message,
     _matching_current_task_action,
     _record_human_map_action,
     build_realtime_game_config,
     execute_realtime_task_action,
+    pause_match_clock,
+    resume_match_clock,
 )
 
 
@@ -30,6 +33,30 @@ def test_realtime_game_config_uses_high_action_safety_limit():
     config = build_realtime_game_config({"num_players": 5, "max_timesteps": 20})
 
     assert config["max_timesteps"] > 500
+
+
+def test_ai_context_reports_match_time_in_minutes():
+    game = AmongUs(
+        game_config=dict(FIVE_MEMBER_GAME),
+        agent_config={
+            "Impostor": "LLM",
+            "Crewmate": "LLM",
+            "IMPOSTOR_LLM_CHOICES": ["gemini/test-model"],
+            "CREWMATE_LLM_CHOICES": ["gemini/test-model"],
+        },
+    )
+    game.initialize_game()
+    game.match_seconds_left = 150
+    game.match_duration_seconds = 600
+    game.update_map()
+
+    assert "Match time remaining: 2.5 minutes of 10.0 minutes total." in game.players[0].location_info
+    assert "Action sequence:" not in game.players[0].location_info
+
+
+@pytest.mark.parametrize("message", ["SILENCE", "SPEAK: SILENCE", '[Action] SPEAK: "SILENCE"'])
+def test_silence_messages_are_not_sent_to_discussion(message):
+    assert _is_silence_message(message)
 
 
 def test_realtime_action_validation_rejects_stale_move():
@@ -71,6 +98,22 @@ def test_ai_interval_tracks_human_action_intervals(monkeypatch):
 
     assert list(room.human_map_action_intervals) == [8.0, 12.0]
     assert _human_map_action_interval(room) == pytest.approx(10.0)
+
+
+def test_match_clock_preserves_remaining_time_during_meeting(monkeypatch):
+    room = SimpleNamespace(
+        match_deadline_monotonic=135.0,
+        match_seconds_remaining=500.0,
+        game_finished=False,
+    )
+    monotonic_times = iter([100.0, 200.0])
+    monkeypatch.setattr("server.time.monotonic", lambda: next(monotonic_times))
+
+    pause_match_clock(room)
+    resume_match_clock(room)
+
+    assert room.match_seconds_remaining == pytest.approx(35.0)
+    assert room.match_deadline_monotonic == pytest.approx(235.0)
 
 
 def test_human_map_action_executes_without_waiting_for_other_players():

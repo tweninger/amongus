@@ -36,11 +36,6 @@ function lockActions() {
     document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
         btn.disabled = true;
     });
-    const phaseDisplay = document.getElementById('current-phase');
-    if (phaseDisplay) {
-        phaseDisplay.innerText = 'Action entered...';
-        phaseDisplay.className = 'text-warning fw-bold';
-    }
     return true;
 }
 
@@ -62,11 +57,6 @@ function unlockActions() {
     document.querySelectorAll('#room-task-overlay .room-task-active').forEach((btn) => {
         btn.disabled = Boolean(state.activeTask);
     });
-    const phaseDisplay = document.getElementById('current-phase');
-    if (phaseDisplay && state.isAlive) {
-        phaseDisplay.innerText = 'Please make your choice';
-        phaseDisplay.className = 'text-success fw-bold choice-prompt';
-    }
 }
 
 // Send a message to the game log with optional type for color styling ('info', 'success', 'danger')
