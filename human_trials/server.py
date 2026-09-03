@@ -62,6 +62,8 @@ AI_MIN_ACTION_INTERVAL_SECONDS = float(os.getenv("AI_MIN_ACTION_INTERVAL_SECONDS
 AI_MAX_ACTION_INTERVAL_SECONDS = float(os.getenv("AI_MAX_ACTION_INTERVAL_SECONDS", "60"))
 TASK_DURATION_SECONDS = max(1, int(os.getenv("TASK_DURATION_SECONDS", "20")))
 MATCH_DURATION_SECONDS = max(1, int(os.getenv("MATCH_DURATION_SECONDS", "500")))
+KILL_COOLDOWN_SECONDS = max(0, int(os.getenv("KILL_COOLDOWN_SECONDS", "20")))
+VENT_COOLDOWN_SECONDS = max(0, int(os.getenv("VENT_COOLDOWN_SECONDS", "20")))
 REALTIME_ACTION_SAFETY_LIMIT = 1_000_000
 
 
@@ -152,6 +154,8 @@ class GameRoom:
         self.human_last_map_action_at: dict[str, float] = {}
         self.active_human_tasks: dict[str, dict] = {}
         self.active_player_tasks: dict[str, dict] = {}
+        self.kill_cooldown_deadlines: dict[str, float] = {}
+        self.vent_cooldown_deadlines: dict[str, float] = {}
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
         self.meeting_discussion_deadline: float = 0.0
         self.meeting_voting_open: bool = False
@@ -722,6 +726,27 @@ def _matching_current_task_action(gi, player, proposed_action):
     return None
 
 
+def _cooldown_seconds_left(deadlines: dict[str, float], player) -> int:
+    return max(0, math.ceil(deadlines.get(player.name, 0.0) - time.monotonic()))
+
+
+def _action_cooldown_seconds_left(room: GameRoom, player, action_name: object) -> int:
+    if action_name == "KILL":
+        return _cooldown_seconds_left(room.kill_cooldown_deadlines, player)
+    if action_name == "VENT":
+        return _cooldown_seconds_left(room.vent_cooldown_deadlines, player)
+    return 0
+
+
+def _start_action_cooldown(room: GameRoom, player, action_name: str) -> None:
+    if action_name == "KILL":
+        room.kill_cooldown_deadlines[player.name] = time.monotonic() + KILL_COOLDOWN_SECONDS
+        # The simulation's historical action-count cooldown is not used in realtime play.
+        player.kill_cooldown = 0
+    elif action_name == "VENT":
+        room.vent_cooldown_deadlines[player.name] = time.monotonic() + VENT_COOLDOWN_SECONDS
+
+
 def _record_human_map_action(room: GameRoom, player) -> None:
     now = time.monotonic()
     previous = room.human_last_map_action_at.get(player.name)
@@ -770,6 +795,14 @@ async def execute_realtime_task_action(
         if not is_connected_player(player):
             raise HTTPException(status_code=403, detail="Disconnected players cannot act.")
 
+        proposed_action_name = getattr(proposed_action, "name", None)
+        cooldown_seconds = _action_cooldown_seconds_left(room, player, proposed_action_name)
+        if cooldown_seconds:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{proposed_action_name.title()} is on cooldown for {cooldown_seconds}s.",
+            )
+
         action = _matching_current_task_action(gi, player, proposed_action)
         if action is None:
             raise HTTPException(status_code=400, detail="That action is no longer available.")
@@ -796,6 +829,7 @@ async def execute_realtime_task_action(
             add_vent_event(room, player, source_room, player.location)
         if kill_target is not None:
             add_kill_event(room, player, kill_target, source_room)
+        _start_action_cooldown(room, player, getattr(action, "name", ""))
         gi.timestep += 1
         meeting_started = str(gi.current_phase).lower() == "meeting"
 
@@ -822,6 +856,14 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
         print(f"[AI map action] request started for {player.name}", flush=True)
         action = await asyncio.wait_for(agent.choose_action(gi.timestep), timeout=120.0)
         if action is not None:
+            cooldown_seconds = _action_cooldown_seconds_left(room, player, getattr(action, "name", None))
+            if cooldown_seconds:
+                print(
+                    f"[AI map action] {player.name} skipped {action.name}; "
+                    f"{cooldown_seconds}s remaining.",
+                    flush=True,
+                )
+                return
             if getattr(action, "name", None) in {"COMPLETE TASK", "COMPLETE FAKE TASK"}:
                 room.active_player_tasks[player.name] = {
                     "task_name": action.task.name,
@@ -1218,6 +1260,7 @@ async def run_meeting_step(room: GameRoom) -> None:
     room.meeting_last_message_at = time.time()
     room.meeting_last_idle_roll_at = room.meeting_last_message_at
     # A meeting clears the previous task phase's kill cooldown.
+    room.kill_cooldown_deadlines.clear()
     for player in gi.players:
         if player.identity == "Impostor":
             player.kill_cooldown = 0
@@ -1749,7 +1792,7 @@ async def get_room_context(x_player_token: str = Header(...)):
         and current_room == "Cafeteria"
         and gi.button_num < gi.game_config["max_num_buttons"]
     )
-    kill_cooldown = getattr(player, "kill_cooldown", 0)
+    kill_cooldown = _action_cooldown_seconds_left(room, player, "KILL")
     can_kill = (
         is_alive
         and is_connected_player(player)
@@ -1771,7 +1814,7 @@ async def get_room_context(x_player_token: str = Header(...)):
         "is_alive": is_alive,
         "can_call_meeting": can_call_meeting,
         "can_kill": can_kill,
-        "kill_cooldown": kill_cooldown,
+        "kill_cooldown_seconds": kill_cooldown,
     }
 
 # Handles moving, trigers AI turns, and generates movement observations
@@ -2063,8 +2106,9 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
         raise HTTPException(status_code=400, detail="That player cannot be killed.")
     if target_player.location != human_player.location:
         raise HTTPException(status_code=400, detail="Kill targets must be in the same room.")
-    if getattr(human_player, "kill_cooldown", 0) > 0:
-        raise HTTPException(status_code=400, detail="Kill is on cooldown.")
+    kill_cooldown_seconds = _action_cooldown_seconds_left(room, human_player, "KILL")
+    if kill_cooldown_seconds:
+        raise HTTPException(status_code=400, detail=f"Kill is on cooldown for {kill_cooldown_seconds}s.")
 
     kill_room = human_player.location
     initial_neighbors = get_players_in_room_except_human(gi, kill_room, human_player)
@@ -2314,6 +2358,7 @@ async def submit_vote_influence(request: Request, x_player_token: str = Header(.
 # 
 @app.get("/api/vent-options")
 async def get_vent_options(x_player_token: str = Header(...)) -> dict:
+    room = get_room(x_player_token)
     human_agent = get_human_agent(x_player_token)
 
     # Only alive impostors can vent
@@ -2321,7 +2366,11 @@ async def get_vent_options(x_player_token: str = Header(...)) -> dict:
     is_alive = getattr(human_agent.player, 'is_alive', True)
 
     if not is_impostor or not is_alive:
-        return {"can_vent": False, "options": []}
+        return {"can_vent": False, "options": [], "cooldown_seconds": 0}
+
+    cooldown_seconds = _action_cooldown_seconds_left(room, human_agent.player, "VENT")
+    if cooldown_seconds:
+        return {"can_vent": False, "options": [], "cooldown_seconds": cooldown_seconds}
 
     current_room = human_agent.player.location
 
@@ -2331,7 +2380,8 @@ async def get_vent_options(x_player_token: str = Header(...)) -> dict:
 
     return{
         "can_vent": len(vent_targets) > 0,
-        "options": vent_targets
+        "options": vent_targets,
+        "cooldown_seconds": 0,
     }
 
 @app.post("/api/vent")
@@ -2357,6 +2407,10 @@ async def perform_vent(request: Request, x_player_token: str = Header(...)):
             "timestep": gi.timestep,
             "is_alive": False
         }
+
+    cooldown_seconds = _action_cooldown_seconds_left(room, player, "VENT")
+    if cooldown_seconds:
+        raise HTTPException(status_code=400, detail=f"Vent is on cooldown for {cooldown_seconds}s.")
 
     await execute_realtime_task_action(
         room,

@@ -17,11 +17,14 @@ from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME  # noqa: E402
 from amongagents.envs.game import AmongUs  # noqa: E402
 from models import WebPlayerAgent  # noqa: E402
 from server import (  # noqa: E402
+    KILL_COOLDOWN_SECONDS,
     GameRoom,
+    _action_cooldown_seconds_left,
     _human_map_action_interval,
     _is_silence_message,
     _matching_current_task_action,
     _record_human_map_action,
+    _start_action_cooldown,
     add_kill_event,
     add_vent_event,
     build_realtime_game_config,
@@ -100,6 +103,22 @@ def test_ai_interval_tracks_human_action_intervals(monkeypatch):
 
     assert list(room.human_map_action_intervals) == [8.0, 12.0]
     assert _human_map_action_interval(room) == pytest.approx(10.0)
+
+
+def test_realtime_kill_cooldown_uses_elapsed_seconds(monkeypatch):
+    room = SimpleNamespace(kill_cooldown_deadlines={}, vent_cooldown_deadlines={})
+    player = SimpleNamespace(name="Player 4: lime", kill_cooldown=3)
+    monotonic_time = [100.0]
+    monkeypatch.setattr("server.time.monotonic", lambda: monotonic_time[0])
+
+    _start_action_cooldown(room, player, "KILL")
+    assert player.kill_cooldown == 0
+    assert _action_cooldown_seconds_left(room, player, "KILL") == KILL_COOLDOWN_SECONDS
+
+    monotonic_time[0] = 100.0 + KILL_COOLDOWN_SECONDS - 0.9
+    assert _action_cooldown_seconds_left(room, player, "KILL") == 1
+    monotonic_time[0] = 100.0 + KILL_COOLDOWN_SECONDS
+    assert _action_cooldown_seconds_left(room, player, "KILL") == 0
 
 
 def test_vent_event_identifies_the_venter_and_rooms():

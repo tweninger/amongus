@@ -15,6 +15,7 @@ const pendingRoomEntries = new Map();
 const pendingVentEntries = new Map();
 const processedVentEventIds = new Set();
 const processedKillEventIds = new Set();
+let killCooldownTooltipTimer = null;
 
 function getRoomViewProjection(roomView, roomName) {
     const bounds = roomViewBounds[roomName.toLowerCase()];
@@ -198,6 +199,32 @@ function syncMapActionHotspots(contextKey) {
     });
 
     lastMapActionContextKey = contextKey;
+}
+
+function syncKillCooldownTooltips(cooldownSeconds) {
+    if (killCooldownTooltipTimer !== null) {
+        window.clearInterval(killCooldownTooltipTimer);
+        killCooldownTooltipTimer = null;
+    }
+    if (!cooldownSeconds) {
+        return;
+    }
+
+    const deadline = Date.now() + (cooldownSeconds * 1000);
+    const refresh = () => {
+        const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        document.querySelectorAll('.room-kill-button:disabled').forEach((button) => {
+            button.title = secondsLeft ? `Kill available in ${secondsLeft}s` : 'Kill';
+        });
+        if (!secondsLeft) {
+            window.clearInterval(killCooldownTooltipTimer);
+            killCooldownTooltipTimer = null;
+            updateMapUI();
+        }
+    };
+
+    refresh();
+    killCooldownTooltipTimer = window.setInterval(refresh, 250);
 }
 
 function createMapArrow({ destination, point, currentRoom, variant = 'move', eventName }) {
@@ -956,13 +983,16 @@ async function updateMapUI() {
                 const placement = getRoomSpritePlacement(player, renderLoc, playerPlacementArea);
                 let actionConfig = null;
                 if (isHumanImpostor && player.is_alive && !isSelf) {
+                    const killCooldownSeconds = contextData.kill_cooldown_seconds || 0;
                     actionConfig = {
                         className: 'room-kill-button',
                         label: 'KILL',
                         eventName: 'amongus:kill-request',
                         detail: { targetColor: player.color },
                         disabled: contextData.can_kill === false,
-                        title: contextData.can_kill === false ? 'Kill is on cooldown.' : 'Kill',
+                        title: killCooldownSeconds > 0
+                            ? `Kill available in ${killCooldownSeconds}s`
+                            : 'Kill',
                     };
                 } else if (!player.is_alive && !player.reported_death && state.isAlive) {
                     actionConfig = {
@@ -994,6 +1024,7 @@ async function updateMapUI() {
         renderEmergencyHotspot(contextData, roomView, roomInteractionLayer);
         await renderVentArrows(contextData, roomView, roomInteractionLayer);
         syncMapActionHotspots(`${contextData.timestep}:${contextData.current_room}`);
+        syncKillCooldownTooltips(contextData.kill_cooldown_seconds || 0);
     }
     catch (error) {
         console.error("Failed to update Room UI:", error);
