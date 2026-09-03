@@ -151,6 +151,7 @@ class GameRoom:
         self.human_map_action_intervals: deque[float] = deque(maxlen=40)
         self.human_last_map_action_at: dict[str, float] = {}
         self.active_human_tasks: dict[str, dict] = {}
+        self.active_player_tasks: dict[str, dict] = {}
         self.voting_deadline_set: bool = False # Whether the voting deadline has been set in the current meeting
         self.meeting_discussion_deadline: float = 0.0
         self.meeting_voting_open: bool = False
@@ -169,6 +170,12 @@ class GameRoom:
         self.game_started_logged: bool = False
         self.game_events: list[dict] = []
         self.next_game_event_id: int = 1
+        # A short event history lets connected clients animate vents without
+        # exposing vent controls or destinations as ordinary player state.
+        self.vent_events: list[dict] = []
+        self.next_vent_event_id: int = 1
+        self.kill_events: list[dict] = []
+        self.next_kill_event_id: int = 1
 
 # All active rooms keyed by 4 letter code
 games: dict[str, GameRoom] = {}
@@ -250,6 +257,30 @@ def add_game_event(room: GameRoom, message: str, event_type: str = "info") -> No
     })
     room.next_game_event_id += 1
     room.game_events = room.game_events[-25:]
+
+
+def add_vent_event(room: GameRoom, player, source_room: str, destination_room: str) -> None:
+    """Publish a bounded, presentation-only record for a visible vent."""
+    room.vent_events.append({
+        "id": room.next_vent_event_id,
+        "player_color": str(player.name).split(":")[-1].strip().lower(),
+        "source_room": source_room.lower(),
+        "destination_room": destination_room.lower(),
+    })
+    room.next_vent_event_id += 1
+    room.vent_events = room.vent_events[-10:]
+
+
+def add_kill_event(room: GameRoom, killer, target, room_name: str) -> None:
+    """Publish a bounded, presentation-only record for a visible kill."""
+    room.kill_events.append({
+        "id": room.next_kill_event_id,
+        "killer_color": str(killer.name).split(":")[-1].strip().lower(),
+        "target_color": str(target.name).split(":")[-1].strip().lower(),
+        "room": room_name.lower(),
+    })
+    room.next_kill_event_id += 1
+    room.kill_events = room.kill_events[-10:]
 
 
 async def activate_room(room: GameRoom, reason: str) -> None:
@@ -518,6 +549,12 @@ def is_connected_player(player) -> bool:
     return getattr(player, "is_connected", True)
 
 
+def format_realtime_player_data(room: GameRoom, player) -> dict:
+    data = format_player_data(player)
+    data["is_tasking"] = player.name in room.active_player_tasks
+    return data
+
+
 def mark_active_player_disconnected(room: GameRoom, token: str):
     gi = room.game_instance
     if not gi:
@@ -562,7 +599,7 @@ async def broadcast_state(room: GameRoom):
     match_seconds_left = _match_seconds_left(room)
     winner = get_win_message(gi)
     players_data = [
-        format_player_data(agent.player)
+        format_realtime_player_data(room, agent.player)
         for agent in gi.agents
         if is_connected_player(agent.player)
     ]
@@ -601,6 +638,8 @@ async def broadcast_state(room: GameRoom):
         "match_seconds_left": match_seconds_left,
         "match_clock_paused": current_phase == "meeting",
         "game_events": room.game_events,
+        "vent_events": room.vent_events,
+        "kill_events": room.kill_events,
     }
 
     if payload["winner"] and not room.game_outcome_logged:
@@ -739,6 +778,7 @@ async def execute_realtime_task_action(
             action_type, details = human_submission
             if action_type != "COMPLETE_TASK":
                 room.active_human_tasks.pop(player.name, None)
+                room.active_player_tasks.pop(player.name, None)
             log_human_action(gi, player, action_type, details)
             if track_human_rate:
                 _record_human_map_action(room, player)
@@ -748,8 +788,14 @@ async def execute_realtime_task_action(
             for current_player in gi.players
             if is_connected_player(current_player)
         }
+        source_room = player.location
+        kill_target = action.other_player if getattr(action, "name", None) == "KILL" else None
         agent.queued_action = action
         await gi.agent_step(agent)
+        if getattr(action, "name", None) == "VENT":
+            add_vent_event(room, player, source_room, player.location)
+        if kill_target is not None:
+            add_kill_event(room, player, kill_target, source_room)
         gi.timestep += 1
         meeting_started = str(gi.current_phase).lower() == "meeting"
 
@@ -762,6 +808,7 @@ async def execute_realtime_task_action(
 async def run_realtime_ai_action(room: GameRoom, agent) -> None:
     gi = room.game_instance
     player = agent.player
+    task_activity_started = False
     try:
         if (
             room.game_finished
@@ -776,6 +823,12 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
         action = await asyncio.wait_for(agent.choose_action(gi.timestep), timeout=120.0)
         if action is not None:
             if getattr(action, "name", None) in {"COMPLETE TASK", "COMPLETE FAKE TASK"}:
+                room.active_player_tasks[player.name] = {
+                    "task_name": action.task.name,
+                    "location": player.location,
+                    "started_at": time.monotonic(),
+                }
+                task_activity_started = True
                 record_system_event(
                     gi,
                     "TASK_STARTED",
@@ -788,6 +841,7 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
                     actor=player,
                     action_name=action.name,
                 )
+                await broadcast_state(room)
                 print(
                     f"[AI map action] {player.name} is working on {action.task.name} "
                     f"for {TASK_DURATION_SECONDS}s",
@@ -800,6 +854,8 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
                     or not getattr(player, "is_alive", True)
                 ):
                     return
+                room.active_player_tasks.pop(player.name, None)
+                task_activity_started = False
             await execute_realtime_task_action(room, agent, action)
     except asyncio.CancelledError:
         raise
@@ -808,6 +864,8 @@ async def run_realtime_ai_action(room: GameRoom, agent) -> None:
     except Exception as error:
         print(f"[AI map action] failed for {player.name}: {error}", flush=True)
     finally:
+        if task_activity_started:
+            room.active_player_tasks.pop(player.name, None)
         room.realtime_ai_action_due[player.name] = (
             time.monotonic() + _human_map_action_interval(room) * random.uniform(0.8, 1.2)
         )
@@ -1599,7 +1657,7 @@ async def get_map_state(x_player_token: str = Header(...)):
     return {
         # name, color, location, is_alive, reported_death, identity
         "players": [
-            format_player_data(agent.player)
+            format_realtime_player_data(room, agent.player)
             for agent in gi.agents
             if is_connected_player(agent.player)
         ]
@@ -1789,6 +1847,11 @@ async def start_task(request: Request, x_player_token: str = Header(...)) -> dic
         "location": player.location,
         "started_at": time.monotonic(),
     }
+    room.active_player_tasks[player.name] = {
+        "task_name": task.name,
+        "location": player.location,
+        "started_at": time.monotonic(),
+    }
     _record_human_map_action(room, player)
     record_system_event(
         gi,
@@ -1798,6 +1861,7 @@ async def start_task(request: Request, x_player_token: str = Header(...)) -> dic
         actor=player,
         action_name="COMPLETE TASK",
     )
+    await broadcast_state(room)
     return {"status": "started", "task": task.name, "duration_seconds": TASK_DURATION_SECONDS}
 
 
@@ -1818,6 +1882,7 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
         raise HTTPException(status_code=400, detail="Start the task before completing it.")
     if active_task["location"] != player.location:
         room.active_human_tasks.pop(player.name, None)
+        room.active_player_tasks.pop(player.name, None)
         raise HTTPException(status_code=400, detail="You left the task before it was finished.")
     elapsed = time.monotonic() - active_task["started_at"]
     if elapsed < TASK_DURATION_SECONDS:
@@ -1828,9 +1893,11 @@ async def do_task(request: Request, x_player_token: str = Header(...))  -> dict:
 
     if not task_to_complete:
         room.active_human_tasks.pop(player.name, None)
+        room.active_player_tasks.pop(player.name, None)
         return {"status": "error", "message": "Error completing task", "observations": []}
 
     task_room = player.location
+    room.active_player_tasks.pop(player.name, None)
 
     await execute_realtime_task_action(
         room,
@@ -2018,6 +2085,7 @@ async def kill_player(request: Request, x_player_token: str = Header(...)) -> di
     return{
         "status": "success",
         "message": f"You killed {target_color.capitalize()}!",
+        "kill_event": room.kill_events[-1],
         "timestep": gi.timestep,
         "is_alive": is_alive,
         "observations": observations,

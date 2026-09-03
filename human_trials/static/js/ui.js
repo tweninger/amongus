@@ -9,6 +9,12 @@ const SKELD_MAP_HEIGHT = 560;
 let lastMapActionContextKey = null;
 const roomSpritePlacements = new Map();
 let roomSpritePlacementScope = null;
+let mapRenderRequestId = 0;
+const lastKnownPlayerLocations = new Map();
+const pendingRoomEntries = new Map();
+const pendingVentEntries = new Map();
+const processedVentEventIds = new Set();
+const processedKillEventIds = new Set();
 
 function getRoomViewProjection(roomView, roomName) {
     const bounds = roomViewBounds[roomName.toLowerCase()];
@@ -30,6 +36,8 @@ function setRoomViewBackground(roomView, roomName) {
     if (!roomView) {
         return null;
     }
+
+    roomView.dataset.room = roomName.toLowerCase();
 
     const projection = getRoomViewProjection(roomView, roomName);
     if (!projection) {
@@ -65,6 +73,13 @@ function projectMapPoint(roomName, point, roomView) {
 
 function edgeKey(roomA, roomB) {
     return [roomA, roomB].sort().join(' <-> ');
+}
+
+function getMovementEdgePoint(roomA, roomB) {
+    const normalizedKey = edgeKey(roomA, roomB).toLowerCase();
+    return Object.entries(movementEdgeCoordinates).find(
+        ([key]) => key.toLowerCase() === normalizedKey,
+    )?.[1];
 }
 
 function renderRoomTasks(contextData) {
@@ -214,7 +229,7 @@ function createMapArrow({ destination, point, currentRoom, variant = 'move', eve
         event.stopPropagation();
         commitMapActionSelection(button);
         document.dispatchEvent(new CustomEvent(eventName, {
-            detail: { destination },
+            detail: { destination, targetPoint: point },
         }));
     });
 
@@ -311,6 +326,7 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
     wrapper.style.top = `${placement?.y ?? 50}px`;
     wrapper.style.left = `${placement?.x ?? 50}px`;
     wrapper.style.transform = 'translate(-50%, -50%)';
+    wrapper.dataset.playerColor = player.color;
 
     const img = document.createElement('img');
     img.src = renderSrc;
@@ -327,6 +343,17 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
         const marker = document.createElement('span');
         marker.className = 'room-current-player-marker';
         marker.textContent = '(YOU)';
+        wrapper.appendChild(marker);
+    }
+
+    if (player.is_tasking && player.is_alive) {
+        const marker = document.createElement('span');
+        marker.className = 'room-tasking-marker';
+        marker.append('TASK');
+        const dots = document.createElement('span');
+        dots.className = 'room-tasking-dots';
+        dots.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+        marker.appendChild(dots);
         wrapper.appendChild(marker);
     }
 
@@ -351,6 +378,292 @@ function createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig = 
     }
 
     return wrapper;
+}
+
+function animateLocalPlayerMove(targetPoint) {
+    if (!targetPoint || state.localMovementAnimation) {
+        return Promise.resolve();
+    }
+
+    const playerLayer = document.getElementById('room-player-layer');
+    const wrapper = [...(playerLayer?.querySelectorAll('.room-player-sprite-wrap') || [])]
+        .find((element) => element.dataset.playerColor === state.myColor);
+    if (!wrapper) {
+        return Promise.resolve();
+    }
+
+    state.localMovementAnimation = { wrapper, targetPoint };
+    wrapper.classList.add('room-player-moving');
+
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                wrapper.style.left = `${targetPoint.x}px`;
+                wrapper.style.top = `${targetPoint.y}px`;
+            });
+        });
+        window.setTimeout(resolve, 580);
+    });
+}
+
+function finishLocalPlayerMove() {
+    state.localMovementAnimation?.wrapper?.classList.remove('room-player-moving');
+    state.localMovementAnimation = null;
+}
+
+function getVisiblePlayerDepartures(players, currentRoom, roomView) {
+    const departures = [];
+    const playerLayer = document.getElementById('room-player-layer');
+    if (!playerLayer) {
+        return departures;
+    }
+
+    players.forEach((player) => {
+        const nextRoom = player.location?.toLowerCase();
+        const wrapper = [...playerLayer.querySelectorAll('.room-player-sprite-wrap')]
+            .find((element) => element.dataset.playerColor === player.color);
+        if (
+            player.color.toLowerCase() === (state.myColor || '').toLowerCase()
+            || !player.is_alive
+            || !nextRoom
+            || nextRoom === currentRoom
+            || !wrapper
+            || wrapper.dataset.room !== currentRoom
+        ) {
+            return;
+        }
+
+        const doorway = getMovementEdgePoint(currentRoom, nextRoom);
+        const targetPoint = doorway && projectMapPoint(currentRoom, doorway, roomView);
+        if (wrapper && targetPoint) {
+            departures.push({ wrapper, targetPoint });
+        }
+    });
+
+    return departures;
+}
+
+function collectRoomEntries(players, currentRoom, roomView) {
+    players.forEach((player) => {
+        const previousRoom = lastKnownPlayerLocations.get(player.color);
+        const nextRoom = player.location?.toLowerCase();
+        if (
+            !player.is_alive
+            || !previousRoom
+            || previousRoom === nextRoom
+            || nextRoom !== currentRoom
+        ) {
+            return;
+        }
+
+        const doorway = getMovementEdgePoint(currentRoom, previousRoom);
+        const entryPoint = doorway && projectMapPoint(currentRoom, doorway, roomView);
+        if (entryPoint) {
+            pendingRoomEntries.set(player.color, entryPoint);
+        }
+    });
+}
+
+function rememberPlayerLocations(players) {
+    players.forEach((player) => {
+        if (player.is_connected !== false && player.location) {
+            lastKnownPlayerLocations.set(player.color, player.location.toLowerCase());
+        }
+    });
+}
+
+function animateRoomPlayerEntry(wrapper, entryPoint, placement) {
+    if (!entryPoint || !placement) {
+        return;
+    }
+
+    wrapper.style.left = `${entryPoint.x}px`;
+    wrapper.style.top = `${entryPoint.y}px`;
+    wrapper.classList.add('room-player-moving');
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            wrapper.style.left = `${placement.x}px`;
+            wrapper.style.top = `${placement.y}px`;
+        });
+    });
+    window.setTimeout(() => wrapper.classList.remove('room-player-moving'), 580);
+}
+
+function animateVisiblePlayerDepartures(departures) {
+    if (departures.length === 0) {
+        return;
+    }
+
+    state.roomDepartureAnimation = departures;
+    departures.forEach(({ wrapper }) => wrapper.classList.add('room-player-moving'));
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            departures.forEach(({ wrapper, targetPoint }) => {
+                wrapper.style.left = `${targetPoint.x}px`;
+                wrapper.style.top = `${targetPoint.y}px`;
+            });
+        });
+    });
+
+    window.setTimeout(() => {
+        departures.forEach(({ wrapper }) => wrapper.remove());
+        state.roomDepartureAnimation = null;
+        updateMapUI();
+    }, 580);
+}
+
+function getVentPoint(roomName, roomView) {
+    const mapPoint = ventCoordinates[roomName?.toLowerCase()]?.[0];
+    return mapPoint && projectMapPoint(roomName, mapPoint, roomView);
+}
+
+function revealVent(roomView, roomName) {
+    const interactionLayer = document.getElementById('room-interaction-layer');
+    const point = getVentPoint(roomName, roomView);
+    if (!interactionLayer || !point) {
+        return null;
+    }
+
+    const flare = document.createElement('div');
+    flare.className = 'vent-reveal-animation';
+    flare.textContent = 'VENT';
+    flare.style.left = `${point.x}px`;
+    flare.style.top = `${point.y}px`;
+    interactionLayer.appendChild(flare);
+    return { flare, point };
+}
+
+function playVentEvents(events) {
+    if (!Array.isArray(events) || state.ventAnimation) {
+        return;
+    }
+
+    const roomView = document.getElementById('room-view');
+    const displayedRoom = roomView?.dataset.room;
+    if (!roomView || !displayedRoom) {
+        return;
+    }
+
+    for (const event of events) {
+        if (!event || processedVentEventIds.has(event.id)) {
+            continue;
+        }
+
+        const sourceRoom = event.source_room?.toLowerCase();
+        const destinationRoom = event.destination_room?.toLowerCase();
+        if (displayedRoom !== sourceRoom && displayedRoom !== destinationRoom) {
+            processedVentEventIds.add(event.id);
+            continue;
+        }
+
+        processedVentEventIds.add(event.id);
+        const visibleRoom = displayedRoom === sourceRoom ? sourceRoom : destinationRoom;
+        const reveal = revealVent(roomView, visibleRoom);
+        if (!reveal) {
+            return;
+        }
+
+        state.ventAnimation = event.id;
+        const playerLayer = document.getElementById('room-player-layer');
+        const venter = [...(playerLayer?.querySelectorAll('.room-player-sprite-wrap') || [])]
+            .find((sprite) => sprite.dataset.playerColor === event.player_color);
+
+        if (displayedRoom === sourceRoom && venter) {
+            venter.classList.add('room-player-moving');
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    venter.style.left = `${reveal.point.x}px`;
+                    venter.style.top = `${reveal.point.y}px`;
+                });
+            });
+        }
+        if (displayedRoom === destinationRoom) {
+            pendingVentEntries.set(event.player_color, reveal.point);
+        }
+
+        window.setTimeout(() => {
+            reveal.flare.remove();
+            if (displayedRoom === sourceRoom) {
+                venter?.remove();
+            }
+            state.ventAnimation = null;
+            updateMapUI();
+        }, 700);
+        return;
+    }
+}
+
+function playKillEvents(events) {
+    if (!Array.isArray(events) || state.killAnimation) {
+        return;
+    }
+
+    const roomView = document.getElementById('room-view');
+    const displayedRoom = roomView?.dataset.room;
+    if (!roomView || !displayedRoom) {
+        return;
+    }
+
+    for (const event of events) {
+        if (!event || processedKillEventIds.has(event.id)) {
+            continue;
+        }
+        if (event.room?.toLowerCase() !== displayedRoom) {
+            processedKillEventIds.add(event.id);
+            continue;
+        }
+
+        const playerLayer = document.getElementById('room-player-layer');
+        const interactionLayer = document.getElementById('room-interaction-layer');
+        const killer = [...(playerLayer?.querySelectorAll('.room-player-sprite-wrap') || [])]
+            .find((sprite) => sprite.dataset.playerColor === event.killer_color);
+        const target = [...(playerLayer?.querySelectorAll('.room-player-sprite-wrap') || [])]
+            .find((sprite) => sprite.dataset.playerColor === event.target_color);
+        if (!killer || !target || !interactionLayer) {
+            return;
+        }
+
+        processedKillEventIds.add(event.id);
+        state.killAnimation = event.id;
+        const targetPoint = {
+            x: Number.parseFloat(target.style.left),
+            y: Number.parseFloat(target.style.top),
+        };
+        const settlePoint = {
+            x: Math.min((roomView.clientWidth || targetPoint.x) - 38, targetPoint.x + 38),
+            y: Math.min((roomView.clientHeight || targetPoint.y) - 38, targetPoint.y + 8),
+        };
+        killer.classList.add('room-player-moving');
+        target.classList.add('room-player-killed');
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                killer.style.left = `${targetPoint.x}px`;
+                killer.style.top = `${targetPoint.y}px`;
+            });
+        });
+
+        window.setTimeout(() => {
+            const impact = document.createElement('div');
+            impact.className = 'kill-impact-animation';
+            impact.style.left = `${targetPoint.x}px`;
+            impact.style.top = `${targetPoint.y}px`;
+            interactionLayer.appendChild(impact);
+
+            window.setTimeout(() => {
+                killer.style.left = `${settlePoint.x}px`;
+                killer.style.top = `${settlePoint.y}px`;
+            }, 100);
+
+            window.setTimeout(() => {
+                impact.remove();
+                target.remove();
+                roomSpritePlacements.set(`${event.killer_color}:${displayedRoom}`, settlePoint);
+                state.killAnimation = null;
+                updateMapUI();
+            }, 360);
+        }, 520);
+        return;
+    }
 }
 
 function renderMovementArrows(contextData, roomView, interactionLayer) {
@@ -500,13 +813,14 @@ function updateTaskProgressBar(progress_dec) {
 
 // Adds player sprites to room with jitter for visual indicator of who is present
 async function updateMapUI() {
+    const requestId = ++mapRenderRequestId;
     try {
         const response = await apiFetch('/api/player-states');
         const data = await response.json();
         const roomContextResponse = await apiFetch('/api/room-context');
         const contextData = await roomContextResponse.json();
 
-        if (data.error){
+        if (requestId !== mapRenderRequestId || data.error){
             return;
         }
 
@@ -514,6 +828,21 @@ async function updateMapUI() {
         const roomPlayerLayer = document.getElementById('room-player-layer');
         const roomInteractionLayer = document.getElementById('room-interaction-layer');
         const skeldLayer = document.getElementById('skeld-player-layer');
+        const currentRoomStr = contextData.current_room.toLowerCase();
+
+        // Let the local player finish walking to the chosen doorway before any
+        // incoming state update rebuilds the room scene.
+        if (state.localMovementAnimation || state.roomDepartureAnimation || state.ventAnimation || state.killAnimation) {
+            return;
+        }
+
+        const departures = getVisiblePlayerDepartures(data.players, currentRoomStr, roomView);
+        collectRoomEntries(data.players, currentRoomStr, roomView);
+        rememberPlayerLocations(data.players);
+        if (departures.length > 0) {
+            animateVisiblePlayerDepartures(departures);
+            return;
+        }
 
         if (roomView){
             setRoomViewBackground(roomView, contextData.current_room);
@@ -531,7 +860,6 @@ async function updateMapUI() {
 
         renderRoomTasks(contextData);
 
-        const currentRoomStr = contextData.current_room.toLowerCase();
         const myColor = (state.myColor || '').toLowerCase();
         const isHumanImpostor = state.myRole && state.myRole.toLowerCase() === 'impostor' && state.isAlive;
 
@@ -644,9 +972,21 @@ async function updateMapUI() {
                         allowWhilePending: true,
                     };
                 }
-                roomPlayerLayer.appendChild(
-                    createRoomPlayerSprite(player, renderSrc, renderFilter, actionConfig, placement, isSelf),
+                const roomSprite = createRoomPlayerSprite(
+                    player, renderSrc, renderFilter, actionConfig, placement, isSelf,
                 );
+                roomSprite.dataset.room = renderLoc;
+                roomPlayerLayer.appendChild(roomSprite);
+                const ventEntryPoint = pendingVentEntries.get(player.color);
+                const entryPoint = pendingRoomEntries.get(player.color);
+                if (ventEntryPoint) {
+                    pendingVentEntries.delete(player.color);
+                    pendingRoomEntries.delete(player.color);
+                    animateRoomPlayerEntry(roomSprite, ventEntryPoint, placement);
+                } else if (entryPoint) {
+                    pendingRoomEntries.delete(player.color);
+                    animateRoomPlayerEntry(roomSprite, entryPoint, placement);
+                }
             }
         });
 
@@ -660,4 +1000,13 @@ async function updateMapUI() {
     }
 }
 
-export { showRoleReveal, showKilledModal, updateTaskProgressBar, updateMapUI };
+export {
+    animateLocalPlayerMove,
+    finishLocalPlayerMove,
+    playKillEvents,
+    playVentEvents,
+    showRoleReveal,
+    showKilledModal,
+    updateTaskProgressBar,
+    updateMapUI,
+};

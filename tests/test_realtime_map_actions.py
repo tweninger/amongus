@@ -22,6 +22,8 @@ from server import (  # noqa: E402
     _is_silence_message,
     _matching_current_task_action,
     _record_human_map_action,
+    add_kill_event,
+    add_vent_event,
     build_realtime_game_config,
     execute_realtime_task_action,
     pause_match_clock,
@@ -98,6 +100,35 @@ def test_ai_interval_tracks_human_action_intervals(monkeypatch):
 
     assert list(room.human_map_action_intervals) == [8.0, 12.0]
     assert _human_map_action_interval(room) == pytest.approx(10.0)
+
+
+def test_vent_event_identifies_the_venter_and_rooms():
+    room = SimpleNamespace(vent_events=[], next_vent_event_id=1)
+    player = SimpleNamespace(name="Player 4: lime")
+
+    add_vent_event(room, player, "Security", "Electrical")
+
+    assert room.vent_events == [{
+        "id": 1,
+        "player_color": "lime",
+        "source_room": "security",
+        "destination_room": "electrical",
+    }]
+
+
+def test_kill_event_identifies_the_killer_target_and_room():
+    room = SimpleNamespace(kill_events=[], next_kill_event_id=1)
+    killer = SimpleNamespace(name="Player 4: lime")
+    target = SimpleNamespace(name="Player 1: black")
+
+    add_kill_event(room, killer, target, "Cafeteria")
+
+    assert room.kill_events == [{
+        "id": 1,
+        "killer_color": "lime",
+        "target_color": "black",
+        "room": "cafeteria",
+    }]
 
 
 def test_match_clock_preserves_remaining_time_during_meeting(monkeypatch):

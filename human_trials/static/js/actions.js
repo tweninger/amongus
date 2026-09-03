@@ -3,7 +3,7 @@
 // Each action function follows a similar pattern of locking actions, sending request to server, handling pending states, logging results, refreshing UI, and unlocking actions.
 import { state } from './state.js';
 import { apiFetch, lockActions, unlockActions, addLogMessage, formatColorName } from './helpers.js';
-import { updateMapUI } from './ui.js';
+import { animateLocalPlayerMove, finishLocalPlayerMove, playKillEvents, updateMapUI } from './ui.js';
 
 const MOVE_COOLDOWN_MS = 5_000;
 
@@ -24,7 +24,7 @@ document.addEventListener('amongus:move-request', (event) => {
     if (!destination) {
         return;
     }
-    performMove(destination);
+    performMove(destination, event.detail?.targetPoint);
 });
 
 document.addEventListener('amongus:vent-request', (event) => {
@@ -180,7 +180,7 @@ async function refreshRoomContext() {
 // 3) If the action succeeds, log it and refresh the immediate game state.
 // 4) Unlock once the request completes so the player can keep acting.
 
-async function performMove(destination) {
+async function performMove(destination, targetPoint = null) {
     const source = document.getElementById('location-display')?.innerText || 'Unknown';
     let moved = false;
     if (!lockActions()){
@@ -188,6 +188,7 @@ async function performMove(destination) {
     }
     document.getElementById('waiting-indicator')?.classList.remove('d-none');
     try {
+        await animateLocalPlayerMove(targetPoint);
         const response = await apiFetch('/api/move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -196,6 +197,7 @@ async function performMove(destination) {
         
         if (response.ok) {
             const data = await response.json();
+            finishLocalPlayerMove();
             clearActiveTask();
             startMoveCooldown();
             moved = true;
@@ -221,12 +223,16 @@ async function performMove(destination) {
             await updateMapUI();
         }
         else {
+            finishLocalPlayerMove();
             const data = await response.json().catch(() => ({}));
             addLogMessage(data.detail || 'Move was not available.', 'warning');
+            await updateMapUI();
         }
     }
     catch (e) {
+        finishLocalPlayerMove();
         console.error('performMove error:', e);
+        await updateMapUI();
     }
     finally {
         unlockActions();
@@ -255,6 +261,7 @@ async function performVent(destination) {
             document.getElementById('waiting-indicator')?.classList.add('d-none');
             state.lastTimestep = data.timestep;
             addLogMessage(data.message, 'danger');
+            playKillEvents(data.kill_event ? [data.kill_event] : []);
             if (data.observations && data.observations.length > 0){
                 data.observations.forEach(observation => {
                     addLogMessage(observation, 'warning');

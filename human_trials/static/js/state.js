@@ -18,6 +18,10 @@ export const state = {
     actionLocked: false, // Global Lock for human actions
     moveCooldownUntil: 0,
     moveCooldownTimer: null,
+    localMovementAnimation: null,
+    roomDepartureAnimation: null,
+    ventAnimation: null,
+    killAnimation: null,
     activeTask: null, // { name, location, deadline, completing } while a timed task is running
     taskCountdownTimer: null,
     lastTimestep: 0, // Most recent action sequence number received from the server

@@ -2,7 +2,7 @@
 import { state } from './state.js';
 import { apiFetch, addLogMessage } from './helpers.js';
 import { hideMeetingVoteModals, showEjectionBanner, renderMeetingChat, updateMeetingUI } from './meeting.js';
-import { showKilledModal, updateTaskProgressBar, updateMapUI } from './ui.js';
+import { playKillEvents, playVentEvents, showKilledModal, updateTaskProgressBar, updateMapUI } from './ui.js';
 import { refreshRoomContext } from './actions.js';
 
 // --- WEBSOCKET ---
@@ -252,7 +252,7 @@ function renderGameEvents(data) {
 
 async function refreshImmediatePlayerState(data) {
     const signature = (data.players || [])
-        .map((player) => `${player.color}:${player.is_alive}:${player.body_location || ''}:${player.reported_death}`)
+        .map((player) => `${player.color}:${player.is_alive}:${player.body_location || ''}:${player.reported_death}:${player.is_tasking}`)
         .sort()
         .join('|');
     const changed = signature !== _lastPlayerStateSignature;
@@ -316,6 +316,8 @@ async function handlePhaseUpdate(data) {
 async function handleWsStateUpdate(data) {
     if (!state.gameStarted) return;
     if (handleGameOver(data)) return;
+    playKillEvents(data.kill_events);
+    playVentEvents(data.vent_events);
     updateHUD(data);
     updateMatchClock(data);
     renderGameEvents(data);
