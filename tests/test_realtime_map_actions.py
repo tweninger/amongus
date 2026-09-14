@@ -25,6 +25,7 @@ from server import (  # noqa: E402
     _human_map_action_interval,
     _is_silence_message,
     _matching_current_task_action,
+    _queue_completed_meeting_votes,
     _record_human_map_action,
     _route_task_started_observation,
     _start_action_cooldown,
@@ -35,6 +36,31 @@ from server import (  # noqa: E402
     pause_match_clock,
     resume_match_clock,
 )
+
+
+def test_meeting_holds_ai_ballot_until_human_influence_is_complete():
+    ai = SimpleNamespace(
+        player=SimpleNamespace(name="Lime", location="Cafeteria", is_alive=True),
+        queued_action=None,
+    )
+    human = SimpleNamespace(
+        player=SimpleNamespace(name="Black", location="Cafeteria", is_alive=True),
+        queued_action=None,
+    )
+    room = SimpleNamespace(
+        game_instance=SimpleNamespace(agents=[ai, human], players=[ai.player, human.player]),
+        pending_final_votes={"Lime": "Black", "Black": "none"},
+        vote_influences={"Lime": ["No one"]},
+    )
+
+    assert not _queue_completed_meeting_votes(room)
+    assert ai.queued_action is None
+    assert human.queued_action is None
+
+    room.vote_influences["Black"] = ["Lime"]
+    assert _queue_completed_meeting_votes(room)
+    assert ai.queued_action.other_player is human.player
+    assert human.queued_action.other_player is None
 
 
 def test_realtime_game_config_uses_high_action_safety_limit():

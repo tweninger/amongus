@@ -1049,6 +1049,23 @@ def _meeting_voters(gi):
     ]
 
 
+def _queue_completed_meeting_votes(room):
+    voters = _meeting_voters(room.game_instance)
+    if any(
+        agent.player.name not in room.pending_final_votes
+        or agent.player.name not in room.vote_influences
+        for agent in voters
+    ):
+        return False
+    for agent in voters:
+        target = _find_vote_target(
+            room.game_instance, room.pending_final_votes[agent.player.name],
+            allow_self=False, actor=agent.player,
+        )
+        agent.queued_action = Vote(current_location=agent.player.location, other_player=target)
+    return True
+
+
 def _find_vote_target(gi, choice, *, allow_self=True, actor=None):
     if not isinstance(choice, str):
         return None
@@ -1160,7 +1177,7 @@ async def prepare_llm_final_vote(room: GameRoom, agent) -> None:
         )
         choice = "unknown"
     target = _find_vote_target(gi, choice, allow_self=False, actor=player)
-    agent.queued_action = Vote(current_location=player.location, other_player=target)
+    room.pending_final_votes[player.name] = target.name if target else "none"
     record_system_event(
         gi,
         "AI_FINAL_VOTE_SELECTED",
@@ -1345,6 +1362,7 @@ async def run_meeting_step(room: GameRoom) -> None:
                         and agent.queued_action is None
                         and getattr(agent.player, "is_alive", True)
                         and is_connected_player(agent.player)
+                        and agent.player.name not in room.pending_final_votes
                     ):
                         selected_choice = room.pending_final_votes.get(agent.player.name, "none")
                         selected_target = _find_vote_target(
@@ -1355,7 +1373,6 @@ async def run_meeting_step(room: GameRoom) -> None:
                         )
                         room.pending_final_votes[agent.player.name] = selected_target.name if selected_target else "none"
                         room.vote_influences[agent.player.name] = ["No one"]
-                        agent.queued_action = Vote(current_location=agent.player.location, other_player=selected_target)
                         if selected_choice == "none":
                             log_human_action(gi, agent.player, "TIMEOUT_VOTE", {"target": "none"})
                         record_system_event(
@@ -1431,13 +1448,12 @@ async def run_meeting_step(room: GameRoom) -> None:
             gi.external_discussion_complete = True
             await broadcast_state(room)
 
-            # The final vote is not complete until every participant has also
-            # recorded its influence attribution (or the vote window expires).
-            # Only then let the engine tally and potentially end the game.
+            # Keep every ballot private until all active voters finish attribution.
+            # The deadline defaults missing ballots, but does not interrupt attribution.
             while (
                 not room.game_finished
                 and str(gi.current_phase).lower() == "meeting"
-                and not all(agent.player.name in room.vote_influences for agent in _meeting_voters(gi))
+                and not _queue_completed_meeting_votes(room)
             ):
                 await asyncio.sleep(0.25)
 
@@ -2359,9 +2375,7 @@ async def submit_vote_influence(request: Request, x_player_token: str = Header(.
         if not influences:
             influences = ["No one"]
 
-    selected_target = _find_vote_target(gi, room.pending_final_votes[player.name], allow_self=False, actor=player)
     room.vote_influences[player.name] = influences
-    human_agent.queued_action = Vote(current_location=player.location, other_player=selected_target)
     record_system_event(
         gi,
         "VOTE_INFLUENCE",

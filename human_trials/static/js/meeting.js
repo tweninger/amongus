@@ -248,6 +248,7 @@ function renderInfluence(data) {
     const options = document.getElementById('vote-influence-options');
     const submit = document.getElementById('submit-vote-influence');
     if (!options || !submit) return;
+    submit.disabled = false;
     options.innerHTML = '';
     (data.players || []).filter((player) => player.is_alive).forEach((player) => {
         const label = document.createElement('label');
