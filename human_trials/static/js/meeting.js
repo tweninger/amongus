@@ -381,10 +381,14 @@ function updateMeetingUI(data) {
         if (chatInputGroup) chatInputGroup.style.display = 'none';
         if (turnPrompt) {
             turnPrompt.style.display = 'block';
-            turnPrompt.innerText = data.pre_vote_open
-                ? (data.is_alive ? 'Enter your private pre-vote.' : 'You are a ghost and cannot vote.')
-                : (data.final_vote_preparing ? 'Final votes are being prepared...' : 'Waiting for the vote.');
-            turnPrompt.className = 'text-secondary fw-bold small text-center mb-1';
+            turnPrompt.innerText = !data.is_alive
+                ? ('You are dead and are now a ghost, so you cannot send chat messages or vote. '
+                    + (String(state.myRole).toLowerCase() === 'impostor'
+                        ? 'Please stay and watch the rest of the game.'
+                        : 'Please stay! When the meeting ends, keep completing tasks to help your crew win.'))
+                : (data.pre_vote_open ? 'Enter your private pre-vote.'
+                    : (data.final_vote_preparing ? 'Final votes are being prepared...' : 'Waiting for the vote.'));
+            turnPrompt.className = `${data.is_alive ? 'text-secondary' : 'text-warning'} fw-bold small text-center mb-1`;
         }
     }
     state.lastDiscussionTurnSeq = data.discussion_turn_seq;
