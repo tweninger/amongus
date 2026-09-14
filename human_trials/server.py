@@ -1,5 +1,6 @@
 # server.py
 import asyncio
+import json
 import math
 import os
 import random
@@ -1084,9 +1085,25 @@ def _find_vote_target(gi, choice, *, allow_self=True, actor=None):
 
 
 def _parse_llm_choice(response, candidates):
-    text = str(response).lower()
+    text = str(response).strip()
+    try:
+        parsed = json.loads(text)
+    except (ValueError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        thinking = parsed.get("Thinking Process", {})
+        text = thinking.get("action", "") if isinstance(thinking, dict) else ""
+        text = text or parsed.get("Action", parsed.get("action", ""))
+    if not isinstance(text, str):
+        return "unknown"
+    # Only the explicit ballot counts; names in reasoning are not selections.
+    markers = re.findall(
+        r"(?:PRIVATE PRE-DISCUSSION VOTE|FINAL VOTE|VOTE)\s*:\s*([^\r\n]+)",
+        text, flags=re.IGNORECASE,
+    )
+    choice = (markers[-1] if markers else text).strip().strip('"\'').casefold()
     for candidate in candidates:
-        if candidate.lower() in text:
+        if choice in {candidate.casefold(), candidate.split()[-1].casefold()}:
             return candidate
     return "unknown"
 

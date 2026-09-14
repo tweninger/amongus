@@ -25,6 +25,7 @@ from server import (  # noqa: E402
     _human_map_action_interval,
     _is_silence_message,
     _matching_current_task_action,
+    _parse_llm_choice,
     _queue_completed_meeting_votes,
     _record_human_map_action,
     _route_task_started_observation,
@@ -61,6 +62,19 @@ def test_meeting_holds_ai_ballot_until_human_influence_is_complete():
     assert _queue_completed_meeting_votes(room)
     assert ai.queued_action.other_player is human.player
     assert human.queued_action.other_player is None
+
+
+@pytest.mark.parametrize("response, expected", [
+    ('{"Condensed Memory": "White reported Lime", "Thinking Process": '
+     '{"action": "FINAL VOTE: Lime"}}', "Lime"),
+    ('{"Condensed Memory": "Lime killed Purple. White reported."}', "unknown"),
+    ('{"Thinking Process": {"action": "PRIVATE PRE-DISCUSSION VOTE: Lime"}}', "Lime"),
+    ("FINAL VOTE: cyan", "Player 5: cyan"),
+    ("FINAL VOTE: Skip vote", "Skip vote"),
+    ("White reported Lime", "unknown"),
+])
+def test_private_ballots_use_explicit_choice_not_names_in_reasoning(response, expected):
+    assert _parse_llm_choice(response, ["White", "Lime", "Player 5: cyan", "Skip vote"]) == expected
 
 
 def test_realtime_game_config_uses_high_action_safety_limit():
