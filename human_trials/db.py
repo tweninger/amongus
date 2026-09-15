@@ -19,9 +19,10 @@ def _db_file():
     return _experiment_path() / "game_data.db"
 
 
-def completed_matchmaking_counts(start_at: str) -> dict[int, int]:
+def completed_matchmaking_counts(start_at: str, db_path: Path | None = None) -> dict[int, int]:
     """Count original five-player rosters with a recorded winner since start_at."""
-    with sqlite3.connect(_db_file()) as conn:
+    database = (db_path if db_path is not None else _db_file()).resolve()
+    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as conn:
         rows = conn.execute("""
             SELECT humans, COUNT(*) FROM (
                 SELECT g.game_id,

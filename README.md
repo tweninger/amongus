@@ -81,3 +81,12 @@ existing roster may start anyway. Concurrent games can slightly exceed targets.
 
 Once all five targets are met, normal matchmaking resumes automatically. Set the
 target to 0 to disable quotas. Other game sizes are unaffected.
+
+Check current quotas from the command line using the same `.env` settings:
+
+```bash
+venv/bin/python scripts/show_quotas.py
+```
+
+To inspect a saved database instead, add `--db first100.db`. The report only
+reads the database and does not start the server or change any records.
