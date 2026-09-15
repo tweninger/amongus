@@ -12,12 +12,13 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import uvicorn
 from amongagents.envs.action import CallMeeting, CompleteTask, Kill, MoveTo, Speak, Vent, Vote
 from amongagents.envs.configs.map_config import room_data
 from amongagents.envs.game import AmongUs
-from db import init_db
+from db import completed_matchmaking_counts, init_db
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,6 +53,11 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 # can be distinguished even when game_index resets to 0 after a restart.
 os.environ['SESSION_ID'] = time.strftime("%Y%m%d_%H%M%S")
 LOBBY_COUNTDOWN_SECONDS = int(os.getenv("LOBBY_COUNTDOWN_SECONDS", "60"))
+MATCHMAKING_QUOTA_PER_CONFIGURATION = int(os.getenv("MATCHMAKING_QUOTA_PER_CONFIGURATION", "100"))
+MATCHMAKING_QUOTA_START_DATE = os.getenv("MATCHMAKING_QUOTA_START_DATE", "2026-09-07")
+MATCHMAKING_QUOTA_START_AT = datetime.fromisoformat(MATCHMAKING_QUOTA_START_DATE).replace(
+    tzinfo=ZoneInfo("America/New_York")
+).isoformat()
 LOBBY_HUMAN_PRIORITY_FRACTION = 0.75
 LOBBY_AI_FILL_COMPLETE_FRACTION = 0.90
 PARTICIPATION_COMPLETION_URL = os.getenv("PARTICIPATION_COMPLETION_URL", "").strip()
@@ -245,6 +251,22 @@ def get_open_slots(room: GameRoom) -> list[int]:
     return [i for i in range(room.total_slots) if i not in taken]
 
 
+def eligible_human_counts(total_slots: int) -> set[int]:
+    if total_slots != 5 or MATCHMAKING_QUOTA_PER_CONFIGURATION <= 0:
+        return set(range(1, total_slots + 1))
+    counts = completed_matchmaking_counts(MATCHMAKING_QUOTA_START_AT)
+    needed = {humans for humans, count in counts.items() if count < MATCHMAKING_QUOTA_PER_CONFIGURATION}
+    return needed or set(range(1, 6))
+
+
+def lobby_can_fill_with_ai(room: GameRoom) -> bool:
+    eligible = eligible_human_counts(room.total_slots)
+    humans = len(room.sessions)
+    # A quota may fill while this roster is waiting. Allow that small overshoot
+    # if no larger eligible roster can accommodate its existing participants.
+    return humans in eligible or humans > max(eligible)
+
+
 def get_filled_slot_count(room: GameRoom) -> int:
     return len(room.sessions) + len(room.ai_filled_slots)
 
@@ -313,6 +335,8 @@ async def activate_room(room: GameRoom, reason: str) -> None:
             room.code or "unknown",
             {
                 "lobby_countdown_seconds": LOBBY_COUNTDOWN_SECONDS,
+                "matchmaking_quota_per_configuration": MATCHMAKING_QUOTA_PER_CONFIGURATION,
+                "matchmaking_quota_start_date": MATCHMAKING_QUOTA_START_DATE,
                 "task_play_mode": "realtime",
                 "ai_initial_action_interval_seconds": AI_INITIAL_ACTION_INTERVAL_SECONDS,
                 "ai_min_action_interval_seconds": AI_MIN_ACTION_INTERVAL_SECONDS,
@@ -367,6 +391,12 @@ async def run_lobby_countdown(room: GameRoom) -> None:
             await asyncio.sleep(delay)
 
         while room.status == "open":
+            if not lobby_can_fill_with_ai(room):
+                room.ai_filled_slots.clear()
+                room.lobby_deadline = time.time() + 5
+                await broadcast_lobby(room)
+                await asyncio.sleep(1)
+                continue
             open_slots = get_open_slots(room)
             if not open_slots:
                 await activate_room(room, "Lobby filled. Starting game.")
@@ -385,6 +415,9 @@ async def run_lobby_countdown(room: GameRoom) -> None:
 
             if room.status != "open":
                 return
+
+            if not lobby_can_fill_with_ai(room):
+                continue
 
             open_slots = get_open_slots(room)
             if not open_slots:
@@ -447,6 +480,8 @@ def get_human_agent(token: str) -> WebPlayerAgent | None:
 # Take the next agent slot not yet claimed by a human player
 # An index i
 def get_next_open_slot(room: GameRoom) -> int | None:
+    if len(room.sessions) >= max(eligible_human_counts(room.total_slots)):
+        return None
     taken = set(room.sessions.values()) | room.ai_filled_slots
     for i, agent in enumerate(room.game_instance.agents):
         if i not in taken and not isinstance(agent, WebPlayerAgent):

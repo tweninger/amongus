@@ -56,3 +56,28 @@ amongus_server.main:app
 ```
 
 See `DEPLOYMENT.md` for the dsg7 Apache/systemd shape.
+
+## Matchmaking Quotas
+
+Five-player matchmaking targets 100 completed games of each composition, from
+one human/four AI through five humans/no AI. Configure these settings in `.env`
+and restart the server:
+
+```dotenv
+MATCHMAKING_QUOTA_PER_CONFIGURATION=100
+MATCHMAKING_QUOTA_START_DATE=2026-09-07
+```
+
+The cutoff includes midnight on that date in America/New_York. Counts use the
+original roster and a recorded Crewmates or Impostors winner in the live
+`EXPERIMENT_PATH/game_data.db` (default: `human_trials/logs/game_data.db`).
+Database snapshots elsewhere in the repository are not included automatically.
+
+Lobbies admit up to the largest human count still needed. Further arrivals enter
+another lobby. The usual countdown fills AI seats only for an eligible human
+count; otherwise the lobby waits for more humans. If a quota fills while a lobby
+is waiting and no larger eligible composition can accommodate its players, that
+existing roster may start anyway. Concurrent games can slightly exceed targets.
+
+Once all five targets are met, normal matchmaking resumes automatically. Set the
+target to 0 to disable quotas. Other game sizes are unaffected.

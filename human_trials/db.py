@@ -18,6 +18,25 @@ def _db_file():
     # Resolves to logs/game_data.db alongside the existing JSON log files
     return _experiment_path() / "game_data.db"
 
+
+def completed_matchmaking_counts(start_at: str) -> dict[int, int]:
+    """Count original five-player rosters with a recorded winner since start_at."""
+    with sqlite3.connect(_db_file()) as conn:
+        rows = conn.execute("""
+            SELECT humans, COUNT(*) FROM (
+                SELECT g.game_id,
+                       SUM(p.participant_type = 'human') AS humans
+                FROM games g JOIN game_players p ON p.game_id = g.game_id
+                WHERE julianday(g.started_at) >= julianday(?)
+                  AND g.winner IN ('Crewmates', 'Impostors')
+                GROUP BY g.game_id
+                HAVING COUNT(*) = 5
+                   AND SUM(p.participant_type IN ('human', 'ai')) = 5
+            ) WHERE humans BETWEEN 1 AND 5
+            GROUP BY humans
+        """, (start_at,)).fetchall()
+    return {human_count: dict(rows).get(human_count, 0) for human_count in range(1, 6)}
+
 def init_db():
     # Version 2 intentionally replaces the earlier three-table event dump.
     # JSON runtime logs are retained separately, but this SQLite file becomes the
