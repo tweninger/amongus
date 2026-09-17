@@ -132,6 +132,7 @@ class GameRoom:
         self.game_id: str | None = None
         self.code: str | None = None
         self.status = "open" # "open" = joinable, "active" = game running
+        self.quota_human_target: int | None = None
         self.size_config = size_config
         self.total_slots = total_slots # max num players
         self.host_token = host_token # Only the host can start the game
@@ -220,7 +221,9 @@ def generate_room_code():
     return ''.join(random.choices(string.ascii_uppercase, k=4))
 
 
-def get_lobby_seconds_left(room: GameRoom) -> int:
+def get_lobby_seconds_left(room: GameRoom) -> int | None:
+    if room.status == "open" and room.quota_human_target is not None:
+        return None
     if room.status != "open" or room.lobby_deadline <= 0:
         return 0
     return max(0, int(room.lobby_deadline - time.time()))
@@ -236,8 +239,12 @@ def start_lobby_countdown_if_ready(room: GameRoom) -> None:
         and room.lobby_deadline <= 0
         and all_human_participants_consented(room)
     ):
-        room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
-        room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
+        if room.quota_human_target is not None:
+            if room.lobby_fill_task is None:
+                room.lobby_fill_task = asyncio.create_task(wait_for_quota_roster(room))
+        else:
+            room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
+            room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
 
 
 def consume_consent_token(token: object) -> None:
@@ -260,16 +267,9 @@ def eligible_human_counts(total_slots: int) -> set[int]:
     return needed or set(range(1, 6))
 
 
-def lobby_can_fill_with_ai(room: GameRoom) -> bool:
-    eligible = eligible_human_counts(room.total_slots)
-    humans = len(room.sessions)
-    # A quota may fill while this roster is waiting. Allow that small overshoot
-    # if no larger eligible roster can accommodate its existing participants.
-    return humans in eligible or humans > max(eligible)
-
-
 def fill_required_quota_ai(room: GameRoom) -> None:
-    required = room.total_slots - max(eligible_human_counts(room.total_slots))
+    target = getattr(room, "quota_human_target", None)
+    required = room.total_slots - (target if target is not None else max(eligible_human_counts(room.total_slots)))
     missing = max(0, required - len(room.ai_filled_slots))
     slots = get_open_slots(room)
     room.ai_filled_slots.update(random.sample(slots, min(missing, len(slots))))
@@ -388,6 +388,14 @@ async def run_match_countdown(room: GameRoom) -> None:
         return
 
 
+async def wait_for_quota_roster(room: GameRoom) -> None:
+    while room.status == "open":
+        if is_room_full(room):
+            await activate_room(room, "Quota roster filled. Starting game.")
+            return
+        await asyncio.sleep(0.5)
+
+
 async def run_lobby_countdown(room: GameRoom) -> None:
     fill_phase_start = room.lobby_deadline - (LOBBY_COUNTDOWN_SECONDS * (1.0 - LOBBY_HUMAN_PRIORITY_FRACTION))
     fill_phase_end = room.lobby_deadline - (LOBBY_COUNTDOWN_SECONDS * (1.0 - LOBBY_AI_FILL_COMPLETE_FRACTION))
@@ -399,14 +407,6 @@ async def run_lobby_countdown(room: GameRoom) -> None:
             await asyncio.sleep(delay)
 
         while room.status == "open":
-            if not lobby_can_fill_with_ai(room):
-                required = room.total_slots - max(eligible_human_counts(room.total_slots))
-                room.ai_filled_slots.intersection_update(sorted(room.ai_filled_slots)[:required])
-                fill_required_quota_ai(room)
-                room.lobby_deadline = time.time() + 5
-                await broadcast_lobby(room)
-                await asyncio.sleep(1)
-                continue
             open_slots = get_open_slots(room)
             if not open_slots:
                 await activate_room(room, "Lobby filled. Starting game.")
@@ -426,8 +426,6 @@ async def run_lobby_countdown(room: GameRoom) -> None:
             if room.status != "open":
                 return
 
-            if not lobby_can_fill_with_ai(room):
-                continue
 
             open_slots = get_open_slots(room)
             if not open_slots:
@@ -490,7 +488,7 @@ def get_human_agent(token: str) -> WebPlayerAgent | None:
 # Take the next agent slot not yet claimed by a human player
 # An index i
 def get_next_open_slot(room: GameRoom) -> int | None:
-    if len(room.sessions) >= max(eligible_human_counts(room.total_slots)):
+    if len(room.sessions) >= (getattr(room, "quota_human_target", None) or room.total_slots):
         return None
     taken = set(room.sessions.values()) | room.ai_filled_slots
     for i, agent in enumerate(room.game_instance.agents):
@@ -1685,7 +1683,12 @@ def create_room(selected_config, consent_token: object) -> tuple[str, GameRoom]:
     room.sessions[host_token] = 0
     room.consented_tokens.add(host_token)
     room.consented_at_by_slot[0] = datetime.now(timezone.utc).isoformat()
-    fill_required_quota_ai(room)
+    if total_slots == 5 and MATCHMAKING_QUOTA_PER_CONFIGURATION > 0:
+        counts = completed_matchmaking_counts(MATCHMAKING_QUOTA_START_AT)
+        needed = [humans for humans, count in counts.items() if count < MATCHMAKING_QUOTA_PER_CONFIGURATION]
+        room.quota_human_target = max(needed) if needed else None
+    if room.quota_human_target is not None:
+        fill_required_quota_ai(room)
     games[code] = room
     token_to_room[host_token] = code
     start_lobby_countdown_if_ready(room)

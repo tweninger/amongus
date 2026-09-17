@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 import sys
 from pathlib import Path
@@ -45,16 +46,14 @@ def test_quota_admission_and_ai_fill(monkeypatch):
     monkeypatch.setattr(server, "MATCHMAKING_QUOTA_PER_CONFIGURATION", 100)
     counts = {1: 100, 2: 100, 3: 99, 4: 99, 5: 100}
     monkeypatch.setattr(server, "completed_matchmaking_counts", lambda _: counts)
-    room = SimpleNamespace(total_slots=5, sessions={"a": 0, "b": 1}, ai_filled_slots=set(),
+    room = SimpleNamespace(total_slots=5, quota_human_target=4, sessions={"a": 0, "b": 1}, ai_filled_slots=set(),
                            game_instance=SimpleNamespace(agents=[object() for _ in range(5)]))
-    assert not server.lobby_can_fill_with_ai(room)
     assert server.get_next_open_slot(room) == 2
     room.sessions["c"] = 2
-    assert server.lobby_can_fill_with_ai(room)
     room.sessions["d"] = 3
     assert server.get_next_open_slot(room) is None
     counts[4] = 100
-    assert server.lobby_can_fill_with_ai(room)  # Existing roster may slightly overshoot.
+    assert room.quota_human_target == 4  # Existing roster stays fixed as quotas change.
 
 
 def test_quota_disabled_and_other_room_sizes(monkeypatch):
@@ -74,3 +73,26 @@ def test_required_ai_are_visible_immediately_and_preserved(monkeypatch, largest_
     original_slots = room.ai_filled_slots.copy()
     server.fill_required_quota_ai(room)
     assert room.ai_filled_slots == original_slots
+
+
+def test_quota_lobby_does_not_start_ai_countdown(monkeypatch):
+    async def check():
+        room = SimpleNamespace(status="open", quota_human_target=3, lobby_deadline=0,
+                               lobby_fill_task=None, sessions={"host": 0},
+                               consented_tokens={"host"})
+        called = []
+
+        async def wait_for_roster(candidate):
+            called.append(candidate)
+
+        async def unexpected_countdown(candidate):
+            raise AssertionError("Quota lobby must not use timed AI filling")
+
+        monkeypatch.setattr(server, "wait_for_quota_roster", wait_for_roster)
+        monkeypatch.setattr(server, "run_lobby_countdown", unexpected_countdown)
+        server.start_lobby_countdown_if_ready(room)
+        await room.lobby_fill_task
+        assert called == [room]
+        assert room.lobby_deadline == 0
+
+    asyncio.run(check())
