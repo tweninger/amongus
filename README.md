@@ -76,10 +76,11 @@ Database snapshots elsewhere in the repository are not included automatically.
 Lobbies immediately fill the AI seats required by the largest human count still
 needed. For example, once five-human games reach quota, a new lobby starts with
 one human and one AI, leaving three seats for humans. Further arrivals beyond
-the human limit enter another lobby. That composition stays fixed: the lobby
-waits for its required humans and never adds extra AI on a timer. Existing
-lobbies keep their chosen composition even if the quota fills elsewhere.
-Concurrent games can slightly exceed targets.
+the human limit enter another lobby. The normal visible countdown still runs:
+as it runs down, additional AI fill seats left empty by humans. The initial
+human target is a ceiling, not a requirement to wait indefinitely. This fallback
+can start a smaller-human configuration even if that configuration already met
+its quota; keeping games moving takes priority. Concurrent games can also exceed targets.
 
 Once all five targets are met, new lobbies use normal countdown-based matchmaking. Set the
 target to 0 to disable quotas. Other game sizes are unaffected.

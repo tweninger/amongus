@@ -221,9 +221,7 @@ def generate_room_code():
     return ''.join(random.choices(string.ascii_uppercase, k=4))
 
 
-def get_lobby_seconds_left(room: GameRoom) -> int | None:
-    if room.status == "open" and room.quota_human_target is not None:
-        return None
+def get_lobby_seconds_left(room: GameRoom) -> int:
     if room.status != "open" or room.lobby_deadline <= 0:
         return 0
     return max(0, int(room.lobby_deadline - time.time()))
@@ -239,12 +237,8 @@ def start_lobby_countdown_if_ready(room: GameRoom) -> None:
         and room.lobby_deadline <= 0
         and all_human_participants_consented(room)
     ):
-        if room.quota_human_target is not None:
-            if room.lobby_fill_task is None:
-                room.lobby_fill_task = asyncio.create_task(wait_for_quota_roster(room))
-        else:
-            room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
-            room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
+        room.lobby_deadline = time.time() + LOBBY_COUNTDOWN_SECONDS
+        room.lobby_fill_task = asyncio.create_task(run_lobby_countdown(room))
 
 
 def consume_consent_token(token: object) -> None:
@@ -386,14 +380,6 @@ async def run_match_countdown(room: GameRoom) -> None:
             return
     except asyncio.CancelledError:
         return
-
-
-async def wait_for_quota_roster(room: GameRoom) -> None:
-    while room.status == "open":
-        if is_room_full(room):
-            await activate_room(room, "Quota roster filled. Starting game.")
-            return
-        await asyncio.sleep(0.5)
 
 
 async def run_lobby_countdown(room: GameRoom) -> None:

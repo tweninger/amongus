@@ -75,24 +75,22 @@ def test_required_ai_are_visible_immediately_and_preserved(monkeypatch, largest_
     assert room.ai_filled_slots == original_slots
 
 
-def test_quota_lobby_does_not_start_ai_countdown(monkeypatch):
+def test_quota_lobby_still_starts_visible_ai_countdown(monkeypatch):
     async def check():
         room = SimpleNamespace(status="open", quota_human_target=3, lobby_deadline=0,
                                lobby_fill_task=None, sessions={"host": 0},
                                consented_tokens={"host"})
         called = []
 
-        async def wait_for_roster(candidate):
+        async def countdown(candidate):
             called.append(candidate)
 
-        async def unexpected_countdown(candidate):
-            raise AssertionError("Quota lobby must not use timed AI filling")
-
-        monkeypatch.setattr(server, "wait_for_quota_roster", wait_for_roster)
-        monkeypatch.setattr(server, "run_lobby_countdown", unexpected_countdown)
+        monkeypatch.setattr(server.time, "time", lambda: 100)
+        monkeypatch.setattr(server, "run_lobby_countdown", countdown)
         server.start_lobby_countdown_if_ready(room)
         await room.lobby_fill_task
         assert called == [room]
-        assert room.lobby_deadline == 0
+        assert room.lobby_deadline == 100 + server.LOBBY_COUNTDOWN_SECONDS
+        assert server.get_lobby_seconds_left(room) == server.LOBBY_COUNTDOWN_SECONDS
 
     asyncio.run(check())
