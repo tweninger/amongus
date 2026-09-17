@@ -73,8 +73,10 @@ original roster and a recorded Crewmates or Impostors winner in the live
 `EXPERIMENT_PATH/game_data.db` (default: `human_trials/logs/game_data.db`).
 Database snapshots elsewhere in the repository are not included automatically.
 
-Lobbies admit up to the largest human count still needed. Further arrivals enter
-another lobby. The usual countdown fills AI seats only for an eligible human
+Lobbies immediately fill the AI seats required by the largest human count still
+needed. For example, once five-human games reach quota, a new lobby starts with
+one human and one AI, leaving three seats for humans. Further arrivals beyond
+the human limit enter another lobby. The usual countdown fills additional AI seats only for an eligible human
 count; otherwise the lobby waits for more humans. If a quota fills while a lobby
 is waiting and no larger eligible composition can accommodate its players, that
 existing roster may start anyway. Concurrent games can slightly exceed targets.

@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "human_trials"))
 
 import server  # noqa: E402
@@ -59,3 +61,16 @@ def test_quota_disabled_and_other_room_sizes(monkeypatch):
     monkeypatch.setattr(server, "MATCHMAKING_QUOTA_PER_CONFIGURATION", 0)
     assert server.eligible_human_counts(5) == {1, 2, 3, 4, 5}
     assert server.eligible_human_counts(3) == {1, 2, 3}
+
+
+@pytest.mark.parametrize("largest_needed", [1, 2, 3, 4, 5])
+def test_required_ai_are_visible_immediately_and_preserved(monkeypatch, largest_needed):
+    monkeypatch.setattr(server, "eligible_human_counts", lambda _: set(range(1, largest_needed + 1)))
+    room = SimpleNamespace(total_slots=5, sessions={"host": 0}, ai_filled_slots=set())
+    server.fill_required_quota_ai(room)
+    assert len(room.ai_filled_slots) == 5 - largest_needed
+    assert 0 not in room.ai_filled_slots
+    assert len(server.get_open_slots(room)) == largest_needed - 1
+    original_slots = room.ai_filled_slots.copy()
+    server.fill_required_quota_ai(room)
+    assert room.ai_filled_slots == original_slots

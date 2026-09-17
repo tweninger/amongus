@@ -34,6 +34,7 @@ from server import (  # noqa: E402
     add_vent_event,
     build_realtime_game_config,
     execute_realtime_task_action,
+    expire_vote_influences,
     pause_match_clock,
     resume_match_clock,
 )
@@ -62,6 +63,28 @@ def test_meeting_holds_ai_ballot_until_human_influence_is_complete():
     assert _queue_completed_meeting_votes(room)
     assert ai.queued_action.other_player is human.player
     assert human.queued_action.other_player is None
+
+
+def test_influence_timeout_preserves_ballot_and_records_once(monkeypatch):
+    import server
+
+    player = SimpleNamespace(name="Black", is_alive=True)
+    room = SimpleNamespace(
+        game_instance=SimpleNamespace(agents=[SimpleNamespace(player=player)]),
+        pending_final_votes={"Black": "Lime"}, vote_influences={},
+        vote_influence_deadlines={"Black": 120},
+    )
+    records = []
+    monkeypatch.setattr(server, "record_system_event", lambda *args, **kwargs: records.append(args[2]))
+    monkeypatch.setattr(server.time, "time", lambda: 119)
+    expire_vote_influences(room)
+    assert room.vote_influences == {}
+    monkeypatch.setattr(server.time, "time", lambda: 120)
+    expire_vote_influences(room)
+    expire_vote_influences(room)
+    assert room.pending_final_votes == {"Black": "Lime"}
+    assert room.vote_influences == {"Black": ["No one"]}
+    assert records == [{"influences": ["No one"], "private": True, "timed_out": True}]
 
 
 @pytest.mark.parametrize("response, expected", [

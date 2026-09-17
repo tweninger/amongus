@@ -172,6 +172,7 @@ class GameRoom:
         self.pre_votes: dict[str, str] = {}
         self.pending_final_votes: dict[str, str] = {}
         self.vote_influences: dict[str, list[str]] = {}
+        self.vote_influence_deadlines: dict[str, float] = {}
         self.meeting_thinking_players: set[str] = set()
         self.meeting_llm_tasks: set[asyncio.Task] = set()
         self.meeting_last_message_at: float = 0.0
@@ -265,6 +266,13 @@ def lobby_can_fill_with_ai(room: GameRoom) -> bool:
     # A quota may fill while this roster is waiting. Allow that small overshoot
     # if no larger eligible roster can accommodate its existing participants.
     return humans in eligible or humans > max(eligible)
+
+
+def fill_required_quota_ai(room: GameRoom) -> None:
+    required = room.total_slots - max(eligible_human_counts(room.total_slots))
+    missing = max(0, required - len(room.ai_filled_slots))
+    slots = get_open_slots(room)
+    room.ai_filled_slots.update(random.sample(slots, min(missing, len(slots))))
 
 
 def get_filled_slot_count(room: GameRoom) -> int:
@@ -392,7 +400,9 @@ async def run_lobby_countdown(room: GameRoom) -> None:
 
         while room.status == "open":
             if not lobby_can_fill_with_ai(room):
-                room.ai_filled_slots.clear()
+                required = room.total_slots - max(eligible_human_counts(room.total_slots))
+                room.ai_filled_slots.intersection_update(sorted(room.ai_filled_slots)[:required])
+                fill_required_quota_ai(room)
                 room.lobby_deadline = time.time() + 5
                 await broadcast_lobby(room)
                 await asyncio.sleep(1)
@@ -539,6 +549,7 @@ def _update_meeting_tracking(room: GameRoom, gi, current_phase: str) -> None:
         room.pre_votes.clear()
         room.pending_final_votes.clear()
         room.vote_influences.clear()
+        room.vote_influence_deadlines.clear()
         if room.task_timeout_task and not room.task_timeout_task.done():
             room.task_timeout_task.cancel()
             room.task_timeout_task = None
@@ -712,6 +723,7 @@ async def broadcast_state(room: GameRoom):
                 "pre_votes_remaining": max(0, len(_meeting_voters(gi)) - len(room.pre_votes)),
                 "final_vote_selected": player_name in room.pending_final_votes,
                 "vote_influence_submitted": player_name in room.vote_influences,
+                "vote_influence_seconds_left": max(0, math.ceil(room.vote_influence_deadlines.get(player_name, 0) - time.time())),
             })
         except Exception:
             # Mark for removal if send fails (client disconnected)
@@ -1085,6 +1097,20 @@ def _meeting_voters(gi):
     ]
 
 
+def expire_vote_influences(room):
+    for agent in _meeting_voters(room.game_instance):
+        player = agent.player
+        deadline = room.vote_influence_deadlines.get(player.name)
+        if deadline is None or time.time() < deadline or player.name in room.vote_influences:
+            continue
+        room.vote_influences[player.name] = ["No one"]
+        record_system_event(
+            room.game_instance, "VOTE_INFLUENCE",
+            {"influences": ["No one"], "private": True, "timed_out": True},
+            status="private", actor=player, action_name="VOTE_INFLUENCE",
+        )
+
+
 def _queue_completed_meeting_votes(room):
     voters = _meeting_voters(room.game_instance)
     if any(
@@ -1241,11 +1267,12 @@ async def prepare_llm_final_vote(room: GameRoom, agent) -> None:
     )
     influence_options = [candidate.player.name for candidate in _meeting_voters(gi)] + ["No one"]
     influence_started_at = time.perf_counter()
+    influence_timed_out = False
     print(f"[AI vote influence] request started for {player.name} (meeting {gi.meeting_number})", flush=True)
     try:
         influence_response = await asyncio.wait_for(
             agent.choose_private_influences(gi.timestep, influence_options),
-            timeout=120.0,
+            timeout=MEETING_VOTING_SECONDS,
         )
         response_text = str(influence_response).lower()
         influences = [
@@ -1274,13 +1301,14 @@ async def prepare_llm_final_vote(room: GameRoom, agent) -> None:
             flush=True,
         )
         influences = ["No one"]
+        influence_timed_out = isinstance(error, asyncio.TimeoutError)
     finally:
         room.meeting_thinking_players.discard(player.name)
     room.vote_influences[player.name] = influences
     record_system_event(
         gi,
         "VOTE_INFLUENCE",
-        {"influences": influences, "private": True},
+        {"influences": influences, "private": True, "timed_out": influence_timed_out},
         status="private",
         actor=player,
         action_name="VOTE_INFLUENCE",
@@ -1339,6 +1367,7 @@ async def run_meeting_step(room: GameRoom) -> None:
     room.pre_votes.clear()
     room.pending_final_votes.clear()
     room.vote_influences.clear()
+    room.vote_influence_deadlines.clear()
     gi.external_discussion_complete = False
     room.meeting_discussion_deadline = 0
     # The private pre-vote uses the same bounded response window as the final vote.
@@ -1436,6 +1465,8 @@ async def run_meeting_step(room: GameRoom) -> None:
                             action_name="VOTE_INFLUENCE",
                         )
                 room.turn_deadline = 0
+            if room.meeting_voting_open:
+                expire_vote_influences(room)
             await broadcast_state(room)
             await asyncio.sleep(1.0)
 
@@ -1501,7 +1532,7 @@ async def run_meeting_step(room: GameRoom) -> None:
             await broadcast_state(room)
 
             # Keep every ballot private until all active voters finish attribution.
-            # The deadline defaults missing ballots, but does not interrupt attribution.
+            # Attribution has its own deadline starting when each ballot is selected.
             while (
                 not room.game_finished
                 and str(gi.current_phase).lower() == "meeting"
@@ -1654,6 +1685,7 @@ def create_room(selected_config, consent_token: object) -> tuple[str, GameRoom]:
     room.sessions[host_token] = 0
     room.consented_tokens.add(host_token)
     room.consented_at_by_slot[0] = datetime.now(timezone.utc).isoformat()
+    fill_required_quota_ai(room)
     games[code] = room
     token_to_room[host_token] = code
     start_lobby_countdown_if_ready(room)
@@ -2382,6 +2414,7 @@ async def handle_vote(request: Request, x_player_token: str = Header(...)) -> di
             raise HTTPException(status_code=400, detail="Choose a living ship-mate or skip the vote.")
 
     room.pending_final_votes[player.name] = target_player.name if target_player else "none"
+    room.vote_influence_deadlines[player.name] = time.time() + MEETING_VOTING_SECONDS
     log_human_action(gi, player, "VOTE", {"target": target_color})
     record_system_event(
         gi,
@@ -2411,6 +2444,9 @@ async def submit_vote_influence(request: Request, x_player_token: str = Header(.
         raise HTTPException(status_code=400, detail="Your vote influence response has already been recorded.")
 
     submitted = (await request.json()).get("influences", [])
+    expire_vote_influences(room)
+    if player.name in room.vote_influences:
+        raise HTTPException(status_code=400, detail="Your influence response window has ended.")
     if not isinstance(submitted, list):
         raise HTTPException(status_code=400, detail="Influences must be a list.")
     no_one = any(str(value).strip().lower() == "no one" for value in submitted)

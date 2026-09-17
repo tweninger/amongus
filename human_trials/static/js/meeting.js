@@ -277,6 +277,8 @@ function renderInfluence(data) {
 }
 
 function renderFinalVote(data) {
+    const influenceTimer = document.getElementById('vote-influence-timer');
+    if (influenceTimer) influenceTimer.textContent = `${data.vote_influence_seconds_left ?? 0}s`;
     const timer = document.getElementById('final-vote-timer');
     if (timer) timer.textContent = `${data.turn_seconds_left ?? 0}s`;
     if (!data.can_vote || !data.is_alive) {
